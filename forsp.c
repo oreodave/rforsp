@@ -264,7 +264,7 @@ void skip_white_and_comments(void)
   if (is_white(c))
   {
     advance();
-    return skip_white_and_comments(); // tail-call loop
+    skip_white_and_comments(); // tail-call loop
   }
 
   // skip comment
@@ -280,7 +280,7 @@ void skip_white_and_comments(void)
       if (c == '\n')
         break;
     }
-    return skip_white_and_comments(); // tail-call loop
+    skip_white_and_comments(); // tail-call loop
   }
 }
 
@@ -452,12 +452,17 @@ void print_recurse(obj_t *obj)
   {
     printf("CLOSURE<");
     print_recurse(obj->clos.body);
-    printf(", %p>", obj->clos.env);
+    printf(", %p>", (void *)obj->clos.env);
   }
   break;
   case TAG_PRIM:
   {
-    printf("PRIM<%p>", obj->prim.func);
+    union
+    {
+      void (*funcptr)(obj_t **);
+      void *ptr;
+    } u = {obj->prim.func};
+    printf("PRIM<%p>", u.ptr);
   }
   break;
   }
@@ -578,24 +583,24 @@ void eval(obj_t *expr, obj_t **env)
     obj_t *val = env_find(*env, expr);
     if (IS_CLOS(val))
     { // closure
-      return compute(val->clos.body, val->clos.env);
+      compute(val->clos.body, val->clos.env);
     }
     else if (IS_PRIM(val))
     { // primitive
-      return val->prim.func(env);
+      val->prim.func(env);
     }
     else
     {
-      return push(val);
+      push(val);
     }
   }
   else if (IS_NIL(expr) || IS_PAIR(expr))
   {
-    return push(make_clos(expr, *env));
+    push(make_clos(expr, *env));
   }
   else
   {
-    return push(expr);
+    push(expr);
   }
 }
 
@@ -617,10 +622,12 @@ void prim_pop(obj_t **env)
 }
 void prim_eq(obj_t **_)
 {
+  (void)_;
   push(obj_equal(pop(), pop()) ? state->atom_true : state->nil);
 }
 void prim_cons(obj_t **_)
 {
+  (void)_;
   obj_t *a, *b;
   a = pop();
   b = pop();
@@ -628,14 +635,17 @@ void prim_cons(obj_t **_)
 }
 void prim_car(obj_t **_)
 {
+  (void)_;
   push(car(pop()));
 }
 void prim_cdr(obj_t **_)
 {
+  (void)_;
   push(cdr(pop()));
 }
 void prim_cswap(obj_t **_)
 {
+  (void)_;
   if (pop() == state->atom_true)
   {
     obj_t *a, *b;
@@ -647,20 +657,24 @@ void prim_cswap(obj_t **_)
 }
 void prim_tag(obj_t **_)
 {
+  (void)_;
   push(make_num(pop()->tag));
 }
 void prim_read(obj_t **_)
 {
+  (void)_;
   push(read());
 }
 void prim_print(obj_t **_)
 {
+  (void)_;
   print(pop());
 }
 
 /* Extra primitives */
 void prim_stack(obj_t **_)
 {
+  (void)_;
   push(state->stack);
 }
 void prim_env(obj_t **env)
@@ -669,6 +683,7 @@ void prim_env(obj_t **env)
 }
 void prim_sub(obj_t **_)
 {
+  (void)_;
   obj_t *a, *b;
   b = pop();
   a = pop();
@@ -676,6 +691,7 @@ void prim_sub(obj_t **_)
 }
 void prim_mul(obj_t **_)
 {
+  (void)_;
   obj_t *a, *b;
   b = pop();
   a = pop();
@@ -683,6 +699,7 @@ void prim_mul(obj_t **_)
 }
 void prim_nand(obj_t **_)
 {
+  (void)_;
   obj_t *a, *b;
   b = pop();
   a = pop();
@@ -690,6 +707,7 @@ void prim_nand(obj_t **_)
 }
 void prim_lsh(obj_t **_)
 {
+  (void)_;
   obj_t *a, *b;
   b = pop();
   a = pop();
@@ -697,6 +715,7 @@ void prim_lsh(obj_t **_)
 }
 void prim_rsh(obj_t **_)
 {
+  (void)_;
   obj_t *a, *b;
   b = pop();
   a = pop();
@@ -707,14 +726,17 @@ void prim_rsh(obj_t **_)
 /* Low-level primitives */
 void prim_ptr_state(obj_t **_)
 {
+  (void)_;
   push(make_num((int64_t)state));
 }
 void prim_ptr_read(obj_t **_)
 {
+  (void)_;
   push(make_num(*(int64_t *)obj_i64(pop())));
 }
 void prim_ptr_write(obj_t **_)
 {
+  (void)_;
   obj_t *a, *b;
   b                      = pop();
   a                      = pop();
@@ -722,10 +744,12 @@ void prim_ptr_write(obj_t **_)
 }
 void prim_ptr_to_obj(obj_t **_)
 {
+  (void)_;
   push((obj_t *)obj_i64(pop()));
 }
 void prim_ptr_from_obj(obj_t **_)
 {
+  (void)_;
   push(make_num((int64_t)pop()));
 }
 #endif

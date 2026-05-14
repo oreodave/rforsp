@@ -46,50 +46,60 @@
 #define DEBUG        0
 #define USE_LOWLEVEL 1
 
+/************************
+ * Numeric type aliases
+ ************************/
+
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+
+typedef int8_t i8;
+typedef int16_t i16;
+typedef int32_t i32;
+typedef int64_t i64;
+
 /*******************************************************************
  * Object
  ******************************************************************/
 
-#define TAG_NIL  0
-#define TAG_ATOM 1
-#define TAG_NUM  2
-#define TAG_PAIR 3
-#define TAG_CLOS 4
-#define TAG_PRIM 5
+typedef enum Tag
+{
+  TAG_NIL  = 0,
+  TAG_ATOM = 1,
+  TAG_NUM  = 2,
+  TAG_PAIR = 3,
+  TAG_CLOS = 4,
+  TAG_PRIM = 5,
+} tag_t;
 
-#define IS_NIL(obj)  ((obj)->tag == TAG_NIL)
-#define IS_ATOM(obj) ((obj)->tag == TAG_ATOM)
-#define IS_NUM(obj)  ((obj)->tag == TAG_NUM)
-#define IS_PAIR(obj) ((obj)->tag == TAG_PAIR)
-#define IS_CLOS(obj) ((obj)->tag == TAG_CLOS)
-#define IS_PRIM(obj) ((obj)->tag == TAG_PRIM)
+typedef struct obj obj_t;
+
+#define TAG(X, TYPE) ((obj_t *)(((u64)(X) << 8) | TAG_##TYPE))
+#define UNTAG(X)     ((u64)(X) >> 8)
+#define GET_TAG(X)   ((u64)(X) & 0xFF)
+
+#define IS_NIL(obj)  (GET_TAG(obj) == TAG_NIL)
+#define IS_ATOM(obj) (GET_TAG(obj) == TAG_ATOM)
+#define IS_NUM(obj)  (GET_TAG(obj) == TAG_NUM)
+#define IS_PAIR(obj) (GET_TAG(obj) == TAG_PAIR)
+#define IS_CLOS(obj) (GET_TAG(obj) == TAG_CLOS)
+#define IS_PRIM(obj) (GET_TAG(obj) == TAG_PRIM)
+
+typedef struct pair
+{
+  obj_t *car, *cdr;
+} pair_t;
+
+typedef struct clos
+{
+  obj_t *body, *env;
+} clos_t;
+
+typedef void(prim_t)(obj_t **);
 
 // Common object structure
-typedef struct obj obj_t;
-struct obj
-{
-  uint64_t tag;
-  union
-  {
-    const char *atom;
-    int64_t num;
-    struct
-    {
-      obj_t *car;
-      obj_t *cdr;
-    } pair;
-    struct
-    {
-      obj_t *body;
-      obj_t *env;
-    } clos;
-    struct
-    {
-      void (*func)(obj_t **env);
-    } prim;
-  };
-};
-
 #define FLAG_PUSH 128
 #define FLAG_POP  129
 
@@ -101,7 +111,6 @@ struct state
   size_t input_len; // input data length used by read()
   size_t input_pos; // input data position used by read()
 
-  obj_t *nil;        // nil: ()
   obj_t *read_stack; // defered obj to emit from read
 
   obj_t *interned_atoms; // interned atoms list
@@ -115,76 +124,102 @@ struct state
 };
 state_t state[1];
 
-obj_t *alloc(void)
-{
-  return (obj_t *)malloc(sizeof(obj_t));
-}
-
-obj_t *make_nil(void)
-{
-  obj_t *obj = alloc();
-  obj->tag   = TAG_NIL;
-  return obj;
-}
-
 obj_t *make_atom(const char *str, size_t len)
 {
   char *atom_str = malloc(len + 1);
   memcpy(atom_str, str, len);
   atom_str[len] = '\0';
 
-  obj_t *atom = alloc();
-  atom->tag   = TAG_ATOM;
-  atom->atom  = atom_str;
-
-  return atom;
+  return TAG(atom_str, ATOM);
 }
 
 obj_t *make_num(int64_t num)
 {
-  obj_t *obj = alloc();
-  obj->tag   = TAG_NUM;
-  obj->num   = num;
-  return obj;
+  assert(num == ((num << 8) >> 8));
+  return TAG(num, NUM);
 }
 
 obj_t *make_pair(obj_t *car, obj_t *cdr)
 {
-  obj_t *obj    = alloc();
-  obj->tag      = TAG_PAIR;
-  obj->pair.car = car;
-  obj->pair.cdr = cdr;
-  return obj;
+  // TODO: Add this to some kind of GC
+  pair_t *pair = malloc(sizeof(*pair));
+  *pair        = (typeof(*pair)){car, cdr};
+  return TAG(pair, PAIR);
 }
 
 obj_t *make_clos(obj_t *body, obj_t *env)
 {
-  obj_t *obj     = alloc();
-  obj->tag       = TAG_CLOS;
-  obj->clos.body = body;
-  obj->clos.env  = env;
-  return obj;
+  // TODO: Add this to some kind of GC
+  clos_t *clos = malloc(sizeof(*clos));
+  *clos        = (typeof(*clos)){body, env};
+  return TAG(clos, CLOS);
 }
 
-obj_t *make_prim(void (*func)(obj_t **))
+obj_t *make_prim(prim_t *func)
 {
-  obj_t *obj     = alloc();
-  obj->tag       = TAG_PRIM;
-  obj->prim.func = func;
-  return obj;
+  return TAG(func, PRIM);
+}
+
+char *as_atom(obj_t *obj)
+{
+  if (!IS_ATOM(obj))
+    return NULL;
+  return (char *)UNTAG(obj);
+}
+
+i64 as_num(obj_t *obj)
+{
+  // NOTE: This is bad.
+  assert(IS_NUM(obj));
+  return ((i64)obj) >> 8;
+}
+
+pair_t *as_pair(obj_t *obj)
+{
+  if (!IS_PAIR(obj))
+    return NULL;
+  return (pair_t *)UNTAG(obj);
+}
+
+clos_t *as_clos(obj_t *obj)
+{
+  if (!IS_CLOS(obj))
+    return NULL;
+  return (clos_t *)UNTAG(obj);
+}
+
+prim_t *as_prim(obj_t *obj)
+{
+  if (!IS_PRIM(obj))
+    return NULL;
+  return (prim_t *)UNTAG(obj);
+}
+
+obj_t *car(obj_t *obj)
+{
+  if (!IS_PAIR(obj))
+    return NULL;
+  return as_pair(obj)->car;
+}
+
+obj_t *cdr(obj_t *obj)
+{
+  if (!IS_PAIR(obj))
+    return NULL;
+  return as_pair(obj)->cdr;
 }
 
 obj_t *intern(const char *atom_buf, size_t atom_len)
 {
   // Search for an existing matching atom
-  for (obj_t *list = state->interned_atoms; list != state->nil;
-       list        = list->pair.cdr)
+  for (obj_t *list = state->interned_atoms; list != NULL; list = cdr(list))
   {
     assert(IS_PAIR(list));
-    obj_t *elem = list->pair.car;
+    obj_t *elem = car(list);
     assert(IS_ATOM(elem));
-    if (atom_len == strlen(elem->atom) &&
-        0 == memcmp(atom_buf, elem->atom, atom_len))
+    char *elem_atom = as_atom(elem);
+    if (atom_len == strlen(elem_atom) &&
+        0 == memcmp(atom_buf, elem_atom, atom_len))
     {
       return elem;
     }
@@ -197,28 +232,9 @@ obj_t *intern(const char *atom_buf, size_t atom_len)
   return atom;
 }
 
-obj_t *car(obj_t *obj)
-{
-  if (!IS_PAIR(obj))
-    FAIL("Expected pair to apply car() function");
-  return obj->pair.car;
-}
-
-obj_t *cdr(obj_t *obj)
-{
-  if (!IS_PAIR(obj))
-    FAIL("Expected pair to apply cdr() function");
-  return obj->pair.cdr;
-}
-
 bool obj_equal(obj_t *a, obj_t *b)
 {
-  return (a == b) || (IS_NUM(a) && IS_NUM(b) && a->num == b->num);
-}
-
-int64_t obj_i64(obj_t *a)
-{
-  return IS_NUM(a) ? a->num : 0;
+  return (a == b);
 }
 
 /*******************************************************************
@@ -295,7 +311,7 @@ obj_t *read_list(void)
     if (c == ')')
     {
       advance();
-      return state->nil;
+      return NULL;
     }
   }
   obj_t *first  = read();
@@ -407,7 +423,7 @@ void print_recurse(obj_t *obj);
 
 void print_list_tail(obj_t *obj)
 {
-  if (obj == state->nil)
+  if (obj == NULL)
   {
     printf(")");
     return;
@@ -415,8 +431,8 @@ void print_list_tail(obj_t *obj)
   if (IS_PAIR(obj))
   {
     printf(" ");
-    print_recurse(obj->pair.car);
-    print_list_tail(obj->pair.cdr);
+    print_recurse(car(obj));
+    print_list_tail(cdr(obj));
   }
   else
   {
@@ -428,31 +444,32 @@ void print_list_tail(obj_t *obj)
 
 void print_recurse(obj_t *obj)
 {
-  if (obj == state->nil)
+  if (obj == NULL)
   {
     printf("()");
     return;
   }
-  switch (obj->tag)
+  switch (GET_TAG(obj))
   {
   case TAG_ATOM:
-    printf("%s", obj->atom);
+    printf("%s", as_atom(obj));
     break;
   case TAG_NUM:
-    printf("%" PRId64, obj->num);
+    printf("%" PRId64, as_num(obj));
     break;
   case TAG_PAIR:
   {
     printf("(");
-    print_recurse(obj->pair.car);
-    print_list_tail(obj->pair.cdr);
+    print_recurse(car(obj));
+    print_list_tail(cdr(obj));
   }
   break;
   case TAG_CLOS:
   {
     printf("CLOSURE<");
-    print_recurse(obj->clos.body);
-    printf(", %p>", (void *)obj->clos.env);
+    clos_t *clos = as_clos(obj);
+    print_recurse(clos->body);
+    printf(", %p>", (void *)clos->env);
   }
   break;
   case TAG_PRIM:
@@ -461,7 +478,7 @@ void print_recurse(obj_t *obj)
     {
       void (*funcptr)(obj_t **);
       void *ptr;
-    } u = {obj->prim.func};
+    } u = {as_prim(obj)};
     printf("PRIM<%p>", u.ptr);
   }
   break;
@@ -485,7 +502,7 @@ obj_t *env_find(obj_t *env, obj_t *key)
   if (!IS_ATOM(key))
     FAIL("Expected 'key' to be an atom in env_find()");
 
-  for (; env != state->nil; env = cdr(env))
+  for (; env != NULL; env = cdr(env))
   {
     obj_t *kv = car(env);
     if (key == car(kv))
@@ -494,7 +511,7 @@ obj_t *env_find(obj_t *env, obj_t *key)
     }
   }
 
-  FAIL("Failed to find in key='%s' in environment", key->atom);
+  FAIL("Failed to find in key='%s' in environment", as_atom(key));
 }
 
 obj_t *env_define(obj_t *env, obj_t *key, obj_t *val)
@@ -550,7 +567,7 @@ void compute(obj_t *comp, obj_t *env)
     print(comp);
   }
 
-  while (comp != state->nil)
+  while (comp != NULL)
   {
     // unpack
     obj_t *cmd = car(comp);
@@ -558,7 +575,7 @@ void compute(obj_t *comp, obj_t *env)
 
     if (cmd == state->atom_quote)
     {
-      if (comp == state->nil)
+      if (comp == NULL)
         FAIL("Expected data following a quote form");
       push(car(comp));
       comp = cdr(comp);
@@ -583,11 +600,12 @@ void eval(obj_t *expr, obj_t **env)
     obj_t *val = env_find(*env, expr);
     if (IS_CLOS(val))
     { // closure
-      compute(val->clos.body, val->clos.env);
+      auto clos = as_clos(val);
+      compute(clos->body, clos->env);
     }
     else if (IS_PRIM(val))
     { // primitive
-      val->prim.func(env);
+      as_prim(val)(env);
     }
     else
     {
@@ -623,7 +641,7 @@ void prim_pop(obj_t **env)
 void prim_eq(obj_t **_)
 {
   (void)_;
-  push(obj_equal(pop(), pop()) ? state->atom_true : state->nil);
+  push(obj_equal(pop(), pop()) ? state->atom_true : NULL);
 }
 void prim_cons(obj_t **_)
 {
@@ -658,7 +676,7 @@ void prim_cswap(obj_t **_)
 void prim_tag(obj_t **_)
 {
   (void)_;
-  push(make_num(pop()->tag));
+  push(make_num(GET_TAG(pop())));
 }
 void prim_read(obj_t **_)
 {
@@ -687,7 +705,7 @@ void prim_sub(obj_t **_)
   obj_t *a, *b;
   b = pop();
   a = pop();
-  push(make_num(obj_i64(a) - obj_i64(b)));
+  push(make_num(as_num(a) - as_num(b)));
 }
 void prim_mul(obj_t **_)
 {
@@ -695,7 +713,7 @@ void prim_mul(obj_t **_)
   obj_t *a, *b;
   b = pop();
   a = pop();
-  push(make_num(obj_i64(a) * obj_i64(b)));
+  push(make_num(as_num(a) * as_num(b)));
 }
 void prim_nand(obj_t **_)
 {
@@ -703,7 +721,7 @@ void prim_nand(obj_t **_)
   obj_t *a, *b;
   b = pop();
   a = pop();
-  push(make_num(~(obj_i64(a) & obj_i64(b))));
+  push(make_num(~(as_num(a) & as_num(b))));
 }
 void prim_lsh(obj_t **_)
 {
@@ -711,7 +729,7 @@ void prim_lsh(obj_t **_)
   obj_t *a, *b;
   b = pop();
   a = pop();
-  push(make_num(obj_i64(a) << obj_i64(b)));
+  push(make_num(as_num(a) << as_num(b)));
 }
 void prim_rsh(obj_t **_)
 {
@@ -719,7 +737,7 @@ void prim_rsh(obj_t **_)
   obj_t *a, *b;
   b = pop();
   a = pop();
-  push(make_num(obj_i64(a) >> obj_i64(b)));
+  push(make_num(as_num(a) >> as_num(b)));
 }
 
 #if USE_LOWLEVEL
@@ -732,20 +750,20 @@ void prim_ptr_state(obj_t **_)
 void prim_ptr_read(obj_t **_)
 {
   (void)_;
-  push(make_num(*(int64_t *)obj_i64(pop())));
+  push(make_num(*(int64_t *)as_num(pop())));
 }
 void prim_ptr_write(obj_t **_)
 {
   (void)_;
   obj_t *a, *b;
-  b                      = pop();
-  a                      = pop();
-  *(int64_t *)obj_i64(a) = obj_i64(b);
+  b                     = pop();
+  a                     = pop();
+  *(int64_t *)as_num(a) = as_num(b);
 }
 void prim_ptr_to_obj(obj_t **_)
 {
   (void)_;
-  push((obj_t *)obj_i64(pop()));
+  push((obj_t *)as_num(pop()));
 }
 void prim_ptr_from_obj(obj_t **_)
 {
@@ -788,17 +806,16 @@ void setup(const char *input_path)
   state->input_pos = 0;
 
   state->read_stack = NULL;
-  state->nil        = make_nil();
 
-  state->interned_atoms = state->nil;
+  state->interned_atoms = NULL;
   state->atom_true      = intern("t", 1);
   state->atom_quote     = intern("quote", 5);
   state->atom_push      = intern("push", 4);
   state->atom_pop       = intern("pop", 3);
 
-  state->stack = state->nil;
+  state->stack = NULL;
 
-  obj_t *env = state->nil;
+  obj_t *env = NULL;
 
   // Core primitives
   env = env_define_prim(env, "push", &prim_push);

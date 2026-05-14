@@ -1,26 +1,26 @@
 /********************************************************************************
  * MIT License
-*
-* Copyright (c) 2024 Anthony Bonkoski
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in all
-* copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-* SOFTWARE.
-*******************************************************************************/
+ *
+ * Copyright (c) 2024 Anthony Bonkoski
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *******************************************************************************/
 
 #include <assert.h>
 #include <inttypes.h>
@@ -30,13 +30,20 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define FAIL(...) do { fprintf(stderr, "FAIL: "); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); abort(); } while (0)
+#define FAIL(...)                 \
+  do                              \
+  {                               \
+    fprintf(stderr, "FAIL: ");    \
+    fprintf(stderr, __VA_ARGS__); \
+    fprintf(stderr, "\n");        \
+    abort();                      \
+  } while (0)
 
 /*******************************************************************
  * Params
  ******************************************************************/
 
-#define DEBUG 0
+#define DEBUG        0
 #define USE_LOWLEVEL 1
 
 /*******************************************************************
@@ -62,18 +69,22 @@ typedef struct obj obj_t;
 struct obj
 {
   uint64_t tag;
-  union {
-    const char * atom;
-    int64_t      num;
-    struct {
-      obj_t * car;
-      obj_t * cdr;
+  union
+  {
+    const char *atom;
+    int64_t num;
+    struct
+    {
+      obj_t *car;
+      obj_t *cdr;
     } pair;
-    struct {
+    struct
+    {
       obj_t *body;
       obj_t *env;
     } clos;
-    struct {
+    struct
+    {
       void (*func)(obj_t **env);
     } prim;
   };
@@ -86,39 +97,39 @@ struct obj
 typedef struct state state_t;
 struct state
 {
-  char  * input_str;             // input data string used by read()
-  size_t  input_len;             // input data length used by read()
-  size_t  input_pos;             // input data position used by read()
+  char *input_str;  // input data string used by read()
+  size_t input_len; // input data length used by read()
+  size_t input_pos; // input data position used by read()
 
-  obj_t * nil;                   // nil: ()
-  obj_t * read_stack;            // defered obj to emit from read
+  obj_t *nil;        // nil: ()
+  obj_t *read_stack; // defered obj to emit from read
 
-  obj_t * interned_atoms;        // interned atoms list
-  obj_t * atom_true;             // atom: t
-  obj_t * atom_quote;            // atom: quote
-  obj_t * atom_push;             // atom: push
-  obj_t * atom_pop;              // atom: pop
+  obj_t *interned_atoms; // interned atoms list
+  obj_t *atom_true;      // atom: t
+  obj_t *atom_quote;     // atom: quote
+  obj_t *atom_push;      // atom: push
+  obj_t *atom_pop;       // atom: pop
 
-  obj_t * stack;                 // top-of-stack (implemented with pairs)
-  obj_t * env;                   // top-level / initial environment
+  obj_t *stack; // top-of-stack (implemented with pairs)
+  obj_t *env;   // top-level / initial environment
 };
 state_t state[1];
 
 obj_t *alloc(void)
 {
-  return (obj_t*)malloc(sizeof(obj_t));
+  return (obj_t *)malloc(sizeof(obj_t));
 }
 
 obj_t *make_nil(void)
 {
   obj_t *obj = alloc();
-  obj->tag = TAG_NIL;
+  obj->tag   = TAG_NIL;
   return obj;
 }
 
 obj_t *make_atom(const char *str, size_t len)
 {
-  char *atom_str = malloc(len+1);
+  char *atom_str = malloc(len + 1);
   memcpy(atom_str, str, len);
   atom_str[len] = '\0';
 
@@ -132,15 +143,15 @@ obj_t *make_atom(const char *str, size_t len)
 obj_t *make_num(int64_t num)
 {
   obj_t *obj = alloc();
-  obj->tag = TAG_NUM;
-  obj->num = num;
+  obj->tag   = TAG_NUM;
+  obj->num   = num;
   return obj;
 }
 
 obj_t *make_pair(obj_t *car, obj_t *cdr)
 {
-  obj_t *obj = alloc();
-  obj->tag = TAG_PAIR;
+  obj_t *obj    = alloc();
+  obj->tag      = TAG_PAIR;
   obj->pair.car = car;
   obj->pair.cdr = cdr;
   return obj;
@@ -148,17 +159,17 @@ obj_t *make_pair(obj_t *car, obj_t *cdr)
 
 obj_t *make_clos(obj_t *body, obj_t *env)
 {
-  obj_t *obj = alloc();
-  obj->tag = TAG_CLOS;
+  obj_t *obj     = alloc();
+  obj->tag       = TAG_CLOS;
   obj->clos.body = body;
-  obj->clos.env = env;
+  obj->clos.env  = env;
   return obj;
 }
 
-obj_t *make_prim(void (*func)(obj_t**))
+obj_t *make_prim(void (*func)(obj_t **))
 {
-  obj_t *obj = alloc();
-  obj->tag = TAG_PRIM;
+  obj_t *obj     = alloc();
+  obj->tag       = TAG_PRIM;
   obj->prim.func = func;
   return obj;
 }
@@ -166,32 +177,37 @@ obj_t *make_prim(void (*func)(obj_t**))
 obj_t *intern(const char *atom_buf, size_t atom_len)
 {
   // Search for an existing matching atom
-  for (obj_t *list = state->interned_atoms; list != state->nil; list = list->pair.cdr) {
+  for (obj_t *list = state->interned_atoms; list != state->nil;
+       list        = list->pair.cdr)
+  {
     assert(IS_PAIR(list));
-    obj_t * elem = list->pair.car;
+    obj_t *elem = list->pair.car;
     assert(IS_ATOM(elem));
     if (atom_len == strlen(elem->atom) &&
-        0 == memcmp(atom_buf, elem->atom, atom_len)) {
+        0 == memcmp(atom_buf, elem->atom, atom_len))
+    {
       return elem;
     }
   }
 
   // Not found: create a new one and push the front of the list
 
-  obj_t *atom = make_atom(atom_buf, atom_len);
+  obj_t *atom           = make_atom(atom_buf, atom_len);
   state->interned_atoms = make_pair(atom, state->interned_atoms);
   return atom;
 }
 
 obj_t *car(obj_t *obj)
 {
-  if (!IS_PAIR(obj)) FAIL("Expected pair to apply car() function");
+  if (!IS_PAIR(obj))
+    FAIL("Expected pair to apply car() function");
   return obj->pair.car;
 }
 
 obj_t *cdr(obj_t *obj)
 {
-  if (!IS_PAIR(obj)) FAIL("Expected pair to apply cdr() function");
+  if (!IS_PAIR(obj))
+    FAIL("Expected pair to apply cdr() function");
   return obj->pair.cdr;
 }
 
@@ -211,7 +227,8 @@ int64_t obj_i64(obj_t *a)
 
 char peek(void)
 {
-  if (state->input_pos == state->input_len) return 0;
+  if (state->input_pos == state->input_len)
+    return 0;
   return state->input_str[state->input_pos];
 }
 
@@ -231,29 +248,37 @@ bool is_directive(char c)
   return c == '\'' || c == '^' || c == '$';
 }
 
-bool is_punctuation(char c) {
-  return c == 0 || is_white(c) || is_directive(c) || c == '(' || c == ')' || c == ';';
+bool is_punctuation(char c)
+{
+  return c == 0 || is_white(c) || is_directive(c) || c == '(' || c == ')' ||
+         c == ';';
 }
 
 void skip_white_and_comments(void)
 {
   char c = peek();
-  if (c == 0) return; // end-of-data
+  if (c == 0)
+    return; // end-of-data
 
   // skip white
-  if (is_white(c)) {
+  if (is_white(c))
+  {
     advance();
     return skip_white_and_comments(); // tail-call loop
   }
 
   // skip comment
-  if (c == ';') {
+  if (c == ';')
+  {
     advance();
-    while (1) {
+    while (1)
+    {
       char c = peek();
-      if (c == 0) return; // end-of-data
+      if (c == 0)
+        return; // end-of-data
       advance();
-      if (c == '\n') break;
+      if (c == '\n')
+        break;
     }
     return skip_white_and_comments(); // tail-call loop
   }
@@ -263,15 +288,17 @@ obj_t *read(void);
 
 obj_t *read_list(void)
 {
-  if (!state->read_stack) {
+  if (!state->read_stack)
+  {
     skip_white_and_comments();
     char c = peek();
-    if (c == ')') {
+    if (c == ')')
+    {
       advance();
       return state->nil;
     }
   }
-  obj_t *first = read();
+  obj_t *first  = read();
   obj_t *second = read_list();
   return make_pair(first, second);
 }
@@ -284,7 +311,8 @@ static bool parse_i64(const char *str, size_t len, int64_t *_out)
   buf[len] = '\0';
 
   int64_t n = atoll(buf);
-  if (n == 0 && 0 != strcmp(buf, "0")) {
+  if (n == 0 && 0 != strcmp(buf, "0"))
+  {
     return false;
   }
   *_out = n;
@@ -295,16 +323,20 @@ obj_t *read_scalar(void)
 {
   // Otherwise, assume atom or num and read it
   size_t start = state->input_pos;
-  while (!is_punctuation(peek())) advance();
+  while (!is_punctuation(peek()))
+    advance();
 
-  char * str = &state->input_str[start];
-  size_t n = state->input_pos - start;
+  char *str = &state->input_str[start];
+  size_t n  = state->input_pos - start;
 
   // Is it a number?
   int64_t num;
-  if (parse_i64(str, n, &num)) { // num
+  if (parse_i64(str, n, &num))
+  { // num
     return make_num(num);
-  } else { // atom
+  }
+  else
+  { // atom
     return intern(str, n);
   }
 }
@@ -312,7 +344,8 @@ obj_t *read_scalar(void)
 obj_t *read(void)
 {
   obj_t *read_stack = state->read_stack;
-  if (read_stack) {
+  if (read_stack)
+  {
     state->read_stack = cdr(read_stack);
     return car(read_stack);
   }
@@ -320,41 +353,48 @@ obj_t *read(void)
   skip_white_and_comments();
 
   char c = peek();
-  if (!c) FAIL("End of input: could not read()"); // FIXME: BETTER SOLUTION??
+  if (!c)
+    FAIL("End of input: could not read()"); // FIXME: BETTER SOLUTION??
 
   // A quote?
-  if (c == '\'') {
+  if (c == '\'')
+  {
     advance();
     return state->atom_quote;
   }
 
   // A push?
-  if (c == '^') {
+  if (c == '^')
+  {
     advance();
-    obj_t *s = NULL;
-    s = make_pair(state->atom_push, s);
-    s = make_pair(read_scalar(), s);
-    s = make_pair(state->atom_quote, s);
+    obj_t *s          = NULL;
+    s                 = make_pair(state->atom_push, s);
+    s                 = make_pair(read_scalar(), s);
+    s                 = make_pair(state->atom_quote, s);
     state->read_stack = s;
     return read(); // tail-call to dump the read stack
   }
 
   // A pop?
-  if (c == '$') {
+  if (c == '$')
+  {
     advance();
-    obj_t *s = NULL;
-    s = make_pair(state->atom_pop, s);
-    s = make_pair(read_scalar(), s);
-    s = make_pair(state->atom_quote, s);
+    obj_t *s          = NULL;
+    s                 = make_pair(state->atom_pop, s);
+    s                 = make_pair(read_scalar(), s);
+    s                 = make_pair(state->atom_quote, s);
     state->read_stack = s;
     return read(); // tail-call to dump the read stack
   }
 
   // Read a list?
-  if (c == '(') {
+  if (c == '(')
+  {
     advance();
     return read_list();
-  } else {
+  }
+  else
+  {
     return read_scalar();
   }
 }
@@ -367,15 +407,19 @@ void print_recurse(obj_t *obj);
 
 void print_list_tail(obj_t *obj)
 {
-  if (obj == state->nil) {
+  if (obj == state->nil)
+  {
     printf(")");
     return;
   }
-  if (IS_PAIR(obj)) {
+  if (IS_PAIR(obj))
+  {
     printf(" ");
     print_recurse(obj->pair.car);
     print_list_tail(obj->pair.cdr);
-  } else {
+  }
+  else
+  {
     printf(" . ");
     print_recurse(obj);
     printf(")");
@@ -384,26 +428,38 @@ void print_list_tail(obj_t *obj)
 
 void print_recurse(obj_t *obj)
 {
-  if (obj == state->nil) {
+  if (obj == state->nil)
+  {
     printf("()");
     return;
   }
-  switch (obj->tag) {
-    case TAG_ATOM: printf("%s", obj->atom); break;
-    case TAG_NUM:  printf("%" PRId64, obj->num);  break;
-    case TAG_PAIR: {
-      printf("(");
-      print_recurse(obj->pair.car);
-      print_list_tail(obj->pair.cdr);
-    } break;
-    case TAG_CLOS: {
-      printf("CLOSURE<");
-      print_recurse(obj->clos.body);
-      printf(", %p>", obj->clos.env);
-    } break;
-    case TAG_PRIM: {
-      printf("PRIM<%p>", obj->prim.func);
-    } break;
+  switch (obj->tag)
+  {
+  case TAG_ATOM:
+    printf("%s", obj->atom);
+    break;
+  case TAG_NUM:
+    printf("%" PRId64, obj->num);
+    break;
+  case TAG_PAIR:
+  {
+    printf("(");
+    print_recurse(obj->pair.car);
+    print_list_tail(obj->pair.cdr);
+  }
+  break;
+  case TAG_CLOS:
+  {
+    printf("CLOSURE<");
+    print_recurse(obj->clos.body);
+    printf(", %p>", obj->clos.env);
+  }
+  break;
+  case TAG_PRIM:
+  {
+    printf("PRIM<%p>", obj->prim.func);
+  }
+  break;
   }
 }
 
@@ -421,11 +477,14 @@ void print(obj_t *obj)
 
 obj_t *env_find(obj_t *env, obj_t *key)
 {
-  if (!IS_ATOM(key)) FAIL("Expected 'key' to be an atom in env_find()");
+  if (!IS_ATOM(key))
+    FAIL("Expected 'key' to be an atom in env_find()");
 
-  for (; env != state->nil; env = cdr(env)) {
+  for (; env != state->nil; env = cdr(env))
+  {
     obj_t *kv = car(env);
-    if (key == car(kv)) {
+    if (key == car(kv))
+    {
       return cdr(kv);
     }
   }
@@ -454,11 +513,12 @@ void push(obj_t *obj)
 
 bool try_pop(obj_t **_out)
 {
-  if (!state->stack) {
+  if (!state->stack)
+  {
     return false;
   }
 
-  *_out = car(state->stack);
+  *_out        = car(state->stack);
   state->stack = cdr(state->stack);
   return true;
 }
@@ -466,7 +526,8 @@ bool try_pop(obj_t **_out)
 obj_t *pop()
 {
   obj_t *ret = NULL;
-  if (!try_pop(&ret)) FAIL("Value Stack Underflow");
+  if (!try_pop(&ret))
+    FAIL("Value Stack Underflow");
   return ret;
 }
 
@@ -478,18 +539,22 @@ void eval(obj_t *expr, obj_t **env);
 
 void compute(obj_t *comp, obj_t *env)
 {
-  if (DEBUG) {
+  if (DEBUG)
+  {
     printf("compute: ");
     print(comp);
   }
 
-  while (comp != state->nil) {
+  while (comp != state->nil)
+  {
     // unpack
-    obj_t *cmd  = car(comp);
-    comp = cdr(comp);
+    obj_t *cmd = car(comp);
+    comp       = cdr(comp);
 
-    if (cmd == state->atom_quote) {
-      if (comp == state->nil) FAIL("Expected data following a quote form");
+    if (cmd == state->atom_quote)
+    {
+      if (comp == state->nil)
+        FAIL("Expected data following a quote form");
       push(car(comp));
       comp = cdr(comp);
       continue;
@@ -502,23 +567,34 @@ void compute(obj_t *comp, obj_t *env)
 
 void eval(obj_t *expr, obj_t **env)
 {
-  if (DEBUG) {
+  if (DEBUG)
+  {
     printf("eval: ");
     print(expr);
   }
 
-  if (IS_ATOM(expr)) {
+  if (IS_ATOM(expr))
+  {
     obj_t *val = env_find(*env, expr);
-    if (IS_CLOS(val)) { // closure
+    if (IS_CLOS(val))
+    { // closure
       return compute(val->clos.body, val->clos.env);
-    } else if (IS_PRIM(val)) { // primitive
+    }
+    else if (IS_PRIM(val))
+    { // primitive
       return val->prim.func(env);
-    } else {
+    }
+    else
+    {
       return push(val);
     }
-  } else if (IS_NIL(expr) || IS_PAIR(expr)) {
+  }
+  else if (IS_NIL(expr) || IS_PAIR(expr))
+  {
     return push(make_clos(expr, *env));
-  } else {
+  }
+  else
+  {
     return push(expr);
   }
 }
@@ -528,33 +604,130 @@ void eval(obj_t *expr, obj_t **env)
  ******************************************************************/
 
 /* Core primitives */
-void prim_push(obj_t **env) { push(env_find(*env, pop())); }
-void prim_pop(obj_t **env)  { obj_t *k, *v; k = pop(); v = pop(); *env = env_define(*env, k, v); }
-void prim_eq(obj_t **_)     { push(obj_equal(pop(), pop()) ? state->atom_true : state->nil); }
-void prim_cons(obj_t **_)   { obj_t *a, *b; a = pop(); b = pop(); push(make_pair(a, b)); }
-void prim_car(obj_t **_)    { push(car(pop())); }
-void prim_cdr(obj_t **_)    { push(cdr(pop())); }
-void prim_cswap(obj_t **_)  { if (pop() == state->atom_true) { obj_t *a, *b; a = pop(); b = pop(); push(a); push(b); } }
-void prim_tag(obj_t **_)    { push(make_num(pop()->tag)); }
-void prim_read(obj_t **_)   { push(read()); }
-void prim_print(obj_t **_)  { print(pop()); }
+void prim_push(obj_t **env)
+{
+  push(env_find(*env, pop()));
+}
+void prim_pop(obj_t **env)
+{
+  obj_t *k, *v;
+  k    = pop();
+  v    = pop();
+  *env = env_define(*env, k, v);
+}
+void prim_eq(obj_t **_)
+{
+  push(obj_equal(pop(), pop()) ? state->atom_true : state->nil);
+}
+void prim_cons(obj_t **_)
+{
+  obj_t *a, *b;
+  a = pop();
+  b = pop();
+  push(make_pair(a, b));
+}
+void prim_car(obj_t **_)
+{
+  push(car(pop()));
+}
+void prim_cdr(obj_t **_)
+{
+  push(cdr(pop()));
+}
+void prim_cswap(obj_t **_)
+{
+  if (pop() == state->atom_true)
+  {
+    obj_t *a, *b;
+    a = pop();
+    b = pop();
+    push(a);
+    push(b);
+  }
+}
+void prim_tag(obj_t **_)
+{
+  push(make_num(pop()->tag));
+}
+void prim_read(obj_t **_)
+{
+  push(read());
+}
+void prim_print(obj_t **_)
+{
+  print(pop());
+}
 
 /* Extra primitives */
-void prim_stack(obj_t **_) { push(state->stack); }
-void prim_env(obj_t **env) { push(*env); }
-void prim_sub(obj_t **_)   { obj_t *a, *b; b = pop(); a = pop(); push(make_num(obj_i64(a) - obj_i64(b))); }
-void prim_mul(obj_t **_)   { obj_t *a, *b; b = pop(); a = pop(); push(make_num(obj_i64(a) * obj_i64(b))); }
-void prim_nand(obj_t **_)  { obj_t *a, *b; b = pop(); a = pop(); push(make_num(~(obj_i64(a) & obj_i64(b)))); }
-void prim_lsh(obj_t **_)   { obj_t *a, *b; b = pop(); a = pop(); push(make_num(obj_i64(a) << obj_i64(b))); }
-void prim_rsh(obj_t **_)   { obj_t *a, *b; b = pop(); a = pop(); push(make_num(obj_i64(a) >> obj_i64(b))); }
+void prim_stack(obj_t **_)
+{
+  push(state->stack);
+}
+void prim_env(obj_t **env)
+{
+  push(*env);
+}
+void prim_sub(obj_t **_)
+{
+  obj_t *a, *b;
+  b = pop();
+  a = pop();
+  push(make_num(obj_i64(a) - obj_i64(b)));
+}
+void prim_mul(obj_t **_)
+{
+  obj_t *a, *b;
+  b = pop();
+  a = pop();
+  push(make_num(obj_i64(a) * obj_i64(b)));
+}
+void prim_nand(obj_t **_)
+{
+  obj_t *a, *b;
+  b = pop();
+  a = pop();
+  push(make_num(~(obj_i64(a) & obj_i64(b))));
+}
+void prim_lsh(obj_t **_)
+{
+  obj_t *a, *b;
+  b = pop();
+  a = pop();
+  push(make_num(obj_i64(a) << obj_i64(b)));
+}
+void prim_rsh(obj_t **_)
+{
+  obj_t *a, *b;
+  b = pop();
+  a = pop();
+  push(make_num(obj_i64(a) >> obj_i64(b)));
+}
 
 #if USE_LOWLEVEL
 /* Low-level primitives */
-void prim_ptr_state(obj_t **_)    { push(make_num((int64_t)state)); }
-void prim_ptr_read(obj_t **_)     { push(make_num(*(int64_t*)obj_i64(pop()))); }
-void prim_ptr_write(obj_t **_)    { obj_t *a, *b; b = pop(); a = pop(); *(int64_t*)obj_i64(a) = obj_i64(b); }
-void prim_ptr_to_obj(obj_t **_)   { push((obj_t*)obj_i64(pop())); }
-void prim_ptr_from_obj(obj_t **_) { push(make_num((int64_t)pop())); }
+void prim_ptr_state(obj_t **_)
+{
+  push(make_num((int64_t)state));
+}
+void prim_ptr_read(obj_t **_)
+{
+  push(make_num(*(int64_t *)obj_i64(pop())));
+}
+void prim_ptr_write(obj_t **_)
+{
+  obj_t *a, *b;
+  b                      = pop();
+  a                      = pop();
+  *(int64_t *)obj_i64(a) = obj_i64(b);
+}
+void prim_ptr_to_obj(obj_t **_)
+{
+  push((obj_t *)obj_i64(pop()));
+}
+void prim_ptr_from_obj(obj_t **_)
+{
+  push(make_num((int64_t)pop()));
+}
 #endif
 
 /*******************************************************************
@@ -564,15 +737,17 @@ void prim_ptr_from_obj(obj_t **_) { push(make_num((int64_t)pop())); }
 static char *load_file(const char *filename)
 {
   FILE *fp = fopen(filename, "r");
-  if (!fp) FAIL("Failed to open file: '%s'\n", filename);
+  if (!fp)
+    FAIL("Failed to open file: '%s'\n", filename);
 
   fseek(fp, 0, SEEK_END);
   size_t file_size = ftell(fp);
   fseek(fp, 0, SEEK_SET);
 
-  char *mem = malloc(file_size+1);
-  size_t n = fread(mem, 1, file_size, fp);
-  if (n != file_size) FAIL("Failed to read file");
+  char *mem = malloc(file_size + 1);
+  size_t n  = fread(mem, 1, file_size, fp);
+  if (n != file_size)
+    FAIL("Failed to read file");
 
   mem[file_size] = 0;
   return mem;
@@ -602,41 +777,42 @@ void setup(const char *input_path)
   obj_t *env = state->nil;
 
   // Core primitives
-  env = env_define_prim(env, "push",  &prim_push);
-  env = env_define_prim(env, "pop",   &prim_pop);
-  env = env_define_prim(env, "cons",  &prim_cons);
-  env = env_define_prim(env, "car",   &prim_car);
-  env = env_define_prim(env, "cdr",   &prim_cdr);
-  env = env_define_prim(env, "eq",    &prim_eq);
+  env = env_define_prim(env, "push", &prim_push);
+  env = env_define_prim(env, "pop", &prim_pop);
+  env = env_define_prim(env, "cons", &prim_cons);
+  env = env_define_prim(env, "car", &prim_car);
+  env = env_define_prim(env, "cdr", &prim_cdr);
+  env = env_define_prim(env, "eq", &prim_eq);
   env = env_define_prim(env, "cswap", &prim_cswap);
-  env = env_define_prim(env, "tag",   &prim_tag);
-  env = env_define_prim(env, "read",  &prim_read);
+  env = env_define_prim(env, "tag", &prim_tag);
+  env = env_define_prim(env, "read", &prim_read);
   env = env_define_prim(env, "print", &prim_print);
 
   // Extra primitives
   env = env_define_prim(env, "stack", &prim_stack);
-  env = env_define_prim(env, "env",   &prim_env);
-  env = env_define_prim(env, "-",     &prim_sub);
-  env = env_define_prim(env, "*",     &prim_mul);
-  env = env_define_prim(env, "nand",  &prim_nand);
-  env = env_define_prim(env, "<<",    &prim_lsh);
-  env = env_define_prim(env, ">>",    &prim_rsh);
+  env = env_define_prim(env, "env", &prim_env);
+  env = env_define_prim(env, "-", &prim_sub);
+  env = env_define_prim(env, "*", &prim_mul);
+  env = env_define_prim(env, "nand", &prim_nand);
+  env = env_define_prim(env, "<<", &prim_lsh);
+  env = env_define_prim(env, ">>", &prim_rsh);
 
-  #if USE_LOWLEVEL
+#if USE_LOWLEVEL
   // Low-level primitives
-  env = env_define_prim(env, "ptr-state!",    &prim_ptr_state);
-  env = env_define_prim(env, "ptr-read!",     &prim_ptr_read);
-  env = env_define_prim(env, "ptr-write!",    &prim_ptr_write);
-  env = env_define_prim(env, "ptr-to-obj!",   &prim_ptr_to_obj);
+  env = env_define_prim(env, "ptr-state!", &prim_ptr_state);
+  env = env_define_prim(env, "ptr-read!", &prim_ptr_read);
+  env = env_define_prim(env, "ptr-write!", &prim_ptr_write);
+  env = env_define_prim(env, "ptr-to-obj!", &prim_ptr_to_obj);
   env = env_define_prim(env, "ptr-from-obj!", &prim_ptr_from_obj);
-  #endif
+#endif
 
   state->env = env;
 }
 
 int main(int argc, char *argv[])
 {
-  if (argc != 2) {
+  if (argc != 2)
+  {
     fprintf(stderr, "usage: %s <path>\n", argv[0]);
     return 1;
   }

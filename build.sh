@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CFLAGS="-std=c11 -Wall -Werror -O2 -g"
+CFLAGS="-std=c23 -Wall -Wextra -Wpedantic -Werror -O2 -g"
 LDFLAGS=""
 
 gcc $CFLAGS -o forsp forsp.c $LDFLAGS

@@ -75,11 +75,10 @@ typedef enum Tag
 
 typedef struct obj obj_t;
 
-#define GET_TAG(X)      ((u64)(X) & 0xFF)
-#define TAG_CANON(X, T) ((obj_t *)(((u64)(X) << 8) | (T)))
-#define UNTAG(X)        ((u64)(X) >> 8)
-
+#define TAG_CANON(X, T)   ((obj_t *)(((u64)(X) << 8) | (T)))
 #define TAG_TYPE(X, TYPE) (TAG_CANON(X, TAG_##TYPE))
+#define UNTAG(X)          ((u64)(X) >> 8)
+#define GET_TAG(X)        ((u64)(X) & 0xFF)
 
 #define IS_NIL(obj)  (GET_TAG(obj) == TAG_NIL)
 #define IS_ATOM(obj) (GET_TAG(obj) == TAG_ATOM)
@@ -99,10 +98,6 @@ typedef struct clos
 } clos_t;
 
 typedef void(prim_t)(obj_t **);
-
-// Common object structure
-#define FLAG_PUSH 128
-#define FLAG_POP  129
 
 // Global State
 typedef struct state state_t;
@@ -220,15 +215,11 @@ obj_t *intern(const char *atom_buf, size_t atom_len)
   // Search for an existing matching atom
   for (obj_t *list = state->interned_atoms; list != NULL; list = cdr(list))
   {
-    assert(IS_PAIR(list));
-    obj_t *elem = car(list);
-    assert(IS_ATOM(elem));
+    obj_t *elem     = car(list);
     char *elem_atom = as_atom(elem);
     if (atom_len == strlen(elem_atom) &&
         0 == memcmp(atom_buf, elem_atom, atom_len))
-    {
       return elem;
-    }
   }
 
   // Not found: create a new one and push the front of the list

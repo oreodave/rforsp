@@ -43,8 +43,7 @@
  * Params
  ******************************************************************/
 
-#define DEBUG        0
-#define USE_LOWLEVEL 1
+#define DEBUG 0
 
 /************************
  * Numeric type aliases
@@ -76,9 +75,11 @@ typedef enum Tag
 
 typedef struct obj obj_t;
 
-#define TAG(X, TYPE) ((obj_t *)(((u64)(X) << 8) | TAG_##TYPE))
-#define UNTAG(X)     ((u64)(X) >> 8)
-#define GET_TAG(X)   ((u64)(X) & 0xFF)
+#define GET_TAG(X)      ((u64)(X) & 0xFF)
+#define TAG_CANON(X, T) ((obj_t *)(((u64)(X) << 8) | (T)))
+#define UNTAG(X)        ((u64)(X) >> 8)
+
+#define TAG_TYPE(X, TYPE) (TAG_CANON(X, TAG_##TYPE))
 
 #define IS_NIL(obj)  (GET_TAG(obj) == TAG_NIL)
 #define IS_ATOM(obj) (GET_TAG(obj) == TAG_ATOM)
@@ -124,19 +125,24 @@ struct state
 };
 state_t state[1];
 
+tag_t get_tag(obj_t *ptr)
+{
+  return (tag_t)GET_TAG(ptr);
+}
+
 obj_t *make_atom(const char *str, size_t len)
 {
   char *atom_str = malloc(len + 1);
   memcpy(atom_str, str, len);
   atom_str[len] = '\0';
 
-  return TAG(atom_str, ATOM);
+  return TAG_TYPE(atom_str, ATOM);
 }
 
 obj_t *make_num(int64_t num)
 {
   assert(num == ((num << 8) >> 8));
-  return TAG(num, NUM);
+  return TAG_TYPE(num, NUM);
 }
 
 obj_t *make_pair(obj_t *car, obj_t *cdr)
@@ -144,7 +150,7 @@ obj_t *make_pair(obj_t *car, obj_t *cdr)
   // TODO: Add this to some kind of GC
   pair_t *pair = malloc(sizeof(*pair));
   *pair        = (typeof(*pair)){car, cdr};
-  return TAG(pair, PAIR);
+  return TAG_TYPE(pair, PAIR);
 }
 
 obj_t *make_clos(obj_t *body, obj_t *env)
@@ -152,12 +158,12 @@ obj_t *make_clos(obj_t *body, obj_t *env)
   // TODO: Add this to some kind of GC
   clos_t *clos = malloc(sizeof(*clos));
   *clos        = (typeof(*clos)){body, env};
-  return TAG(clos, CLOS);
+  return TAG_TYPE(clos, CLOS);
 }
 
 obj_t *make_prim(prim_t *func)
 {
-  return TAG(func, PRIM);
+  return TAG_TYPE(func, PRIM);
 }
 
 char *as_atom(obj_t *obj)
@@ -740,38 +746,6 @@ void prim_rsh(obj_t **_)
   push(make_num(as_num(a) >> as_num(b)));
 }
 
-#if USE_LOWLEVEL
-/* Low-level primitives */
-void prim_ptr_state(obj_t **_)
-{
-  (void)_;
-  push(make_num((int64_t)state));
-}
-void prim_ptr_read(obj_t **_)
-{
-  (void)_;
-  push(make_num(*(int64_t *)as_num(pop())));
-}
-void prim_ptr_write(obj_t **_)
-{
-  (void)_;
-  obj_t *a, *b;
-  b                     = pop();
-  a                     = pop();
-  *(int64_t *)as_num(a) = as_num(b);
-}
-void prim_ptr_to_obj(obj_t **_)
-{
-  (void)_;
-  push((obj_t *)as_num(pop()));
-}
-void prim_ptr_from_obj(obj_t **_)
-{
-  (void)_;
-  push(make_num((int64_t)pop()));
-}
-#endif
-
 /*******************************************************************
  * Misc
  ******************************************************************/
@@ -837,15 +811,6 @@ void setup(const char *input_path)
   env = env_define_prim(env, "nand", &prim_nand);
   env = env_define_prim(env, "<<", &prim_lsh);
   env = env_define_prim(env, ">>", &prim_rsh);
-
-#if USE_LOWLEVEL
-  // Low-level primitives
-  env = env_define_prim(env, "ptr-state!", &prim_ptr_state);
-  env = env_define_prim(env, "ptr-read!", &prim_ptr_read);
-  env = env_define_prim(env, "ptr-write!", &prim_ptr_write);
-  env = env_define_prim(env, "ptr-to-obj!", &prim_ptr_to_obj);
-  env = env_define_prim(env, "ptr-from-obj!", &prim_ptr_from_obj);
-#endif
 
   state->env = env;
 }

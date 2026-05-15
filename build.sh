@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CFLAGS="-std=c23 -Wall -Wextra -Wpedantic -Werror -O2 -g"
+CFLAGS="-std=c23 -Wall -Wextra -Wpedantic -Werror -ggdb -Isrc"
 LDFLAGS=""
 
-gcc $CFLAGS -o forsp forsp.c $LDFLAGS
+cc $CFLAGS -o forsp src/main.c src/tagging.c src/reader.c src/print.c src/environment.c src/stack.c src/eval.c src/primitives.c $LDFLAGS

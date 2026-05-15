@@ -24,7 +24,7 @@
   ($a $b a $a (b $b '() 't b if) 't a if) $or
 
   ; comparisons
-  (1 63 << dup rot & eq) $is-neg
+  (55 >> 0 eq !) $is-neg
   (- is-neg) $<
   (< !)      $>=
   (swap <)   $>

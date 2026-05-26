@@ -22,6 +22,13 @@ examples: $(OUT)
 		./$^ $$example; \
 	done
 
+scratch.fp:
+	echo "()" > scratch.fp
+
+.PHONY: scratch
+scratch: $(OUT) scratch.fp
+	./$^
+
 .PHONY: clean
 clean:
 	rm -fv $(OUT)

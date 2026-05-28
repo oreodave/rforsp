@@ -27,32 +27,27 @@ static char *load_file(const char *filename)
 
 void setup(const char *input_path)
 {
+  memset(state, 0, sizeof(state));
   state->input_str = load_file(input_path);
   state->input_len = strlen(state->input_str);
   state->input_pos = 0;
 
-  state->read_stack = NULL;
-
-  state->interned_atoms = NULL;
-  state->atom_true      = intern("t", 1);
-  state->atom_quote     = intern("quote", 5);
-  state->atom_push      = intern("push", 4);
-  state->atom_pop       = intern("pop", 3);
-
-  state->stack = NULL;
+  state->atom_true  = intern("t", 1);
+  state->atom_quote = intern("quote", 5);
+  state->atom_push  = intern("push", 4);
+  state->atom_pop   = intern("pop", 3);
 
   obj_t *env = NULL;
-
-  env = env_define_prim(env, "push", &prim_push);
-  env = env_define_prim(env, "pop", &prim_pop);
-  env = env_define_prim(env, "cons", &prim_cons);
-  env = env_define_prim(env, "car", &prim_car);
-  env = env_define_prim(env, "cdr", &prim_cdr);
-  env = env_define_prim(env, "eq", &prim_eq);
-  env = env_define_prim(env, "cswap", &prim_cswap);
-  env = env_define_prim(env, "tag", &prim_tag);
-  env = env_define_prim(env, "read", &prim_read);
-  env = env_define_prim(env, "print", &prim_print);
+  env        = env_define_prim(env, "push", &prim_push);
+  env        = env_define_prim(env, "pop", &prim_pop);
+  env        = env_define_prim(env, "cons", &prim_cons);
+  env        = env_define_prim(env, "car", &prim_car);
+  env        = env_define_prim(env, "cdr", &prim_cdr);
+  env        = env_define_prim(env, "eq", &prim_eq);
+  env        = env_define_prim(env, "cswap", &prim_cswap);
+  env        = env_define_prim(env, "tag", &prim_tag);
+  env        = env_define_prim(env, "read", &prim_read);
+  env        = env_define_prim(env, "print", &prim_print);
 
   env = env_define_prim(env, "stack", &prim_stack);
   env = env_define_prim(env, "env", &prim_env);

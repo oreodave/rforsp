@@ -97,19 +97,34 @@ obj_t *read_scalar(void)
 
 obj_t *read_list(void)
 {
-  if (!state->read_stack)
+  obj_t *root = NULL, *cur = NULL;
+  char c = 0;
+  skip_white_and_comments();
+  for (c = peek(); (c && c != ')') || state->read_stack;
+       skip_white_and_comments(), c = peek())
   {
-    skip_white_and_comments();
-    char c = peek();
-    if (c == ')')
+    obj_t *item = read();
+    if (!root)
     {
-      advance();
-      return NULL;
+      root = make_pair(item, NULL);
+      cur  = root;
+    }
+    else
+    {
+      pair_t *pair = as_pair(cur);
+      pair->cdr    = make_pair(item, NULL);
+      cur          = pair->cdr;
     }
   }
-  obj_t *first  = read();
-  obj_t *second = read_list();
-  return make_pair(first, second);
+  if (c != ')')
+  {
+    FAIL("Expected closing brace");
+  }
+  else
+  {
+    advance();
+  }
+  return root;
 }
 
 obj_t *read(void)

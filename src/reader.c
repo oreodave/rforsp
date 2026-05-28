@@ -149,6 +149,7 @@ obj_t *read(void)
   }
   else if (c == '^')
   {
+    // TODO: Remove the read stack idea entirely.
     advance();
     obj_t *s          = NULL;
     s                 = make_pair(state->atom_push, s);

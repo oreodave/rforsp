@@ -6,30 +6,29 @@
 
 #include "common.h"
 
-static char *load_file(const char *filename)
+static char *load_file(const char *filename, size_t *const size)
 {
   FILE *fp = fopen(filename, "r");
   if (!fp)
     FAIL("Failed to open file: '%s'\n", filename);
 
   fseek(fp, 0, SEEK_END);
-  size_t file_size = ftell(fp);
+  *size = ftell(fp);
   fseek(fp, 0, SEEK_SET);
 
-  char *mem = malloc(file_size + 1);
-  size_t n  = fread(mem, 1, file_size, fp);
-  if (n != file_size)
+  char *mem = malloc(*size + 1);
+  size_t n  = fread(mem, 1, *size, fp);
+  if (n != *size)
     FAIL("Failed to read file");
 
-  mem[file_size] = 0;
+  mem[*size] = 0;
   return mem;
 }
 
 void setup(const char *input_path)
 {
   memset(state, 0, sizeof(state));
-  state->input_str = load_file(input_path);
-  state->input_len = strlen(state->input_str);
+  state->input_str = load_file(input_path, &state->input_len);
   state->input_pos = 0;
 
   state->atom_true  = intern("t", 1);

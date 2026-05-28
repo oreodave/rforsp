@@ -37,28 +37,24 @@ bool is_punctuation(char c)
 
 void skip_white_and_comments(void)
 {
-  char c = peek();
-  if (c == 0)
+  if (peek() == 0)
     return;
 
-  if (is_white(c))
+  while (is_white(peek()))
   {
     advance();
-    skip_white_and_comments();
   }
-
-  if (c == ';')
+  if (peek() == ';')
   {
     advance();
-    while (1)
+    for (char c = peek(); c != '\n'; advance(), c = peek())
     {
-      char c = peek();
       if (c == 0)
+      {
         return;
-      advance();
-      if (c == '\n')
-        break;
+      }
     }
+    // We need to do a recur here to kill any further whitespace or comments.
     skip_white_and_comments();
   }
 }
@@ -70,7 +66,7 @@ static bool parse_i64(const char *str, size_t len, int64_t *_out)
   buf[len] = '\0';
 
   int64_t n = atoll(buf);
-  if (n == 0 && 0 != strcmp(buf, "0"))
+  if (n == 0 && strcmp(buf, "0"))
   {
     return false;
   }
@@ -94,7 +90,7 @@ obj_t *read_scalar(void)
   }
   else
   {
-    // NOTE: Incredibly liberal symbols.
+    // NOTE: quite liberal strings.
     return intern(str, n);
   }
 }

@@ -102,11 +102,11 @@ struct state
 
   obj_t *read_stack; // defered obj to emit from read
 
-  obj_t *interned_atoms; // interned atoms list
-  obj_t *atom_true;      // atom: t
-  obj_t *atom_quote;     // atom: quote
-  obj_t *atom_push;      // atom: push
-  obj_t *atom_pop;       // atom: pop
+  vec_t interned_atoms; // interned atoms list
+  obj_t *atom_true;     // atom: t
+  obj_t *atom_quote;    // atom: quote
+  obj_t *atom_push;     // atom: push
+  obj_t *atom_pop;      // atom: pop
 
   obj_t *stack; // top-of-stack (implemented with pairs)
   obj_t *env;   // top-level / initial environment

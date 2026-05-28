@@ -94,6 +94,7 @@ obj_t *read_scalar(void)
   }
   else
   {
+    // NOTE: Incredibly liberal symbols.
     return intern(str, n);
   }
 }
@@ -135,8 +136,7 @@ obj_t *read(void)
     advance();
     return state->atom_quote;
   }
-
-  if (c == '^')
+  else if (c == '^')
   {
     advance();
     obj_t *s          = NULL;
@@ -146,8 +146,7 @@ obj_t *read(void)
     state->read_stack = s;
     return read();
   }
-
-  if (c == '$')
+  else if (c == '$')
   {
     advance();
     obj_t *s          = NULL;
@@ -157,8 +156,7 @@ obj_t *read(void)
     state->read_stack = s;
     return read();
   }
-
-  if (c == '(')
+  else if (c == '(')
   {
     advance();
     return read_list();

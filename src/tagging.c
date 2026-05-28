@@ -111,7 +111,7 @@ obj_t *cdr(obj_t *obj)
   return as_pair(obj)->cdr;
 }
 
-void vec_append(vec_t *vec, obj_t *item)
+void vec_push(vec_t *vec, obj_t *item)
 {
   if (!vec)
     return;
@@ -125,7 +125,7 @@ void vec_append(vec_t *vec, obj_t *item)
   vec->length++;
 }
 
-void vec_append_mult(vec_t *vec, obj_t **items, u64 num_items)
+void vec_push_mult(vec_t *vec, obj_t **items, u64 num_items)
 {
   if (!vec)
     return;
@@ -134,8 +134,22 @@ void vec_append_mult(vec_t *vec, obj_t **items, u64 num_items)
     vec->capacity = MAX(vec->length + num_items, vec->capacity * 2);
     vec->items    = realloc(vec->items, sizeof(*items) * vec->capacity);
   }
-  memcpy(vec->items + vec->length, items, num_items);
+  memcpy(vec->items + vec->length, items, sizeof(*items) * num_items);
   vec->length += num_items;
+}
+
+bool vec_try_pop(vec_t *vec, obj_t **ret)
+{
+  if (!vec || !vec->length)
+  {
+    return false;
+  }
+  else
+  {
+    vec->length--;
+    *ret = vec->items[vec->length];
+    return true;
+  }
 }
 
 obj_t *intern(const char *atom_buf, size_t atom_len)
@@ -150,7 +164,7 @@ obj_t *intern(const char *atom_buf, size_t atom_len)
   }
 
   obj_t *atom = make_atom(atom_buf, atom_len);
-  vec_append(&state->interned_atoms, atom);
+  vec_push(&state->interned_atoms, atom);
   return atom;
 }
 

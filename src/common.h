@@ -141,8 +141,9 @@ vec_t *as_vec(obj_t *obj);
 obj_t *car(obj_t *obj);
 obj_t *cdr(obj_t *obj);
 
-void vec_append(vec_t *vec, obj_t *item);
-void vec_append_mult(vec_t *vec, obj_t **items, u64 num_items);
+void vec_push(vec_t *vec, obj_t *item);
+void vec_push_mult(vec_t *vec, obj_t **items, u64 num_items);
+bool vec_try_pop(vec_t *vec, obj_t **ret);
 
 obj_t *intern(const char *atom_buf, size_t atom_len);
 bool obj_equal(obj_t *a, obj_t *b);

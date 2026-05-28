@@ -26,6 +26,9 @@
     abort();                      \
   } while (0)
 
+#define MAX(A, B) ((A) > (B) ? (A) : (B))
+#define MIN(A, B) ((A) < (B) ? (A) : (B))
+
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
@@ -48,6 +51,7 @@ typedef enum Tag
   TAG_PAIR = 3,
   TAG_CLOS = 4,
   TAG_PRIM = 5,
+  TAG_VEC  = 6,
 } tag_t;
 
 typedef struct obj obj_t;
@@ -63,6 +67,7 @@ typedef struct obj obj_t;
 #define IS_PAIR(obj) (GET_TAG(obj) == TAG_PAIR)
 #define IS_CLOS(obj) (GET_TAG(obj) == TAG_CLOS)
 #define IS_PRIM(obj) (GET_TAG(obj) == TAG_PRIM)
+#define IS_VEC(obj)  (GET_TAG(obj) == TAG_VEC)
 
 typedef struct pair
 {
@@ -75,6 +80,17 @@ typedef struct clos
 } clos_t;
 
 typedef void(prim_t)(obj_t **);
+
+/** Dynamic array of objects.
+ * Classical implementation.
+
+ * TODO: Consider if an inline-header vector may be better.
+ */
+typedef struct vec
+{
+  u32 capacity, length;
+  obj_t **items;
+} vec_t;
 
 // Global State
 typedef struct state state_t;
@@ -103,31 +119,39 @@ extern state_t state[1];
  ******************************************************************/
 
 tag_t get_tag(obj_t *ptr);
+
 obj_t *make_atom(const char *str, size_t len);
 obj_t *make_num(int64_t num);
 obj_t *make_pair(obj_t *car, obj_t *cdr);
 obj_t *make_clos(obj_t *body, obj_t *env);
 obj_t *make_prim(prim_t *func);
+obj_t *make_vec(u64 init_cap);
+
 char *as_atom(obj_t *obj);
 i64 as_num(obj_t *obj);
 pair_t *as_pair(obj_t *obj);
 clos_t *as_clos(obj_t *obj);
 prim_t *as_prim(obj_t *obj);
+vec_t *as_vec(obj_t *obj);
+
+/*******************************************************************
+ * Basic API
+ ******************************************************************/
+
 obj_t *car(obj_t *obj);
 obj_t *cdr(obj_t *obj);
+
+void vec_append(vec_t *vec, obj_t *item);
+void vec_append_mult(vec_t *vec, obj_t **items, u64 num_items);
+
 obj_t *intern(const char *atom_buf, size_t atom_len);
 bool obj_equal(obj_t *a, obj_t *b);
 
 /*******************************************************************
- * Reader
+ * Basic I/O
  ******************************************************************/
 
 obj_t *read(void);
-
-/*******************************************************************
- * Print
- ******************************************************************/
-
 void print(obj_t *obj);
 
 /*******************************************************************

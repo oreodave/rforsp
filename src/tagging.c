@@ -47,6 +47,15 @@ obj_t *make_prim(prim_t *func)
   return TAG_TYPE(func, PRIM);
 }
 
+obj_t *make_vec(u64 init_cap)
+{
+  vec_t *vec    = malloc(sizeof(*vec));
+  vec->capacity = init_cap;
+  vec->length   = 0;
+  vec->items    = init_cap == 0 ? NULL : malloc(sizeof(obj_t *) * init_cap);
+  return TAG_TYPE(vec, VEC);
+}
+
 char *as_atom(obj_t *obj)
 {
   if (!IS_ATOM(obj))
@@ -81,6 +90,13 @@ prim_t *as_prim(obj_t *obj)
   return (prim_t *)UNTAG(obj);
 }
 
+vec_t *as_vec(obj_t *obj)
+{
+  if (!IS_VEC(obj))
+    return NULL;
+  return (vec_t *)UNTAG(obj);
+}
+
 obj_t *car(obj_t *obj)
 {
   if (!IS_PAIR(obj))
@@ -93,6 +109,33 @@ obj_t *cdr(obj_t *obj)
   if (!IS_PAIR(obj))
     return NULL;
   return as_pair(obj)->cdr;
+}
+
+void vec_append(vec_t *vec, obj_t *item)
+{
+  if (!vec)
+    return;
+
+  if (vec->capacity - vec->length == 0)
+  {
+    vec->capacity = MAX(vec->length + 1, vec->capacity * 2);
+    vec->items    = realloc(vec->items, sizeof(item) * vec->capacity);
+  }
+  vec->items[vec->length] = item;
+  vec->length++;
+}
+
+void vec_append_mult(vec_t *vec, obj_t **items, u64 num_items)
+{
+  if (!vec)
+    return;
+  if (vec->capacity - vec->length < num_items)
+  {
+    vec->capacity = MAX(vec->length + num_items, vec->capacity * 2);
+    vec->items    = realloc(vec->items, sizeof(*items) * vec->capacity);
+  }
+  memcpy(vec->items + vec->length, items, num_items);
+  vec->length += num_items;
 }
 
 obj_t *intern(const char *atom_buf, size_t atom_len)

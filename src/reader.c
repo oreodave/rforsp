@@ -100,7 +100,7 @@ obj_t *read_list(void)
   obj_t *root = NULL, *cur = NULL;
   char c = 0;
   skip_white_and_comments();
-  for (c = peek(); (c && c != ')') || state->read_stack;
+  for (c = peek(); (c && c != ')') || state->read_stack.length;
        skip_white_and_comments(), c = peek())
   {
     obj_t *item = read();
@@ -129,11 +129,12 @@ obj_t *read_list(void)
 
 obj_t *read(void)
 {
-  obj_t *read_stack = state->read_stack;
-  if (read_stack)
+  if (state->read_stack.length)
   {
-    state->read_stack = cdr(read_stack);
-    return car(read_stack);
+    obj_t *ret = NULL;
+    // NOTE: We've verified length is non zero, but it's best to assert.
+    assert(vec_try_pop(&state->read_stack, &ret));
+    return ret;
   }
 
   skip_white_and_comments();
@@ -151,21 +152,23 @@ obj_t *read(void)
   {
     // TODO: Remove the read stack idea entirely.
     advance();
-    obj_t *s          = NULL;
-    s                 = make_pair(state->atom_push, s);
-    s                 = make_pair(read_scalar(), s);
-    s                 = make_pair(state->atom_quote, s);
-    state->read_stack = s;
+    obj_t *items[3] = {
+        state->atom_push,
+        read_scalar(),
+        state->atom_quote,
+    };
+    vec_push_mult(&state->read_stack, items, 3);
     return read();
   }
   else if (c == '$')
   {
     advance();
-    obj_t *s          = NULL;
-    s                 = make_pair(state->atom_pop, s);
-    s                 = make_pair(read_scalar(), s);
-    s                 = make_pair(state->atom_quote, s);
-    state->read_stack = s;
+    obj_t *items[3] = {
+        state->atom_pop,
+        read_scalar(),
+        state->atom_quote,
+    };
+    vec_push_mult(&state->read_stack, items, 3);
     return read();
   }
   else if (c == '(')

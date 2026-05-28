@@ -100,7 +100,7 @@ struct state
   size_t input_len; // input data length used by read()
   size_t input_pos; // input data position used by read()
 
-  obj_t *read_stack; // defered obj to emit from read
+  vec_t read_stack; // defered obj to emit from read
 
   vec_t interned_atoms; // interned atoms list
   obj_t *atom_true;     // atom: t

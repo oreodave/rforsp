@@ -140,17 +140,17 @@ void vec_append_mult(vec_t *vec, obj_t **items, u64 num_items)
 
 obj_t *intern(const char *atom_buf, size_t atom_len)
 {
-  for (obj_t *list = state->interned_atoms; list != NULL; list = cdr(list))
+  for (u64 i = 0; i < state->interned_atoms.length; ++i)
   {
-    obj_t *elem     = car(list);
+    obj_t *elem     = state->interned_atoms.items[i];
     char *elem_atom = as_atom(elem);
     if (atom_len == strlen(elem_atom) &&
         0 == memcmp(atom_buf, elem_atom, atom_len))
       return elem;
   }
 
-  obj_t *atom           = make_atom(atom_buf, atom_len);
-  state->interned_atoms = make_pair(atom, state->interned_atoms);
+  obj_t *atom = make_atom(atom_buf, atom_len);
+  vec_append(&state->interned_atoms, atom);
   return atom;
 }
 

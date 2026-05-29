@@ -51,7 +51,6 @@ typedef enum Tag
   TAG_PAIR = 3,
   TAG_CLOS = 4,
   TAG_PRIM = 5,
-  TAG_VEC  = 6,
 } tag_t;
 
 typedef struct obj obj_t;
@@ -67,7 +66,6 @@ typedef struct obj obj_t;
 #define IS_PAIR(obj) (GET_TAG(obj) == TAG_PAIR)
 #define IS_CLOS(obj) (GET_TAG(obj) == TAG_CLOS)
 #define IS_PRIM(obj) (GET_TAG(obj) == TAG_PRIM)
-#define IS_VEC(obj)  (GET_TAG(obj) == TAG_VEC)
 
 typedef struct pair
 {
@@ -125,14 +123,12 @@ obj_t *make_num(int64_t num);
 obj_t *make_pair(obj_t *car, obj_t *cdr);
 obj_t *make_clos(obj_t *body, obj_t *env);
 obj_t *make_prim(prim_t *func);
-obj_t *make_vec(u64 init_cap);
 
 char *as_atom(obj_t *obj);
 i64 as_num(obj_t *obj);
 pair_t *as_pair(obj_t *obj);
 clos_t *as_clos(obj_t *obj);
 prim_t *as_prim(obj_t *obj);
-vec_t *as_vec(obj_t *obj);
 
 /*******************************************************************
  * Basic API

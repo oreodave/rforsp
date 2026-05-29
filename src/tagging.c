@@ -47,15 +47,6 @@ obj_t *make_prim(prim_t *func)
   return TAG_TYPE(func, PRIM);
 }
 
-obj_t *make_vec(u64 init_cap)
-{
-  vec_t *vec    = malloc(sizeof(*vec));
-  vec->capacity = init_cap;
-  vec->length   = 0;
-  vec->items    = init_cap == 0 ? NULL : malloc(sizeof(obj_t *) * init_cap);
-  return TAG_TYPE(vec, VEC);
-}
-
 char *as_atom(obj_t *obj)
 {
   if (!IS_ATOM(obj))
@@ -88,13 +79,6 @@ prim_t *as_prim(obj_t *obj)
   if (!IS_PRIM(obj))
     return NULL;
   return (prim_t *)UNTAG(obj);
-}
-
-vec_t *as_vec(obj_t *obj)
-{
-  if (!IS_VEC(obj))
-    return NULL;
-  return (vec_t *)UNTAG(obj);
 }
 
 obj_t *car(obj_t *obj)

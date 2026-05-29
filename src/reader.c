@@ -13,6 +13,13 @@ char peek(void)
   return state->input_str[state->input_pos];
 }
 
+char *stream_current(void)
+{
+  if (state->input_pos == state->input_len)
+    return 0;
+  return &state->input_str[state->input_pos];
+}
+
 void advance(void)
 {
   assert(peek());
@@ -35,26 +42,21 @@ bool is_punctuation(char c)
          c == ';';
 }
 
+static const char *WHITESPACE  = "\n\t ";
+static const char *PUNCTUATION = "\'^$();\n\t ";
+
 void skip_white_and_comments(void)
 {
   if (peek() == 0)
-    return;
-
-  while (is_white(peek()))
   {
-    advance();
+    return;
   }
+
+  state->input_pos += strspn(stream_current(), WHITESPACE);
   if (peek() == ';')
   {
     advance();
-    for (char c = peek(); c != '\n'; advance(), c = peek())
-    {
-      if (c == 0)
-      {
-        return;
-      }
-    }
-    // We need to do a recur here to kill any further whitespace or comments.
+    state->input_pos += strcspn(stream_current(), "\n");
     skip_white_and_comments();
   }
 }
@@ -76,22 +78,19 @@ static bool parse_i64(const char *str, size_t len, int64_t *_out)
 
 obj_t *read_scalar(void)
 {
-  size_t start = state->input_pos;
-  while (!is_punctuation(peek()))
-    advance();
-
-  char *str = &state->input_str[start];
-  size_t n  = state->input_pos - start;
+  size_t size = strcspn(stream_current(), PUNCTUATION);
+  char *str   = stream_current();
+  state->input_pos += size;
 
   int64_t num;
-  if (parse_i64(str, n, &num))
+  if (parse_i64(str, size, &num))
   {
     return make_num(num);
   }
   else
   {
     // NOTE: quite liberal strings.
-    return intern(str, n);
+    return intern(str, size);
   }
 }
 
@@ -116,6 +115,7 @@ obj_t *read_list(void)
       cur          = pair->cdr;
     }
   }
+
   if (c != ')')
   {
     FAIL("Expected closing brace");
@@ -123,8 +123,8 @@ obj_t *read_list(void)
   else
   {
     advance();
+    return root;
   }
-  return root;
 }
 
 obj_t *read(void)
@@ -140,17 +140,18 @@ obj_t *read(void)
   skip_white_and_comments();
 
   char c = peek();
-  if (!c)
+  switch (c)
+  {
+  case 0:
     FAIL("End of input: could not read()");
-
-  if (c == '\'')
+    break;
+  case '\'':
   {
     advance();
-    return state->atom_quote;
   }
-  else if (c == '^')
+    return state->atom_quote;
+  case '^':
   {
-    // TODO: Remove the read stack idea entirely.
     advance();
     obj_t *items[3] = {
         state->atom_push,
@@ -158,9 +159,9 @@ obj_t *read(void)
         state->atom_quote,
     };
     vec_push_mult(&state->read_stack, items, 3);
-    return read();
   }
-  else if (c == '$')
+    return read();
+  case '$':
   {
     advance();
     obj_t *items[3] = {
@@ -169,15 +170,12 @@ obj_t *read(void)
         state->atom_quote,
     };
     vec_push_mult(&state->read_stack, items, 3);
-    return read();
   }
-  else if (c == '(')
-  {
+    return read();
+  case '(':
     advance();
     return read_list();
-  }
-  else
-  {
+  default:
     return read_scalar();
   }
 }

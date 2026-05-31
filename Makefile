@@ -1,5 +1,5 @@
 CC=cc
-CFLAGS=-std=c23 -Wall -Wextra -Wpedantic -Werror -ggdb -Isrc
+CFLAGS=-std=c23 -Wall -Wextra -Wpedantic -Wswitch-enum -Werror -ggdb -Isrc
 LDFLAGS=
 OUT=forsp
 

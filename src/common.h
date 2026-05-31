@@ -158,6 +158,7 @@ void print(obj_t *obj);
 obj_t *env_find(obj_t *env, obj_t *key);
 obj_t *env_define(obj_t *env, obj_t *key, obj_t *val);
 obj_t *env_define_prim(obj_t *env, const char *name, void (*func)(obj_t **env));
+void state_env_setup();
 
 /*******************************************************************
  * Stack
@@ -178,6 +179,7 @@ void compute(obj_t *comp, obj_t *env);
  * Primitives
  ******************************************************************/
 
+// required
 void prim_push(obj_t **env);
 void prim_pop(obj_t **env);
 void prim_eq(obj_t **_);
@@ -188,6 +190,8 @@ void prim_cswap(obj_t **_);
 void prim_tag(obj_t **_);
 void prim_read(obj_t **_);
 void prim_print(obj_t **_);
+
+// helpful
 void prim_stack(obj_t **_);
 void prim_env(obj_t **env);
 void prim_sub(obj_t **_);

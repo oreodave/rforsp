@@ -33,6 +33,30 @@ obj_t *env_define_prim(obj_t *env, const char *name, void (*func)(obj_t **env))
   return env_define(env, intern(name, strlen(name)), make_prim(func));
 }
 
+void state_env_setup()
+{
+  obj_t *env = NULL;
+  env        = env_define_prim(env, "push", &prim_push);
+  env        = env_define_prim(env, "pop", &prim_pop);
+  env        = env_define_prim(env, "cons", &prim_cons);
+  env        = env_define_prim(env, "car", &prim_car);
+  env        = env_define_prim(env, "cdr", &prim_cdr);
+  env        = env_define_prim(env, "eq", &prim_eq);
+  env        = env_define_prim(env, "cswap", &prim_cswap);
+  env        = env_define_prim(env, "tag", &prim_tag);
+  env        = env_define_prim(env, "read", &prim_read);
+  env        = env_define_prim(env, "print", &prim_print);
+  env        = env_define_prim(env, "stack", &prim_stack);
+  env        = env_define_prim(env, "env", &prim_env);
+  env        = env_define_prim(env, "-", &prim_sub);
+  env        = env_define_prim(env, "*", &prim_mul);
+  env        = env_define_prim(env, "nand", &prim_nand);
+  env        = env_define_prim(env, "<<", &prim_lsh);
+  env        = env_define_prim(env, ">>", &prim_rsh);
+
+  state->env = env;
+}
+
 /* Copyright (c) 2024 Anthony Bonkoski
  * Copyright (C) 2026 Aryadev Chavali
  *

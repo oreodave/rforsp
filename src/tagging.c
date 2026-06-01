@@ -57,6 +57,7 @@ char *as_atom(obj_t *obj)
 i64 as_num(obj_t *obj)
 {
   assert(IS_NUM(obj));
+  // NOTE: Arithmetic shift
   return ((i64)obj) >> 8;
 }
 
@@ -83,16 +84,14 @@ prim_t *as_prim(obj_t *obj)
 
 obj_t *car(obj_t *obj)
 {
-  if (!IS_PAIR(obj))
-    return NULL;
-  return as_pair(obj)->car;
+  auto pair = as_pair(obj);
+  return pair ? pair->car : NULL;
 }
 
 obj_t *cdr(obj_t *obj)
 {
-  if (!IS_PAIR(obj))
-    return NULL;
-  return as_pair(obj)->cdr;
+  auto pair = as_pair(obj);
+  return pair ? pair->cdr : NULL;
 }
 
 void vec_init(vec_t *vec, size_t initial_capacity)
@@ -148,14 +147,14 @@ obj_t *intern(const char *atom_buf, size_t atom_len)
 {
   for (u64 i = 0; i < state->interned_atoms.length; ++i)
   {
-    obj_t *elem     = state->interned_atoms.items[i];
-    char *elem_atom = as_atom(elem);
+    auto elem      = state->interned_atoms.items[i];
+    auto elem_atom = as_atom(elem);
     if (atom_len == strlen(elem_atom) &&
         0 == memcmp(atom_buf, elem_atom, atom_len))
       return elem;
   }
 
-  obj_t *atom = make_atom(atom_buf, atom_len);
+  auto atom = make_atom(atom_buf, atom_len);
   vec_push(&state->interned_atoms, atom);
   return atom;
 }

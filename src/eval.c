@@ -15,8 +15,8 @@ void compute(obj_t *comp, obj_t *env)
 
   while (comp != NULL)
   {
-    obj_t *cmd = car(comp);
-    comp       = cdr(comp);
+    auto cmd = car(comp);
+    comp     = cdr(comp);
 
     switch (get_tag(cmd))
     {
@@ -32,7 +32,7 @@ void compute(obj_t *comp, obj_t *env)
       }
 
       // Otherwise perform a lookup and "call" the value.
-      obj_t *val = env_find(env, cmd);
+      auto val = env_find(env, cmd);
       if (IS_CLOS(val))
       {
         auto clos = as_clos(val);

@@ -13,10 +13,9 @@ void prim_push(obj_t **env)
 
 void prim_pop(obj_t **env)
 {
-  obj_t *k, *v;
-  k    = pop();
-  v    = pop();
-  *env = env_define(*env, k, v);
+  auto k = pop();
+  auto v = pop();
+  *env   = env_define(*env, k, v);
 }
 
 void prim_eq(obj_t **_)
@@ -28,9 +27,8 @@ void prim_eq(obj_t **_)
 void prim_cons(obj_t **_)
 {
   (void)_;
-  obj_t *a, *b;
-  a = pop();
-  b = pop();
+  auto a = pop();
+  auto b = pop();
   push(make_pair(a, b));
 }
 
@@ -51,9 +49,8 @@ void prim_cswap(obj_t **_)
   (void)_;
   if (pop() == state->atom_true)
   {
-    obj_t *a, *b;
-    a = pop();
-    b = pop();
+    auto a = pop();
+    auto b = pop();
     push(a);
     push(b);
   }
@@ -91,45 +88,40 @@ void prim_env(obj_t **env)
 void prim_sub(obj_t **_)
 {
   (void)_;
-  obj_t *a, *b;
-  b = pop();
-  a = pop();
+  auto b = pop();
+  auto a = pop();
   push(make_num(as_num(a) - as_num(b)));
 }
 
 void prim_mul(obj_t **_)
 {
   (void)_;
-  obj_t *a, *b;
-  b = pop();
-  a = pop();
+  auto b = pop();
+  auto a = pop();
   push(make_num(as_num(a) * as_num(b)));
 }
 
 void prim_nand(obj_t **_)
 {
   (void)_;
-  obj_t *a, *b;
-  b = pop();
-  a = pop();
+  auto b = pop();
+  auto a = pop();
   push(make_num(~(as_num(a) & as_num(b))));
 }
 
 void prim_lsh(obj_t **_)
 {
   (void)_;
-  obj_t *a, *b;
-  b = pop();
-  a = pop();
+  auto b = pop();
+  auto a = pop();
   push(make_num(as_num(a) << as_num(b)));
 }
 
 void prim_rsh(obj_t **_)
 {
   (void)_;
-  obj_t *a, *b;
-  b = pop();
-  a = pop();
+  auto b = pop();
+  auto a = pop();
   push(make_num(as_num(a) >> as_num(b)));
 }
 

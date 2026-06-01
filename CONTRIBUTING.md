@@ -14,9 +14,9 @@ development on this project.
 However there are specific constraints that must be abided by:
 - NO LLM generated prose for PRs.  Any PRs with LLM-esque prose will
   be flatly rejected.  This is somewhat difficult to verify, but
-  anyone willing to put the time in to get their LLM generated text to
-  pass a general human filter would find their time better spent
-  actually developing.
+  anyone willing to put the time in to get LLM generated text past a
+  general human filter would find their time better spent actually
+  developing.
     - **Speak in your own words.**
 - Any LLM generated code must be thoroughly reviewed by the developer
   before review.  This is admittedly difficult to evidence; however,

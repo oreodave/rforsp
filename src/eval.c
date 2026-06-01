@@ -10,11 +10,10 @@ void eval(obj_t *expr, obj_t **env);
 
 void compute(obj_t *comp, obj_t *env)
 {
-  if (DEBUG)
-  {
-    printf("compute: ");
-    print(comp);
-  }
+#if DEBUG > 1
+  printf("compute: ");
+  print(comp);
+#endif
 
   while (comp != NULL)
   {
@@ -36,11 +35,10 @@ void compute(obj_t *comp, obj_t *env)
 
 void eval(obj_t *expr, obj_t **env)
 {
-  if (DEBUG)
-  {
-    printf("eval: ");
-    print(expr);
-  }
+#if DEBUG > 1
+  printf("eval: ");
+  print(expr);
+#endif
 
   if (IS_ATOM(expr))
   {

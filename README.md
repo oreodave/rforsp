@@ -2,9 +2,9 @@
 
 Forsp is a hybrid language combining Forth and Lisp.
 
-Forsp is a minimalist language.
-
-## Features
+Forsp is a minimalist language, requiring only 10 primitive functions
+and a relatively small amount of code to self-implement the initial
+`compute`-`eval` loop.
 
 Forsp has:
   - An S-Expression syntax like Lisp
@@ -18,13 +18,18 @@ Forsp has:
   - A Call-By-Push-Value evaluation order
   - Only 3 syntax special forms: ' ^ $
   - Only 1 eval-time special form: quote
-  - Only 10 primitive functions need to self-implement
-  - Ability to self-implement in very little code
 
-## Discussion
 
-See blog post for details: [Forsp: A Forth+Lisp Hybrid Lambda Calculus
-Language](https://xorvoid.com/forsp.html)
+This is a fork of the original sample code developed by `xorvoid`
+(Anthony Bonkoski) which you can find
+[here](https://github.com/xorvoid/forsp).  It's incredibly minimal
+and, thus, a tiny read.  I also highly recommend reading the [original
+blog post](https://xorvoid.com/forsp.html) as it does an amazing job
+explaining and motivating core decision decisions.
+
+The driving principle behind this fork is redesigning the interpreter,
+introducing common optimisations, as well as fleshing out the language
+to provide a less bare-bones initial experience.
 
 ## Tutorial
 
@@ -35,7 +40,7 @@ tutorial](examples/tutorial.fp) along with the other available
 ## Requirements
 - C compiler that can compile C23 (tested: gcc 16.1.1 20260430 clang
   22.1.5)
-- Make (test: GNU Make, bmake)
+- Make (tested: GNU Make, bmake)
 
 ## Building and Demo
 
@@ -52,8 +57,9 @@ Running:
 ```
 make run ARGS=<...>
 ```
+... where `<...>` is a filename.
 
-Examples:
+Testing examples:
 ```
 make examples
 ```

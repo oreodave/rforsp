@@ -31,6 +31,7 @@ void setup(const char *input_path)
   state->input_name = input_path;
   state->input_str  = load_file(input_path, &state->input_len);
   state->input_pos  = 0;
+  vec_init(&state->read_stack, 3);
 
   state->atom_true  = intern("t", 1);
   state->atom_quote = intern("quote", 5);

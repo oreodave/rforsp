@@ -7,7 +7,7 @@ CODE=src/tagging.c src/primitives.c src/stack.c src/environment.c src/eval.c src
 EXAMPLES=examples/church-numerals.fp examples/currying.fp examples/demo.fp \
 		examples/factorial.fp examples/fibonacci-functional.fp examples/forsp.fp examples/higher-order-functions.fp examples/tutorial.fp
 
-$(OUT): $(CODE)
+$(OUT): src/common.h $(CODE)
 	$(CC) $(CFLAGS) -o $@ $(CODE)
 
 ARGS=

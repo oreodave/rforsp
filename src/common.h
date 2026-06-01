@@ -94,9 +94,10 @@ typedef struct vec
 typedef struct state state_t;
 struct state
 {
-  char *input_str;  // input data string used by read()
-  size_t input_len; // input data length used by read()
-  size_t input_pos; // input data position used by read()
+  const char *input_name; // name for source of input data
+  char *input_str;        // input data string used by read()
+  size_t input_len;       // input data length used by read()
+  size_t input_pos;       // input data position used by read()
 
   vec_t read_stack; // defered obj to emit from read
 

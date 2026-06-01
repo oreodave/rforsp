@@ -45,6 +45,32 @@ bool is_punctuation(char c)
 static const char *WHITESPACE  = "\n\t ";
 static const char *PUNCTUATION = "\'^$();\n\t ";
 
+void reader_error_position(void)
+{
+  // Derive col, line from state->input_pos
+  size_t col, line, ind;
+  for (col = 0, line = 1, ind = 0; ind <= state->input_pos; ++ind)
+  {
+    if (state->input_str[ind] == '\n')
+    {
+      ++line;
+      col = 0;
+    }
+    else
+    {
+      ++col;
+    }
+  }
+  fprintf(stderr, "%s:%lu:%lu: ", state->input_name, line, col);
+}
+
+#define READER_ERROR(...)    \
+  do                         \
+  {                          \
+    reader_error_position(); \
+    FAIL(__VA_ARGS__);       \
+  } while (0)
+
 void skip_white_and_comments(void)
 {
   if (peek() == 0)
@@ -99,6 +125,7 @@ obj_t *read_list(void)
   obj_t *root = NULL, *cur = NULL;
   char c = 0;
   skip_white_and_comments();
+  size_t start = state->input_pos;
   for (c = peek(); (c && c != ')') || state->read_stack.length;
        skip_white_and_comments(), c = peek())
   {
@@ -116,9 +143,11 @@ obj_t *read_list(void)
     }
   }
 
+  c = peek();
   if (c != ')')
   {
-    FAIL("Expected closing brace");
+    state->input_pos = start;
+    READER_ERROR("Expected closing brace");
   }
   else
   {
@@ -143,7 +172,7 @@ obj_t *read(void)
   switch (c)
   {
   case 0:
-    FAIL("End of input: could not read()");
+    READER_ERROR("End of input: could not read()");
     break;
   case '\'':
   {

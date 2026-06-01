@@ -126,10 +126,12 @@ obj_t *read_scalar(void)
 
 obj_t *read_list(void)
 {
+// NOTE: read_list only called when `(` encountered in read.  Thus, we record
+// the starting position for diagnostic purposes, then skip ahead.
 #if DEBUG
   size_t start = state->input_pos;
 #endif
-  skip_white_and_comments();
+  advance();
 
   obj_t *root = NULL, *cur = NULL;
   char c = 0;
@@ -212,7 +214,6 @@ obj_t *read(void)
   }
     return read();
   case '(':
-    advance();
     return read_list();
   default:
     return read_scalar();

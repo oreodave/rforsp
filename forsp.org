@@ -1,0 +1,39 @@
+* TODO Implement a bytecode phase
+The big idea behind a bytecode phase is to make ~compute~ more
+performant.  We'll compile our super high level Forsp code into a
+sequence of simplistic VM instructions, which on their own should be
+super easy to run through at mach speed.
+
+The bytecode standard we define, along with the analogous ~compute~,
+essentially describe a stack based VM.  A few instrinsics in this VM
+should map to the special operators of the higher level Forsp
+language (quote ('), pop ($), push (^)).  In a sense, this bytecode
+will represent the /kernel/ of the Forsp language itself.
+
+This is going to require some level of language redesign, and will
+have multiple components.
+** TODO Design bytecode
+Rough notes:
+- Closures compile to blocks of code, which are themselves simply
+  arrays of instructions.
+  - All code, therefore, should really just translate into a bunch of
+    embedded arrays
+*** TODO Data representation
+*** TODO Instructions
+** TODO Redesign reader
+Our reader now needs to emit bytecode instead of an AST that we then
+evaluate.  We can still stick to the recursive nature of ~read~.
+** TODO Stack effect/Type checking
+Forsp currently lacks stack effect analysis and type checking.  It's
+not needed for a minimalist implementation (hence why it's not present
+in the original), but these are several reasons this would be a good
+idea:
+- having a formal understanding of the exact effects (stack effects,
+  along with type pre-requisites) should help with catching a class of
+  reasoning/soundness errors
+- will help with optimisation passes
+- good exercise in verifying the core kernel of the language itself
+** TODO Consider optimisation
+This is not an easily measurable task, and will likely be on-going
+following the completion of the initial bytecode redesign.  But it's a
+good question to consider as part of our initial design.

@@ -1,28 +1,185 @@
-* TODO Implement a bytecode phase
-The big idea behind a bytecode phase is to make ~compute~ more
-performant.  We'll compile our super high level Forsp code into a
-sequence of simplistic VM instructions, which on their own should be
-super easy to run through at mach speed.
+* TODO Implement a IR phase
+The big idea behind a IR phase is to make ~compute~ more performant.
+We'll compile our super high level Forsp code into a sequence of
+simpler instructions, which on their own should be super easy to run
+through at mach speed.
 
-The bytecode standard we define, along with the analogous ~compute~,
-essentially describe a stack based VM.  A few instrinsics in this VM
-should map to the special operators of the higher level Forsp
-language (quote ('), pop ($), push (^)).  In a sense, this bytecode
-will represent the /kernel/ of the Forsp language itself.
+The IR standard we define, along with the analogous ~compute~,
+describe a VM.  A few instrinsics in this VM should map to the special
+operators of the higher level Forsp language (quote ('), pop ($), push
+(^)).  In a sense, this IR will represent the /kernel/ of the Forsp
+language itself.
 
 This is going to require some level of language redesign, and will
 have multiple components.
-** TODO Design bytecode
-Rough notes:
-- Closures compile to blocks of code, which are themselves simply
-  arrays of instructions.
-  - All code, therefore, should really just translate into a bunch of
-    embedded arrays
-*** TODO Data representation
-*** TODO Instructions
+** TODO Design IR
+We'll first consider the ~compute~ function to motivate the
+construction of certain instructions, then consider data types.
+*** Data types
+**** Closure rework
+Instead of /linked lists/ being the method by which we create
+closures, let's use dynamic arrays of IR instructions.  This does add
+some overhead to small closures, but in trade we get much faster
+compute times since we're iterating linearly through it.  Also the
+Forth like components of Forsp (stack based computation) fall quite
+naturally into array based compute.
+
+This also unifies the notion of the runtime stack (which we can
+implement trivially as a dynamic array) with the actual code we're
+interpreting; if we introduce the right primitives, we could generate
+code at runtime on the /compute stack/ that the interpreter will run
+straight away.
+**** Pair -> Stack rework
+Since pairs aren't the fundamental /block making/ data type (instead
+we're now using arrays), I want to extricate them as the main
+container type as well.  Instead, let's use dynamic arrays as stacks!
+
+Essentially we trade ~cons,car,cdr~ for the following:
+- ~push(T, S)~: push the value T onto the stack S
+- ~top(S)~: get the topmost value of stack S
+- ~rest(S)~: get a view of the stack S excluding the topmost value
+
+To get back some of the niceties of linked lists we'll use /stack
+views/ along with /copy on write/ to make this work:
+- ~rest(S)~ generates a /stack view/ which doesn't copy the underlying
+  data, instead constructing a new array header with a pointer to the
+  same data as S itself.  ~top~ works just fine with this.
+- ~push(T, S)~ will copy iff S is a stack view, and mutate if S is a
+  normal stack.
+
+We type stacks as so:
+- ~[]~ represents the empty stack
+- ~[T]~ represents a stack with one item (type T)
+- ~[...U T]~ represents a stack with the topmost item of type T, and
+  the rest encoded with a container type U
+
+So, for example, a stack with an integer topmost, then a symbol, then
+an empty stack, would look like so ~[[] symbol integer]~.
+*** Instructions
+We want our IR to essentially make the ~compute~ function easier.
+Let's break down the current implementation of the ~compute~ function:
+- Given a block of code ~xs~ (currently implemented as a linked list),
+  we iterate through every element ~x_n~
+- Each element ~x_n~ is distinguished by tag:
+  1) If ~x_n~ is an atom then:
+     1) If it's a quote, push ~x_{n+1}~ literally, and move to ~x_{n+2}~
+     2) Otherwise, lookup that atom in the current environment to get
+        ~y~, then:
+        1) If ~y~ is a closure or primitive, call it
+        2) Otherwise, push whatever ~y~ is on the stack
+  2) If ~x_n~ is a linked list (NIL or otherwise), make a closure out
+     of it, binding the current environment
+  3) If ~x_n~ is any other type (number, closure, primitive), push it
+     onto the stack
+
+We'll break down these paths and consider relevant instructions we'd
+need in our IR to represent them.
+**** 1 - Atoms
+***** 1.1: Quoted atoms
+This only occurs when one of the special operators is used, as the
+reader compiles them into multiple operations:
+- ~'x~ where ~x~ is an atom compiles to ~quote x~
+- ~$x~ where ~x~ is an atom compiles to ~quote x pop~
+  - This takes a value off the stack and binds it to the symbol ~x~ in
+    the current environment.  ~pop~ is implemented as a primitive.
+- ~^x~ where ~x~ is an atom compiles to ~quote x push~
+  - This looks up ~x~ in the current environment and pushes the
+    relevant value onto the stack.  ~push~ is implemented as a
+    primitive.
+
+See how they all manipulate an atom?  We can make this specific by
+making them into exact instructions:
+- ~'x~ maps to ~PUSH_SYMBOL(x)~.  This symbol is pushed onto the stack
+  as is.
+- ~$x~ maps to ~BIND(x)~ where ~BIND~ pops a value already on the
+  stack
+- ~^x~ maps to ~LOOKUP(x)~ where ~x~ should already have an associated
+  value in the environment.  The associated value is pushed onto the
+  stack.
+***** 1.2 Atom calling
+This is a core part of the Forsp language: raw unquoted symbols
+compile to function calls.  Given [[*1.1: Quoted atoms][1.1]] has the
+idea of ~LOOKUP(x)~, we can either go for:
+- ~LOOKUP(x)~ then ~CALL~ which:
+  - Pushes the associated value of X onto the stack
+  - ~CALL~ then pops that value and performs a "call" depending on the
+    type of the value (closures, primitives -> compute, otherwise ->
+    push value)
+- ~CALL(X)~ which embeds the symbol into the call directly.
+
+Given ~BIND(x)~ expects values on the stack, it might be better to
+have a 0-arity ~CALL~ (i.e. the former approach).  Furthermore, this
+allows us to extract away the retrieval mechanisms for every type of
+callable (see [[*3 - Normal pushes][3]]) so ~CALL~ is purely about
+actually doing a call.
+
+**** 2 - Blocks of Code
+When a linked list (which is the current notion for "block of code")
+is encountered, we generate a closure and push the associated value
+onto the stack.  Here's where the [[*Redesign reader][reader
+redesign]] (which see) will be really important - instead of leaving
+it to ~compute~ time to generate the closure, we can do it ahead of
+time at the ~read~.
+
+The main things to consider for IR design is:
+- ~MAKE_CLOSURE(idx)~ where ~idx~ is some way of pointing to the raw
+  code pertaining to the closure within the IR, pushing a closure
+  object onto the stack.
+  - ~MAKE_CLOSURE~ also needs to bind the current environment and
+    store it into the pushed closure object.
+**** 3 - Normal pushes
+When a general object that isn't already caught by the previous
+conditions is encountered, push it onto the stack.  For the sake of
+analysis I think it's better if we have unique PUSH constructors for
+each type:
+- ~PUSH_NUM(X)~ where X is a number
+- ~PUSH_CLOSURE(X)~ where X is a closure object (unlikely to be used
+  in first pass stuff)
+- ~PUSH_PRIMITIVE(X)~ where X is a primitive
+**** Primitives
+Given how small the number of primitives required for self
+implementation actually are, we may as well embed them into IR itself
+directly, which should allow the reader to elide a bunch of
+~PUSH_PRIMITIVE(x) CALL~ instances.
+**** Summary
+So in total we have the following extra instructions:
+|----------------+--------------------+-------------------|
+| Name           | Embedded Arguments | Stack effect      |
+|----------------+--------------------+-------------------|
+| PUSH_NUM       | (x: int)           | (-- int)          |
+| PUSH_SYMBOL    | (s: symbol)        | (-- symbol)       |
+| PUSH_CLOSURE   | (c: closure)       | (-- closure)      |
+| PUSH_PRIMITIVE | (p: primitive)     | (-- primitive)    |
+| BIND           | (s: symbol)        | (any --)          |
+| LOOKUP         | (s: symbol)        | (-- any)          |
+| CALL           | -                  | (callable -- any) |
+| MAKE_CLOSURE   | (id: TBD)          | (-- closure)      |
+|----------------+--------------------+-------------------|
+
+along with the primitives:
+|-------+---------------------------|
+| Name  | Stack Effect              |
+|-------+---------------------------|
+| EQ    | (any any     -- boolean)  |
+| PUSH  | (T U         -- [U T])    |
+| FIRST | ([...U T]    -- T)        |
+| REST  | ([...U T]    -- [...U])   |
+| CSWAP | (U T boolean -- (T or U)) |
+| TAG   | (any         -- int)      |
+| SUB   | (int int     -- int)      |
+| MUL   | (int int     -- int)      |
+| NAND  | (int int     -- int)      |
+| LSH   | (int int     -- int)      |
+| RSH   | (int int     -- int)      |
+| READ  | (            -- any)      |
+| PRINT | (any         --)          |
+|-------+---------------------------|
 ** TODO Redesign reader
-Our reader now needs to emit bytecode instead of an AST that we then
+Our reader now needs to emit IR instead of an AST that we then
 evaluate.  We can still stick to the recursive nature of ~read~.
+
+One big thing to consider is that we likely want to compile blocks of
+code ahead of time.
 ** TODO Stack effect/Type checking
 Forsp currently lacks stack effect analysis and type checking.  It's
 not needed for a minimalist implementation (hence why it's not present
@@ -33,7 +190,19 @@ idea:
   reasoning/soundness errors
 - will help with optimisation passes
 - good exercise in verifying the core kernel of the language itself
+
+How do we notate stack effects of callables?  We'll copy this from
+Forth.
+
+(I_1...I_N -- O_1...O_N) where:
+- I_{n} and O_{n} are types.
+- I_{n} represent the input types from the stack.
+- O_{n} represent the output types following execution.
+- X_N is the top of the stack.
+
+We can use ~...~ to notate the "rest of the stack" in cases where we
+need to be
 ** TODO Consider optimisation
 This is not an easily measurable task, and will likely be on-going
-following the completion of the initial bytecode redesign.  But it's a
+following the completion of the initial IR redesign.  But it's a
 good question to consider as part of our initial design.

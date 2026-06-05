@@ -2,8 +2,6 @@
   ($x x)                       $force
   (force cswap $_ force)       $if
   ($f $t $c $fn ^f ^t ^c fn)   $endif
-  ()                           $[
-  ()                           $]
 
   ; Y-Combinator
   ($f
@@ -17,8 +15,9 @@
 
   ; factorial
   ($self $n
-    ^if [ ^n 0 eq 1 ]
-      ([ ^n 1 - ] self ^n *)
+    ^if (^n 0 eq)
+      (1)
+      (^n 1 - self ^n *)
     endif
   ) rec $factorial
 

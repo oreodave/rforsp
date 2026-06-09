@@ -1,4 +1,112 @@
+* TODO Rework Forsp
+This subtree manages the refactor of the Forsp language where we
+replace certain linked list oriented operations of the language to
+favour dynamic arrays instead.
+** TODO Design a Stack based data structure to replace Pairs
+Pairs are a very natural concept within Forsp.  However, I think we
+can get away with replacing them in favour of a slightly more natural
+data structure: dynamically sized stacks, backed by slab allocated
+arrays.
+
+Why?  I think having to run all across the heap for linked lists is a
+real pain.  As program sizes get larger, this only becomes more of an
+issue.  In comparison, a dynamically sized stack at least allows us to
+iterate a bit more seamlessly through a first depth level of
+instructions.
+
+Also consider the universal stack, which is used for function
+parameters and returns.  A generalisable stack which user code can
+generate and utilise would fit naturally here.
+*** TODO Tagged pointer
+We need two data types:
+- ~stack~ which has ownership of the underlying data.
+- ~stack_view~ which doesn't have ownership.
+
+NIL should map to an empty stack.
+*** TODO User API
+Normal object based API, same as any other:
+- ~stack-push~ takes an element from the universal stack, and a stack
+  object, and pushes that element onto that stack object.  Stack
+  object is preserved.
+- ~stack-pop~ takes a stack object and pops an element off it, pushing
+  that element onto the universal stack.  Stack object is preserved
+  behind the freshly pushed item.
+- ~stack-length~ takes a stack object and pushes the length of it onto
+  the universal stack.
+*** WAIT Stack frames
+I'd really like to have some kind of notion of ~stack frames~ to
+partition function calling.  Essentially, one can construct a stack
+and swap it with the current calling stack.  The idea is that future
+calls utilising the universal stack will instead push/pop on this
+allocated one instead.
+
+At the very least, it should make constructing toy stacks really easy.
+Consider the task of creating a stack with 3 elements:
+#+begin_src forsp
+(
+  nil 3 stack-push 2 stack-push 1 stack-push print
+)
+#+end_src
+
+With the frame based API:
+#+begin_src forsp
+(
+  nil push-frame
+      3 2 1
+  pop-frame
+  print
+)
+#+end_src
+
+... where essentially:
+- ~push-frame~: given current running stack A, and stack object B on
+  top of stack A: push A onto a /frame stack/, make B the new running
+  stack
+- ~pop-frame~: given current running stack B, and A as the top of the
+  frame stack: pop A off the frame stack, make A the current running
+  stack, push B onto the current running stack.
+
+Environments are treated the same across frame borders:
+#+begin_src forsp
+(
+  nil push-frame
+      (2 *) $double
+      3 2 1
+  pop-frame
+  print
+  3 double print
+)
+#+end_src
+** TODO Redesign reader
+The reader should, instead of returning ~obj_t*~, push parsed ~obj_t*~
+onto a stack it takes as parameter.
+
+There are a few benefits to this:
+- No need for a /read stack/ since we can just push the relevant
+  pieces directly onto the parameterised stack.
+- ~read~'s return value is free to be used as an error value of some
+  kind, which we can propagate up the stack for better errors.
+
+Furthermore, any instances of ~()~ should use stacks instead of linked
+lists.  This will be crucial for later redesigns.
+** WAIT Redesign environments
+This is a hard one - environments as linked lists make perfect sense
+for closure construction (bind the current linked list as-is).  It's a
+shame, but this may have to wait till IR phase.
+** TODO Redesign closures and compute
+Instead of being linked lists of instructions, make closures
+essentially stacks of instructions.  ~closures~ simply store a
+sequence of instructions with their initial environment when
+constructed, so a stack makes obvious sense here.
+
+Since ~compute~ essentially linearly iterates through a linked list of
+instructions, this is no different from running linearly through a
+stack of instructions.  Furthermore, as ~read~ already very helpfully
+produces a stack of instructions to interpret, this fits naturally.
 * TODO Implement a IR phase
+This subtree manages the construction and implementation of an IR
+phase within the Forsp interpreter.
+
 The big idea behind a IR phase is to make ~compute~ more performant.
 We'll compile our super high level Forsp code into a sequence of
 simpler instructions, which on their own should be super easy to run

@@ -104,6 +104,19 @@ the things we want updated.  Essentially a stack of ~obj_t **~.
 Then, during the initial sweep when we're evacuating the roots, we can
 both scan this root stack to do so /and/ update the roots with the new
 pointers over in ~to~ space.
+** TODO Generational GC
+Most objects die young.  This is certainly the case for closures,
+which drive most of the fun in Forsp.
+
+A generational GC essentially means we have a further partitioning by
+/generation/ of heap space.  We have a ~nursery~, which is a sequence
+of fresh allocations which we may maintain via Cheney's algorithm, and
+collect often.  Any objects that survive a collection in the ~nursery~
+are considered old, and thus can be relegated to the ~old age home~,
+which experiences less frequent collections and can use less expensive
+algorithms to maintain.
+
+Might be worth considering if analysis suggests it's worth it.
 * TODO Big integers
 We can only compute $18!$.  Unacceptable.  It's due to only having 56
 bit integers.  We could get away with bumping this up to 63 bits by

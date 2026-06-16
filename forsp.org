@@ -1,4 +1,4 @@
-* TODO Better allocation
+* PROJ Better allocation
 #+begin_src sh :results output :session nil :async
 grep -rn "malloc\|realloc" src/
 #+end_src
@@ -11,15 +11,22 @@ grep -rn "malloc\|realloc" src/
 : src/tagging.c:113:    vec->items    = realloc(vec->items, sizeof(item) * vec->capacity);
 : src/tagging.c:126:    vec->items    = realloc(vec->items, sizeof(*items) * vec->capacity);
 
-We just allocate willy nilly really.  The only instance which is
-somewhat acceptable is [[file:src/main.c::char *mem = malloc(*size +
-1);][src/main.c]] which is reading all source code in one go.  Atom's
-are also somewhat acceptable as ~make_atom~ is only called when
-~intern~ is called, which caches atoms anyway.
+Compare to:
+#+begin_src sh :results output :session nil :async
+grep -rn "free" src/
+#+end_src
 
-By the way, memory is only cleaned up at program exit.
+#+RESULTS:
 
-** Observation on heap allocated objects
+We just allocate willy nilly really, without any oversight.  The only
+instance which is somewhat acceptable is [[file:src/main.c::char *mem
+= malloc(*size + 1);][src/main.c]] which is reading all source code in
+one go.  Atoms are somewhat acceptable as ~make_atom~ is only called
+when ~intern~ is called, which caches the memory itself.
+
+So really, memory is only cleaned at program exit.  Unacceptable for a
+dynamic interpreted language really.
+** NOTE Observation on heap allocated objects
 Pairs and Closures are the other two things we allocate, and they
 happen to be identical in size (two pointers).
 
@@ -33,7 +40,7 @@ didn't need to maintain pointers.  So arenas would be the next natural
 fit.  However, even with an arena we're still leaving garbage around.
 We need a way of collecting it, so we don't run out of memory for
 really large programs.
-** TODO Cheney's algorithm
+** WIP Cheney's algorithm
 Cheney's algorithm describes a method of allocation and collecting.
 We maintain the heap as is, and when it overfills we enter
 ~collection~.  To collect, we consider the heap as two portions:
@@ -60,42 +67,30 @@ of an allocation.
 We'll also want functions to return the pointer to the forwarded cell
 (i.e. the copied object) given an object pointer.
 *** Evacuate (move from ~from~ to ~to~)
-Evacuate is a function that drives this entire interaction.  Given a
-pointer ~p~, it works roughly like this:
-- copy contents of ~p~ over to ~to~ space, incrementing ~bump_ptr~.
-- replace first object slot at ~p~ with a forwarding pointer to the
-  new location in ~to~ space.
+Evacuate is a function that drives this entire collection routine.
+Given a pointer ~p~, it works roughly like this:
+- copy contents of ~p~ over to ~to~ space, incrementing ~bump_PR~.
+  Call the new pointer ~p'~
+- replace first object slot at ~p~ with a forwarding pointer to ~p'~
 
-So, when we look at ~p~ currently, the first field should essentially
-tell us whether that pointer has been migrated over to ~to~ space or
-not.
+So, when we look at ~p~ currently (i.e. when looking at stuff that
+references ~p~), checking the first field for a forwarding pointer
+should be enough to say that ~p~ has been migrated.
 *** Core algorithm
 **** The initial sweep
 We start by evacuating all the roots.  In Forsp our main roots will be
-the ~stack~ and the ~comp~/~env~ pair we get in a ~compute~ run.  This
-should leave us with a few forwarding pointers in ~from~ space, and a
-couple allocations to ~to~ space.
-**** The BFS
-Then, we scan through all objects in ~to~ space to move all the still
-accessible memory located in ~from~ space into ~to~ space.  We do this
-by maintaining a ~scan_ptr~ which starts at the beginning of ~to~
-space.  By virtue of the initial sweep, we must have /something/
-there:
-1) Look at the cells of the object at ~scan_ptr~
-   - If the cells are currently in ~from~ space, evacuate them,
-     incrementing ~bump_ptr~ accordingly.
-   - If they're already present in ~to~ space, or they're an
-     immediate, we can happily skip it.
-2) Bump ~scan_ptr~ to the next object in to space (16 bytes).
-3) Repeat (1) until ~scan_ptr >= bump_ptr~
+the ~stack~ and any ~comp~/~env~ parameters we get when doing a
+recursive ~compute~.
 
-Once we escape the loop, we must have scanned everything accessible in
-~to~ space, which by virtue must be everything accessible in the
-program.
-*** Root maintenance
+This should leave us with a few forwarding pointers in ~from~ space,
+and a couple allocations to ~to~ space.
+***** Root maintenance
+A few more words regarding the ~comp/env~ parameters we get in a
+~compute~ call.
+
 We enter a new ~compute~ call every time we call a closure, which uses
-its own ~comp~ and ~env~.  If we need to collect during ~compute~,
-these pointers will most likely point to garbage.  This is very bad.
+its own ~comp~ and ~env~.  If we collect during ~compute~,
+~comp~/~env~ will most likely point to garbage.  This is very bad.
 
 To make the GC aware of the fact that we want updates on these
 pointers, we need to maintain a ~root~ stack that stores pointers to
@@ -104,6 +99,32 @@ the things we want updated.  Essentially a stack of ~obj_t **~.
 Then, during the initial sweep when we're evacuating the roots, we can
 both scan this root stack to do so /and/ update the roots with the new
 pointers over in ~to~ space.
+**** The BFS
+Then, we scan through all objects in ~to~ space (which should be our
+roots) to move all the still accessible memory located in ~from~ space
+into ~to~ space.  We do this by maintaining a ~scan_ptr~ which starts
+at the beginning of ~to~ space.  Certainly ~scan_ptr < bump_ptr~ by
+initial evacuation.
+
+The routine goes as so:
+1) Look at the members of the object at ~scan_ptr~ (there should be
+   exactly 2)
+   - If the cells are currently in ~from~ space, evacuate them,
+     incrementing ~bump_ptr~ accordingly.
+   - If they're already present in ~to~ space, or they're an
+     immediate, we don't need to do anything.
+2) Bump ~scan_ptr~ to the next object in ~to~ space (16 bytes).
+3) Repeat (1) until ~scan_ptr >= bump_ptr~
+
+Once we escape the loop, we must have scanned everything accessible
+from ~to~ space, which by virtue must be everything accessible in the
+program from the roots.
+**** The sweep
+Once we've evacuated everything necessary in ~to~ space, we:
+- Update pointers in the ~compute~ stack for ~comp/env~
+- Cleanup all of ~from~ space
+- Swap ~to~ and ~from~ such that any new allocations will occur in
+  ~to~ instead of ~from~.
 ** TODO Generational GC
 Most objects die young.  This is certainly the case for closures,
 which drive most of the fun in Forsp.

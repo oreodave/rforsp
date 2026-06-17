@@ -17,7 +17,7 @@
  */
 typedef struct vec
 {
-  u32 capacity, length;
+  u32 length, capacity;
   obj_t **items;
 } vec_t;
 

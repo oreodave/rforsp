@@ -50,7 +50,7 @@ will be where we stick em.
 We consider ~to~ to be a form of bump allocator so we'll use
 ~bump_ptr~ to represent the bump index.
 
-*** TODO Forwarding pointers
+*** DONE Forwarding pointers
 We need a way to say that a given allocation has actually been moved
 over to ~to~ space; this will allow us to stop the later BFS in cases
 where memory has already been copied to ~to~ space.

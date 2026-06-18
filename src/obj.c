@@ -46,6 +46,11 @@ obj_t *make_prim(prim_t *func)
   return TAG_TYPE(func, PRIM);
 }
 
+obj_t *make_fwd(obj_t *ptr)
+{
+  return TAG_TYPE(ptr, FWD);
+}
+
 char *as_atom(obj_t *obj)
 {
   if (!IS_ATOM(obj))
@@ -79,6 +84,13 @@ prim_t *as_prim(obj_t *obj)
   if (!IS_PRIM(obj))
     return NULL;
   return (prim_t *)UNTAG(obj);
+}
+
+obj_t *as_fwd(obj_t *obj)
+{
+  if (!IS_FWD(obj))
+    return NULL;
+  return (obj_t *)UNTAG(obj);
 }
 
 obj_t *car(obj_t *obj)

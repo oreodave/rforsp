@@ -50,7 +50,7 @@ will be where we stick em.
 We consider ~to~ to be a form of bump allocator so we'll use
 ~bump_ptr~ to represent the bump index.
 
-*** Forwarding pointers
+*** TODO Forwarding pointers
 We need a way to say that a given allocation has actually been moved
 over to ~to~ space; this will allow us to stop the later BFS in cases
 where memory has already been copied to ~to~ space.
@@ -66,7 +66,7 @@ of an allocation.
 
 We'll also want functions to return the pointer to the forwarded cell
 (i.e. the copied object) given an object pointer.
-*** Evacuate (move from ~from~ to ~to~)
+*** TODO Evacuate (move from ~from~ to ~to~)
 Evacuate is a function that drives this entire collection routine.
 Given a pointer ~p~, it works roughly like this:
 - copy contents of ~p~ over to ~to~ space, incrementing ~bump_PR~.
@@ -76,15 +76,15 @@ Given a pointer ~p~, it works roughly like this:
 So, when we look at ~p~ currently (i.e. when looking at stuff that
 references ~p~), checking the first field for a forwarding pointer
 should be enough to say that ~p~ has been migrated.
-*** Core algorithm
-**** The initial sweep
+*** TODO Core algorithm
+**** TODO The initial sweep
 We start by evacuating all the roots.  In Forsp our main roots will be
 the ~stack~ and any ~comp~/~env~ parameters we get when doing a
 recursive ~compute~.
 
 This should leave us with a few forwarding pointers in ~from~ space,
 and a couple allocations to ~to~ space.
-***** Root maintenance
+***** TODO Root maintenance
 A few more words regarding the ~comp/env~ parameters we get in a
 ~compute~ call.
 
@@ -99,7 +99,7 @@ the things we want updated.  Essentially a stack of ~obj_t **~.
 Then, during the initial sweep when we're evacuating the roots, we can
 both scan this root stack to do so /and/ update the roots with the new
 pointers over in ~to~ space.
-**** The BFS
+**** TODO The BFS
 Then, we scan through all objects in ~to~ space (which should be our
 roots) to move all the still accessible memory located in ~from~ space
 into ~to~ space.  We do this by maintaining a ~scan_ptr~ which starts
@@ -119,7 +119,7 @@ The routine goes as so:
 Once we escape the loop, we must have scanned everything accessible
 from ~to~ space, which by virtue must be everything accessible in the
 program from the roots.
-**** The sweep
+**** TODO The sweep
 Once we've evacuated everything necessary in ~to~ space, we:
 - Update pointers in the ~compute~ stack for ~comp/env~
 - Cleanup all of ~from~ space

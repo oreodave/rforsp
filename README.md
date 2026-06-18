@@ -19,16 +19,18 @@ Forsp has:
   - Only 3 syntax special forms: ' ^ $
   - Only 1 eval-time special form: quote
 
-
 This is a fork of the original sample code developed by `xorvoid`
 (Anthony Bonkoski) which you can find
-[here](https://github.com/xorvoid/forsp).  It's incredibly minimal
-and, thus, a tiny read.  I also highly recommend reading the [original
-blog post](https://xorvoid.com/forsp.html) as it does an amazing job
-explaining and motivating core decision decisions.
+[here](https://github.com/xorvoid/forsp).  The interpreter is
+incredibly minimal and, thus, a very easy read (could do it in an hour
+or so).
+
+I also highly recommend reading the [original blog
+post](https://xorvoid.com/forsp.html) as it does an amazing job
+explaining and motivating core design decisions.
 
 The driving principle behind this fork is redesigning the interpreter,
-introducing common optimisations, as well as fleshing out the language
+introducing some optimisations, as well as fleshing out the language
 to provide a less bare-bones initial experience.
 
 ## Tutorial

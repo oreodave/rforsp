@@ -40,7 +40,7 @@ pair_t *page_alloc(page_t *, pair_t);
  * as the old one.
  * This is due to the nature of `realloc` (which see `man 3 realloc`).
  */
-void page_resize(page_t **, u64);
+bool page_resize(page_t **, u64);
 
 /** General structure of the GC.
  */

@@ -84,6 +84,21 @@ obj_t **gc_alloc(gc_t *gc)
   return pair;
 }
 
+/** Check if the given `obj` is allocated in `gc->backup` for the given `gc`.
+ * NOTE: If `obj` is not an allocated object, this function returns true
+ * vacuously.
+ */
+bool in_backup_space(gc_t *gc, obj_t *obj)
+{
+  if (!IS_ALLOC(obj))
+    return true;
+  uintptr_t ptr          = (uintptr_t)UNTAG(obj);
+  uintptr_t backup_start = (uintptr_t)gc->backup->data;
+  uintptr_t backup_end   = (uintptr_t)gc->backup->data +
+                           (gc->backup->length * sizeof(*gc->backup->data));
+  return backup_start <= ptr && backup_end >= ptr;
+}
+
 void gc_collect(gc_t *gc)
 {
   // TODO: complete algorithm

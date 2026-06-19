@@ -50,17 +50,18 @@ typedef struct
   page_t *current, *backup;
 } gc_t;
 
-void gc_init(gc_t *);
-void gc_stop(gc_t *);
+void gc_init();
+void gc_stop();
+
 
 /** Allocate a new object pair in the current GC structure.
  * May collect if there is not enough space in the current page.
  */
-obj_t **gc_alloc(gc_t *);
+obj_t **gc_alloc();
 
 /** Perform a collection as per Cheney's algorithm in the current GC structure.
  */
-void gc_collect(gc_t *);
+void gc_collect();
 
 #endif
 

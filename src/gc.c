@@ -5,6 +5,7 @@
  */
 
 #include "gc.h"
+#include "state.h"
 
 page_t *page_make()
 {
@@ -40,16 +41,16 @@ bool page_resize(page_t **page, u64 new_cap)
   return true;
 }
 
-void gc_init(gc_t *gc)
+void gc_init()
 {
-  gc->backup  = page_make();
-  gc->current = page_make();
+  state->gc.backup  = page_make();
+  state->gc.current = page_make();
 }
 
-void gc_stop(gc_t *gc)
+void gc_stop()
 {
-  free(gc->backup);
-  free(gc->current);
+  free(state->gc.backup);
+  free(state->gc.current);
 }
 
 obj_t **as_alloc(obj_t *obj)
@@ -57,28 +58,28 @@ obj_t **as_alloc(obj_t *obj)
   return (obj_t **)UNTAG(obj);
 }
 
-obj_t **gc_alloc(gc_t *gc)
+obj_t **gc_alloc()
 {
-  obj_t **pair = page_alloc(gc->current);
+  obj_t **pair = page_alloc(state->gc.current);
   while (!pair)
   {
+    // Ensure the capacity of the backup page is at least the capacity of the
+    // current page
+    if (state->gc.backup->capacity < state->gc.current->capacity)
+    {
+      page_resize(&state->gc.backup, state->gc.current->capacity);
+    }
+
     // Collect and try again.
-    gc_collect(gc);
-    pair = page_alloc(gc->current);
+    gc_collect();
+    pair = page_alloc(state->gc.current);
 
     if (!pair)
     {
       // If allocation has failed following collection, we need to increase the
       // size of our backup page and try again.
-      page_resize(&gc->backup, gc->backup->capacity * 2);
+      page_resize(&state->gc.backup, state->gc.backup->capacity * 2);
     }
-  }
-
-  // Ensure the capacity of the backup page is at least the capacity of the
-  // current page
-  if (gc->backup->capacity < gc->current->capacity)
-  {
-    page_resize(&gc->backup, gc->current->capacity);
   }
 
   return pair;
@@ -93,17 +94,16 @@ bool in_backup_space(gc_t *gc, obj_t *obj)
   if (!IS_ALLOC(obj))
     return true;
   uintptr_t ptr          = (uintptr_t)UNTAG(obj);
-  uintptr_t backup_start = (uintptr_t)gc->backup->data;
-  uintptr_t backup_end   = (uintptr_t)gc->backup->data +
-                           (gc->backup->length * sizeof(*gc->backup->data));
+  uintptr_t backup_start = (uintptr_t)state->gc.backup->data;
+  uintptr_t backup_end =
+      (uintptr_t)state->gc.backup->data +
+      (state->gc.backup->length * sizeof(*state->gc.backup->data));
   return backup_start <= ptr && backup_end >= ptr;
 }
 
-void gc_collect(gc_t *gc)
 {
-  // TODO: complete algorithm
-  (void)gc;
-  FAIL("Not done");
+void gc_collect()
+{
 
   // Swap current page with backup page once evacuation is over.
   // Ensure backup page is completely reset with regards to length.

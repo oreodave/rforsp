@@ -48,11 +48,14 @@ bool page_resize(page_t **, u64);
 typedef struct
 {
   page_t *current, *backup;
+  vec_t roots;
 } gc_t;
 
 void gc_init();
 void gc_stop();
 
+void gc_root_push(obj_t **);
+obj_t **gc_root_pop();
 
 /** Allocate a new object pair in the current GC structure.
  * May collect if there is not enough space in the current page.

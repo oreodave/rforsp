@@ -45,12 +45,36 @@ void gc_init()
 {
   state->gc.backup  = page_make();
   state->gc.current = page_make();
+  vec_init(&state->gc.roots, 8);
+  gc_root_push(&state->stack);
+  gc_root_push(&state->env);
 }
 
 void gc_stop()
 {
   free(state->gc.backup);
   free(state->gc.current);
+  vec_stop(&state->gc.roots);
+}
+
+void gc_root_push(obj_t **x)
+{
+  // NOTE: This is kinda illegal, but it's okay cos we're treating all gc.roots
+  // as pointers to `obj_t *`.
+  vec_push(&state->gc.roots, (obj_t *)x);
+}
+
+obj_t **gc_root_pop()
+{
+  obj_t *ret = NULL;
+  if (vec_try_pop(&state->gc.roots, &ret))
+  {
+    return (obj_t **)ret;
+  }
+  else
+  {
+    return NULL;
+  }
 }
 
 obj_t **as_alloc(obj_t *obj)

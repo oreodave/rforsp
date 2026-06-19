@@ -110,10 +110,9 @@ obj_t **gc_alloc()
 }
 
 /** Check if the given `obj` is allocated in `gc->backup` for the given `gc`.
- * NOTE: If `obj` is not an allocated object, this function returns true
- * vacuously.
+ * NOTE: If `obj` is an unmanaged object, this function returns true vacuously.
  */
-bool in_backup_space(gc_t *gc, obj_t *obj)
+bool in_backup_space(obj_t *obj)
 {
   if (!IS_ALLOC(obj))
     return true;
@@ -125,7 +124,50 @@ bool in_backup_space(gc_t *gc, obj_t *obj)
   return backup_start <= ptr && backup_end >= ptr;
 }
 
+/** Evacuate the given object into backup space, returning the copied object in
+ * backup space.
+ *
+ * NOTE: for non-managed types, this function is the identity.
+ */
+obj_t *evacuate(obj_t *obj)
 {
+  if (in_backup_space(obj))
+  {
+    return obj;
+  }
+
+  // Previous branch involving `in_backup_space` takes care of non-allocated
+  // objects and those already in backup space.  So we just need to consider
+  // allocated objects not in backup space.
+  obj_t **items = as_alloc(obj);
+  tag_t tag_obj = get_tag(obj);
+
+  if (get_tag(items[0]) == TAG_FWD)
+  {
+    // If the first item is a FWD object, then this object has been evacuated
+    // successfully already.  Follow the link and return the object in backup
+    // space.
+
+    // Firstly, we need to recover the copied pointer in backup space from the
+    // forwarding pointer.
+    void *backup_ptr = as_fwd(items[0]);
+    // Then, we need to tag it with the proper type of the initial object.
+    obj_t *recovered = TAG_CANON(backup_ptr, tag_obj);
+    return recovered;
+  }
+
+  // Otherwise, we need to copy this over into backup space and forward the
+  // current pointer to this new allocation.
+  obj_t **alloc = page_alloc(state->gc.backup);
+  assert(alloc && "This allocation should never fail.");
+
+  // FIXME: assuming pair-likes are the only allocated type.
+  memcpy(alloc, items, sizeof(*items) * 2);
+  items[0] = TAG_TYPE(alloc, FWD);
+
+  return TAG_CANON(alloc, tag_obj);
+}
+
 void gc_collect()
 {
 

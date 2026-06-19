@@ -33,7 +33,7 @@ page_t *page_make();
  * Will return NIL if there is not enough space within the page to allocate that
  * pair.
  */
-pair_t *page_alloc(page_t *, pair_t);
+pair_t *page_alloc(page_t *);
 
 /** Resize a page to the given new capacity.
  * Note that this is destructive as the new page may not have the same addresses

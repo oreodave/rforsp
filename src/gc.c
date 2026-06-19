@@ -15,15 +15,13 @@ page_t *page_make()
   return page;
 }
 
-pair_t *page_alloc(page_t *page, pair_t pair)
+pair_t *page_alloc(page_t *page)
 {
   if (page->capacity - page->length == 0)
   {
     return NULL;
   }
-  pair_t *ptr = &page->data[page->length++];
-  *ptr        = pair;
-  return ptr;
+  return &page->data[page->length++];
 }
 
 bool page_resize(page_t **page, u64 new_cap)

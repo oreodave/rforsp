@@ -29,30 +29,18 @@ obj_t *make_num(int64_t num)
 
 obj_t *make_pair(obj_t *car, obj_t *cdr)
 {
-  gc_root_push(&car);
-  gc_root_push(&cdr);
-
-  obj_t **pair = gc_alloc();
-  pair[0]      = car;
-  pair[1]      = cdr;
-
-  gc_root_pop();
-  gc_root_pop();
+  pair_t *pair = malloc(sizeof(*pair));
+  pair->car    = car;
+  pair->cdr    = cdr;
   return TAG_TYPE(pair, PAIR);
 }
 
 obj_t *make_clos(obj_t *body, obj_t *env)
 {
-  gc_root_push(&body);
-  gc_root_push(&env);
-
-  obj_t **pair = gc_alloc();
-  pair[0]      = body;
-  pair[1]      = env;
-
-  gc_root_pop();
-  gc_root_pop();
-  return TAG_TYPE(pair, CLOS);
+  clos_t *clos = malloc(sizeof(*clos));
+  clos->body   = body;
+  clos->env    = env;
+  return TAG_TYPE(clos, CLOS);
 }
 
 obj_t *make_prim(prim_t *func)

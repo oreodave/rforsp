@@ -15,7 +15,6 @@ void state_init()
   state->atom_push  = intern("push", 4);
   state->atom_pop   = intern("pop", 3);
 
-  gc_init();
   state_env_setup();
   vec_init(&state->read_stack, 3);
 }
@@ -30,7 +29,6 @@ void state_stop()
     free(atom);
   }
   vec_stop(&state->interned_atoms);
-  gc_stop();
 }
 
 /*******************************************************************

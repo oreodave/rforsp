@@ -15,8 +15,6 @@ void compute(obj_t *comp, obj_t *env)
   printf("\n");
 #endif
 
-  gc_root_push(&comp);
-  gc_root_push(&env);
   while (comp != NULL)
   {
     auto cmd = car(comp);
@@ -73,8 +71,6 @@ void compute(obj_t *comp, obj_t *env)
       break;
     }
   }
-  gc_root_pop();
-  gc_root_pop();
 }
 
 /* Copyright (c) 2024 Anthony Bonkoski

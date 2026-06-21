@@ -30,7 +30,6 @@ typedef struct state
 
   obj_t *stack; // top-of-stack (implemented with pairs)
   obj_t *env;   // top-level / initial environment
-  gc_t gc;
 } state_t;
 
 extern state_t state[1];

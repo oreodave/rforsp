@@ -15,18 +15,26 @@ EXAMPLES=examples/church-numerals.fp examples/currying.fp examples/demo.fp \
 		examples/factorial.fp examples/fibonacci-functional.fp examples/forsp.fp \
 		examples/higher-order-functions.fp examples/tutorial.fp
 
+TESTS=$(DIST)/test_gc
+
+.PHONY:
+all: $(OUT) $(TESTS)
+
 $(OUT): $(HEADERS) $(CODE) | $(DIST)
 	$(CC) $(CFLAGS) -o $@ $(CODE)
 
-$(DIST)/test_gc: tests/libtest.h tests/test_gc.c src/gc.c $(HEADERS) | $(DIST)
+$(DIST)/test_gc: tests/libtest.h $(HEADERS) tests/test_gc.c src/gc.c | $(DIST)
 	$(CC) $(CFLAGS) -Itests -o $@ tests/test_gc.c src/gc.c
-
-.PHONY: test-gc
-test-gc: $(DIST)/test_gc
-	./$(DIST)/test_gc
 
 $(DIST):
 	mkdir -p $(DIST)
+
+scratch.fp:
+	echo "()" > scratch.fp
+
+.PHONY: clean
+clean:
+	rm -rfv $(DIST)
 
 ARGS=
 .PHONY: run
@@ -41,13 +49,13 @@ examples: $(OUT)
 		./$(OUT) $$example; \
 	done
 
-scratch.fp:
-	echo "()" > scratch.fp
+.PHONY: tests
+tests: $(TESTS)
+	set -e; \
+	for test in $(TESTS); do \
+		./$$test; \
+	done
 
 .PHONY: scratch
 scratch: $(OUT) scratch.fp
 	./$(OUT) scratch.fp
-
-.PHONY: clean
-clean:
-	rm -rfv $(DIST)

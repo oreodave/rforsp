@@ -57,6 +57,10 @@ tests: $(TESTS)
 		./$$test; \
 	done
 
+.PHONY: memperf
+memperf: $(OUT)
+		valgrind -s --show-leak-kinds=all --leak-check=full ./$(OUT) ./examples/factorial.fp &> gc.results;
+
 .PHONY: scratch
 scratch: $(OUT) scratch.fp
 	./$(OUT) scratch.fp

@@ -38,7 +38,11 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  state_init();
+  void **frame_base;
+  __asm__ volatile("mov %%rbp, %0" : "=r"(frame_base));
+
+  state_init(frame_base);
+
   state->input_name = argv[1];
   state->input_str  = load_file(argv[1], &state->input_len);
   state->input_pos  = 0;

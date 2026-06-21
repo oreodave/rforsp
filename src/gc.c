@@ -50,7 +50,14 @@ static inline void *gc_free_list_pop()
  * GC Methods                                                                 *
  ******************************************************************************/
 
-void gc_reset(void)
+void gc_init(void **stack_base)
+{
+  memset(&state->gc, 0, sizeof(state->gc));
+  state->gc.stack_base         = stack_base;
+  state->gc.metadata.threshold = GC_THRESHOLD_DEFAULT;
+}
+
+void gc_stop()
 {
   for (size_t i = 0; i < state->gc.pool.length; ++i)
   {
@@ -58,7 +65,13 @@ void gc_reset(void)
   }
   free(state->gc.pool.chunks);
   memset(&state->gc, 0, sizeof(state->gc));
-  state->gc.metadata.threshold = GC_THRESHOLD_DEFAULT;
+}
+
+void gc_reset()
+{
+  void **base = state->gc.stack_base;
+  gc_stop();
+  gc_init(base);
 }
 
 /** Construct a new chunk and push it onto the pool.

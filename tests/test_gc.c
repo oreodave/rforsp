@@ -35,7 +35,7 @@ static obj_t *mkclos(obj_t *body, obj_t *env)
 static void test_alloc_and_collect(void)
 {
   TSTART("alloc and collect dead objects");
-  gc_init();
+  gc_reset();
 
   size_t before = gc_alloc_count();
 
@@ -52,7 +52,7 @@ static void test_alloc_and_collect(void)
   TPASS();
 
 done:
-  gc_stop();
+  gc_reset();
 }
 
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -60,7 +60,7 @@ done:
 static void test_live_object_survives(void)
 {
   TSTART("marked object survives collection");
-  gc_init();
+  gc_reset();
 
   obj_t *live = mkpair(NULL, NULL);
   (void)mkpair(NULL, NULL); /* garbage */
@@ -82,7 +82,7 @@ static void test_live_object_survives(void)
   TPASS();
 
 done:
-  gc_stop();
+  gc_reset();
 }
 
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -90,7 +90,7 @@ done:
 static void test_chain_survives(void)
 {
   TSTART("chained objects rooted at head survive");
-  gc_init();
+  gc_reset();
 
   /* Build a 3-element chain: head -> mid -> tail -> NULL */
   obj_t *tail = mkpair(NULL, NULL);
@@ -118,7 +118,7 @@ static void test_chain_survives(void)
   TPASS();
 
 done:
-  gc_stop();
+  gc_reset();
 }
 
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -126,7 +126,7 @@ done:
 static void test_self_referencing_garbage(void)
 {
   TSTART("self-referencing cycle is collected");
-  gc_init();
+  gc_reset();
 
   /* Create a pair that points to itself -> cycle with no external roots */
   obj_t *self = mkpair(NULL, NULL);
@@ -145,7 +145,7 @@ static void test_self_referencing_garbage(void)
   TPASS();
 
 done:
-  gc_stop();
+  gc_reset();
 }
 
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -153,7 +153,7 @@ done:
 static void test_mutual_cycle_garbage(void)
 {
   TSTART("mutual cycle (pair A<->B) is collected");
-  gc_init();
+  gc_reset();
 
   obj_t *a = mkpair(NULL, NULL);
   obj_t *b = mkpair(NULL, a);
@@ -170,7 +170,7 @@ static void test_mutual_cycle_garbage(void)
   TPASS();
 
 done:
-  gc_stop();
+  gc_reset();
 }
 
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -178,7 +178,7 @@ done:
 static void test_closure_survives(void)
 {
   TSTART("marked closure with captured env survives");
-  gc_init();
+  gc_reset();
 
   obj_t *env  = mkpair(NULL, NULL); /* dummy env */
   obj_t *body = mkpair(NULL, NULL); /* dummy body */
@@ -198,7 +198,7 @@ static void test_closure_survives(void)
   TPASS();
 
 done:
-  gc_stop();
+  gc_reset();
 }
 
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -206,7 +206,7 @@ done:
 static void test_free_list_reuse(void)
 {
   TSTART("freed slots are reused by subsequent allocs");
-  gc_init();
+  gc_reset();
 
   /* Allocate 5, free them all */
   (void)mkpair(NULL, NULL);
@@ -234,7 +234,7 @@ static void test_free_list_reuse(void)
   TPASS();
 
 done:
-  gc_stop();
+  gc_reset();
 }
 
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -242,7 +242,7 @@ done:
 static void test_multiple_collections(void)
 {
   TSTART("multiple collect cycles with mixed live/dead");
-  gc_init();
+  gc_reset();
 
   for (int round = 0; round < 3; ++round)
   {
@@ -266,7 +266,7 @@ static void test_multiple_collections(void)
   TPASS();
 
 done:
-  gc_stop();
+  gc_reset();
 }
 
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -274,7 +274,7 @@ done:
 static void test_closure_cycle_garbage(void)
 {
   TSTART("closure capturing itself is collected");
-  gc_init();
+  gc_reset();
 
   /* clos -> { body: (pair pointing to clos), env: (pair pointing to clos) }
    * This is the classic closure-captures-its-own-environment cycle. */
@@ -293,7 +293,7 @@ static void test_closure_cycle_garbage(void)
   TPASS();
 
 done:
-  gc_stop();
+  gc_reset();
 }
 
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */

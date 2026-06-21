@@ -21,28 +21,77 @@
 #define GC_CHUNK_DATA_SIZE  (GC_CHUNK_SLOTS * 16)
 #define GC_CHUNK_MARK_WORDS (GC_CHUNK_SLOTS / 64)
 
-typedef struct gc_chunk
+/** Chunk of memory managed by the GC.
+ * `mark_bits`: bitmap for marks across all allocations.
+ * `alloc_bits`: bitmap for whether a given allocation is live.
+ * `data`: raw data where allocations are stored.
+ */
+typedef struct
 {
-  struct gc_chunk *next;
-  uint64_t mark_bits[GC_CHUNK_MARK_WORDS];
-  uint64_t alloc_bits[GC_CHUNK_MARK_WORDS];
-  uint8_t data[GC_CHUNK_DATA_SIZE];
+  u64 mark_bits[GC_CHUNK_MARK_WORDS];
+  u64 alloc_bits[GC_CHUNK_MARK_WORDS];
+  u8 data[GC_CHUNK_DATA_SIZE];
 } gc_chunk_t;
 
-void gc_init(void);
-void gc_stop(void);
+/** Dynamic array of chunks used for stable growth of memory.
+ * `length`: number of chunks currently live.
+ * `capacity`: number of chunk pointers available to use.
+ * `chunks`: array of chunk pointers.
+ */
+typedef struct
+{
+  u64 length, capacity;
+  gc_chunk_t **chunks;
+} gc_pool_t;
 
-/* Allocate a tagged pair or closure slot.  Must pass TAG_PAIR or TAG_CLOS. */
+/** GC metadata used during collection.
+ * `alloc_live`: number of live allocations.
+ * `alloc_bytes`: number of live allocations in bytes.
+ * `threshold`: number of bytes when collection should trigger.
+ */
+typedef struct
+{
+  size_t alloc_live;
+  size_t alloc_bytes;
+  size_t threshold;
+} gc_metadata_t;
+
+/** General GC data structure.
+ * `metadata`: see `gc_metadata_t`.
+ * `free_list`: list of "free" i.e. dead allocations.
+ * `pool`: see `gc_pool_t`.
+ */
+typedef struct
+{
+  gc_metadata_t metadata;
+  void *free_list;
+  gc_pool_t pool;
+} gc_t;
+
+/** Reset the GC.
+ * This may be used to initialise the GC, or reset for multiple calls.
+ */
+void gc_reset(void);
+
+/** Allocate a tagged pair or closure slot.
+ * Must pass TAG_PAIR or TAG_CLOS.
+ */
 __attribute__((noinline)) obj_t *gc_alloc(tag_t tag);
 
-/* Mark an obj_t* as reachable.  Call for each root before gc_sweep(). */
+/** Mark an obj_t* as reachable.
+ * Call for each root before gc_sweep().
+ */
 void gc_mark_obj(obj_t *obj);
 
-/* Sweep unmarked slots back into the free list.  Returns number freed. */
+/** Sweep unmarked slots back into the free list.
+ * Returns number freed.
+ */
 size_t gc_sweep(void);
 
-/* Convenience: mark + sweep in one call.  gc_mark_obj must have been
- * called for all roots before this.  Returns number freed. */
+/** Performs a complete Mark + Sweep cycle.
+ * Returns number freed.
+ * FIXME: Currently marking of root objects is not implemented.
+ */
 size_t gc_collect(void);
 
 size_t gc_alloc_count(void);

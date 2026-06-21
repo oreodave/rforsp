@@ -6,99 +6,132 @@
 
 #include "gc.h"
 
-static gc_chunk_t *chunk_list = NULL;
-static void *free_list        = NULL;
-static size_t alloc_cnt       = 0;
-static size_t alloc_bytes     = 0;
-static size_t threshold       = 64 * 16;
+static gc_t gc = {0};
 
-void gc_init(void)
+void gc_reset(void)
 {
-}
-
-void gc_stop(void)
-{
-  gc_chunk_t *c = chunk_list;
-  while (c)
+  for (size_t i = 0; i < gc.pool.length; ++i)
   {
-    gc_chunk_t *next = c->next;
-    free(c);
-    c = next;
+    free(gc.pool.chunks[i]);
   }
-  chunk_list  = NULL;
-  free_list   = NULL;
-  alloc_cnt   = 0;
-  alloc_bytes = 0;
+  free(gc.pool.chunks);
+  memset(&gc, 0, sizeof(gc));
+  gc.metadata.threshold = 64 * 16;
 }
 
+static inline void gc_free_list_push(void *slot)
+{
+  *(void **)slot = gc.free_list;
+  gc.free_list   = slot;
+}
+
+static inline void *gc_free_list_pop()
+{
+  void *slot = gc.free_list;
+  if (slot)
+  {
+    gc.free_list = *(void **)slot;
+  }
+  return slot;
+}
+
+/** Construct a new chunk and push it onto the pool.
+ */
 static gc_chunk_t *gc_new_chunk(void)
 {
-  /* aligned_alloc(4096, ...) also gives 16-byte alignment for slots */
+  // aligned_alloc(4096, ...) gives 16-byte alignment for slots
   gc_chunk_t *c = aligned_alloc(4096, sizeof(gc_chunk_t));
   if (!c)
+  {
     FAIL("GC: failed to allocate chunk");
+  }
   memset(c->mark_bits, 0, sizeof(c->mark_bits));
   memset(c->alloc_bits, 0, sizeof(c->alloc_bits));
 
-  /* Chain all new slots into the free list */
+  // Chain all new slots into the free list
   for (size_t i = 0; i < GC_CHUNK_SLOTS; ++i)
   {
-    void *slot     = c->data + i * 16;
-    *(void **)slot = free_list;
-    free_list      = slot;
+    void *slot = c->data + i * 16;
+    gc_free_list_push(slot);
   }
 
-  c->next    = chunk_list;
-  chunk_list = c;
+  // Push onto the chunk array in the pool.
+  if (!gc.pool.capacity)
+  {
+    gc.pool.capacity = 1;
+    gc.pool.chunks   = malloc(sizeof(*gc.pool.chunks));
+  }
+  else if (gc.pool.capacity - gc.pool.length == 0)
+  {
+    gc.pool.capacity *= 2;
+    gc.pool.chunks =
+        realloc(gc.pool.chunks, sizeof(*gc.pool.chunks) * gc.pool.capacity);
+  }
+
+  if (!gc.pool.chunks)
+  {
+    FAIL("GC: failed to reallocate pool of chunks");
+  }
+
+  gc.pool.chunks[gc.pool.length++] = c;
+
   return c;
 }
 
-/* Locate which chunk owns a raw pointer. */
-static gc_chunk_t *gc_find_chunk(void *raw)
+/** Locate which chunk owns a raw pointer.
+ */
+static gc_chunk_t *gc_find_chunk(void *raw_ptr)
 {
-  for (gc_chunk_t *c = chunk_list; c; c = c->next)
+  u8 *raw = raw_ptr;
+  for (size_t i = 0; i < gc.pool.length; ++i)
   {
-    uint8_t *start = c->data;
-    uint8_t *end   = start + GC_CHUNK_DATA_SIZE;
-    if ((uint8_t *)raw >= start && (uint8_t *)raw < end)
+    auto c     = gc.pool.chunks[i];
+    auto start = c->data;
+    auto end   = start + GC_CHUNK_DATA_SIZE;
+    if (raw >= start && raw < end)
       return c;
   }
   return NULL;
 }
 
+/** Get the index slot index for a given pointer, for use in
+ * mark_bits/alloc_bits.
+ */
 static size_t gc_slot_index(gc_chunk_t *c, void *raw)
 {
-  return ((uint8_t *)raw - c->data) / 16;
+  return ((u8 *)raw - c->data) / 16;
 }
 
-/* Bitmap helpers — work for both mark_bits and alloc_bits. */
-static inline void gc_bit_set(uint64_t *bits, size_t idx)
+/** Bitmap helpers — work for both mark_bits and alloc_bits.
+ */
+static inline void gc_bit_set(u64 *bits, size_t idx)
 {
   bits[idx / 64] |= (1ULL << (idx % 64));
 }
 
-static inline void gc_bit_clear(uint64_t *bits, size_t idx)
+static inline void gc_bit_clear(u64 *bits, size_t idx)
 {
   bits[idx / 64] &= ~(1ULL << (idx % 64));
 }
 
-static inline bool gc_bit_test(const uint64_t *bits, size_t idx)
+static inline bool gc_bit_test(const u64 *bits, size_t idx)
 {
   return (bits[idx / 64] >> (idx % 64)) & 1;
 }
 
 __attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
 {
-  if (alloc_bytes >= threshold)
+  if (gc.metadata.alloc_bytes >= gc.metadata.threshold)
+  {
     gc_collect();
+  }
 
-  if (!free_list)
+  if (!gc.free_list)
     gc_new_chunk();
 
-  void *slot = free_list;
-  free_list  = *(void **)slot;
-  alloc_cnt++;
-  alloc_bytes += 16;
+  void *slot = gc_free_list_pop();
+  gc.metadata.alloc_live++;
+  gc.metadata.alloc_bytes += 16;
 
   gc_chunk_t *c = gc_find_chunk(slot);
   size_t idx    = gc_slot_index(c, slot);
@@ -126,7 +159,7 @@ void gc_mark_obj(obj_t *obj)
 
   gc_bit_set(c->mark_bits, idx);
 
-  /* pair_t and clos_t both start with two obj_t* fields */
+  // pair_t and clos_t both start with two obj_t* fields
   obj_t **fields = (obj_t **)raw;
   gc_mark_obj(fields[0]);
   gc_mark_obj(fields[1]);
@@ -135,47 +168,48 @@ void gc_mark_obj(obj_t *obj)
 size_t gc_sweep(void)
 {
   size_t freed = 0;
-  for (gc_chunk_t *c = chunk_list; c; c = c->next)
+  for (size_t i = 0; i < gc.pool.length; ++i)
   {
-    for (size_t i = 0; i < GC_CHUNK_SLOTS; ++i)
+    gc_chunk_t *c = gc.pool.chunks[i];
+    for (size_t j = 0; j < GC_CHUNK_SLOTS; ++j)
     {
-      if (!gc_bit_test(c->alloc_bits, i))
+      if (!gc_bit_test(c->alloc_bits, j))
         continue;
 
-      if (!gc_bit_test(c->mark_bits, i))
+      if (!gc_bit_test(c->mark_bits, j))
       {
-        void *slot     = c->data + i * 16;
-        *(void **)slot = free_list;
-        free_list      = slot;
-        gc_bit_clear(c->alloc_bits, i);
+        void *slot = c->data + j * 16;
+        gc_free_list_push(slot);
+        gc_bit_clear(c->alloc_bits, j);
         freed++;
       }
     }
     memset(c->mark_bits, 0, sizeof(c->mark_bits));
   }
 
-  alloc_cnt -= freed;
-  alloc_bytes = alloc_cnt * 16;
-  threshold   = alloc_bytes * 2;
-  if (threshold < 64 * 16)
-    threshold = 64 * 16;
+  gc.metadata.alloc_live -= freed;
+  gc.metadata.alloc_bytes = gc.metadata.alloc_live * 16;
+  gc.metadata.threshold   = gc.metadata.alloc_bytes * 2;
+  if (gc.metadata.threshold < 64 * 16)
+    gc.metadata.threshold = 64 * 16;
 
   return freed;
 }
 
 size_t gc_collect(void)
 {
-  size_t freed = gc_sweep();
-  return freed;
+  // FIXME: Implement marking of root objects once integrated into interpreter.
+  return gc_sweep();
 }
 
 size_t gc_alloc_count(void)
 {
-  return alloc_cnt;
+  return gc.metadata.alloc_live;
 }
+
 size_t gc_bytes_allocated(void)
 {
-  return alloc_bytes;
+  return gc.metadata.alloc_bytes;
 }
 
 /* Copyright (c) 2024 Anthony Bonkoski

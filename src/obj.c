@@ -5,6 +5,7 @@
  */
 
 #include "obj.h"
+#include "gc.h"
 #include "state.h"
 
 tag_t get_tag(obj_t *ptr)
@@ -29,18 +30,20 @@ obj_t *make_num(int64_t num)
 
 obj_t *make_pair(obj_t *car, obj_t *cdr)
 {
-  pair_t *pair = malloc(sizeof(*pair));
+  obj_t *opair = gc_alloc(TAG_PAIR);
+  pair_t *pair = as_pair(opair);
   pair->car    = car;
   pair->cdr    = cdr;
-  return TAG_TYPE(pair, PAIR);
+  return opair;
 }
 
 obj_t *make_clos(obj_t *body, obj_t *env)
 {
-  clos_t *clos = malloc(sizeof(*clos));
+  obj_t *oclos = gc_alloc(TAG_CLOS);
+  clos_t *clos = as_clos(oclos);
   clos->body   = body;
   clos->env    = env;
-  return TAG_TYPE(clos, CLOS);
+  return oclos;
 }
 
 obj_t *make_prim(prim_t *func)

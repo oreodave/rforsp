@@ -15,6 +15,8 @@ void compute(obj_t *comp, obj_t *env)
   printf("\n");
 #endif
 
+  gc_mark_obj(comp);
+  gc_mark_obj(env);
   while (comp != NULL)
   {
     auto cmd = car(comp);

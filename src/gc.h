@@ -20,7 +20,7 @@
 constexpr size_t GC_CHUNK_SLOTS       = 4096;
 constexpr size_t GC_CHUNK_DATA_SIZE   = GC_CHUNK_SLOTS * 16;
 constexpr size_t GC_CHUNK_MARK_WORDS  = (GC_CHUNK_SLOTS + 63) >> 6;
-constexpr size_t GC_THRESHOLD_DEFAULT = 64 * 6;
+constexpr size_t GC_THRESHOLD_DEFAULT = 64 * 16;
 
 /** Chunk of memory managed by the GC.
  * `mark_bits`: bitmap for marks across all slots.

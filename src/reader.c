@@ -64,16 +64,12 @@ void reader_error_position(void)
   fprintf(stderr, "%s:%lu:%lu: ", state->input_name, line, col);
 }
 
-#if DEBUG
 #define READER_ERROR(...)    \
   do                         \
   {                          \
     reader_error_position(); \
     FAIL(__VA_ARGS__);       \
   } while (0)
-#else
-#define READER_ERROR(...) FAIL(__VA_ARGS__)
-#endif
 
 void skip_white_and_comments(void)
 {
@@ -126,11 +122,9 @@ obj_t *read_scalar(void)
 
 obj_t *read_list(void)
 {
-// NOTE: read_list only called when `(` encountered in read.  Thus, we record
-// the starting position for diagnostic purposes, then skip ahead.
-#if DEBUG
+  // NOTE: read_list only called when `(` encountered in read.  Thus, we record
+  // the starting position for diagnostic purposes, then skip ahead.
   size_t start = state->input_pos;
-#endif
   advance();
 
   obj_t *root = NULL, *cur = NULL;
@@ -156,9 +150,7 @@ obj_t *read_list(void)
   c = peek();
   if (c != ')')
   {
-#if DEBUG
     state->input_pos = start;
-#endif
     READER_ERROR("Expected closing brace");
   }
   else

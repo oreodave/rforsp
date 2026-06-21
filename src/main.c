@@ -46,6 +46,10 @@ int main(int argc, char *argv[])
   obj_t *obj = read();
   compute(obj, state->env);
 
+#if DEBUG & DEBUG_GC
+  printf("GC: %luB in use at exit\n", state->gc.metadata.alloc_bytes);
+#endif
+
   // state_stop();
 
   return 0;

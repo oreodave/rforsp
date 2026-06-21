@@ -9,7 +9,7 @@
 
 void compute(obj_t *comp, obj_t *env)
 {
-#if DEBUG > 1
+#if DEBUG & DEBUG_COMPUTE
   printf("compute: ");
   print(comp);
   printf("\n");

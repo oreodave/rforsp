@@ -15,7 +15,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define DEBUG 0
+#define DEBUG_OFF     (0b00000000)
+#define DEBUG_COMPUTE (0b00000001)
+#define DEBUG_GC      (0b00000010)
+#define DEBUG         0
 
 #define FAIL(...)                 \
   do                              \

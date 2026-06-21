@@ -17,9 +17,9 @@
 #include "common.h"
 #include "obj.h"
 
-#define GC_CHUNK_SLOTS      4096
-#define GC_CHUNK_DATA_SIZE  (GC_CHUNK_SLOTS * 16)
-#define GC_CHUNK_MARK_WORDS (GC_CHUNK_SLOTS / 64)
+constexpr size_t GC_CHUNK_SLOTS      = 4096;
+constexpr size_t GC_CHUNK_DATA_SIZE  = GC_CHUNK_SLOTS * 16;
+constexpr size_t GC_CHUNK_MARK_WORDS = (GC_CHUNK_SLOTS + 63) >> 6;
 
 /** Chunk of memory managed by the GC.
  * `mark_bits`: bitmap for marks across all allocations.

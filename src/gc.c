@@ -26,7 +26,7 @@ obj_t **page_alloc(page_t *page)
 
   // FIXME: assuming pair-likes are the only allocated type.
   obj_t **items = &page->data[page->length * 2];
-  page->length += 2;
+  page->length += 1;
   return items;
 }
 
@@ -87,23 +87,23 @@ obj_t **gc_alloc()
   obj_t **pair = page_alloc(state->gc.current);
   while (!pair)
   {
-    // Ensure the capacity of the backup page is at least the capacity of the
-    // current page
-    if (state->gc.backup->capacity < state->gc.current->capacity)
-    {
-      page_resize(&state->gc.backup, state->gc.current->capacity);
-    }
+    // If allocation has failed, first increase the size of our backup page.
+    page_resize(&state->gc.backup, state->gc.backup->capacity * 2);
 
-    // Collect and try again.
+    // Then, collect and try another allocation.
     gc_collect();
     pair = page_alloc(state->gc.current);
 
-    if (!pair)
-    {
-      // If allocation has failed following collection, we need to increase the
-      // size of our backup page and try again.
-      page_resize(&state->gc.backup, state->gc.backup->capacity * 2);
-    }
+    // if (!pair)
+    // {
+    // }
+  }
+
+  // Ensure the capacity of the backup page is at least the capacity of the
+  // current page
+  if (state->gc.backup->capacity < state->gc.current->capacity)
+  {
+    page_resize(&state->gc.backup, state->gc.current->capacity);
   }
 
   return pair;
@@ -116,12 +116,13 @@ bool in_backup_space(obj_t *obj)
 {
   if (!IS_ALLOC(obj))
     return true;
-  uintptr_t ptr          = (uintptr_t)UNTAG(obj);
-  uintptr_t backup_start = (uintptr_t)state->gc.backup->data;
-  uintptr_t backup_end =
+  auto ptr          = (uintptr_t)UNTAG(obj);
+  auto backup_start = (uintptr_t)state->gc.backup->data;
+  // FIXME: assuming pair-likes are the only allocated type.
+  auto backup_end =
       (uintptr_t)state->gc.backup->data +
-      (state->gc.backup->length * sizeof(*state->gc.backup->data));
-  return backup_start <= ptr && backup_end >= ptr;
+      (state->gc.backup->length * 2 * sizeof(*state->gc.backup->data));
+  return backup_start <= ptr && backup_end > ptr;
 }
 
 /** Evacuate the given object into backup space, returning the copied object in
@@ -163,16 +164,41 @@ obj_t *evacuate(obj_t *obj)
 
   // FIXME: assuming pair-likes are the only allocated type.
   memcpy(alloc, items, sizeof(*items) * 2);
-  items[0] = TAG_TYPE(alloc, FWD);
+  items[0]       = TAG_TYPE(alloc, FWD);
+  obj_t *new_obj = TAG_CANON(alloc, tag_obj);
 
-  return TAG_CANON(alloc, tag_obj);
+  return new_obj;
 }
 
 void gc_collect()
 {
+#if DEBUG > 1
+  printf("gc_collect: hit!\n");
+  ++state->gc.collect_hits;
+#endif
+  // 1) Evacuate roots.
+  for (size_t i = 0; i < state->gc.roots.length; ++i)
+  {
+    auto root = (obj_t **)state->gc.roots.items[i];
+    *root     = evacuate(*root);
+  }
 
-  // Swap current page with backup page once evacuation is over.
-  // Ensure backup page is completely reset with regards to length.
+  // 2) Scan backup space to evacuate references.
+  for (size_t i = 0; i < state->gc.backup->length; ++i)
+  {
+    // FIXME: assuming pair-likes are the only allocated type.
+    auto pair = &state->gc.backup->data[i * 2];
+    pair[0]   = evacuate(pair[0]);
+    pair[1]   = evacuate(pair[1]);
+  }
+
+  // 3) Swap backup and current pages for future allocations.
+  page_t *temp      = state->gc.backup;
+  state->gc.backup  = state->gc.current;
+  state->gc.current = temp;
+
+  // 4) Reset backup page
+  state->gc.backup->length = 0;
 }
 
 /* Copyright (C) 2026 Aryadev Chavali

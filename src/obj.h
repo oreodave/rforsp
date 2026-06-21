@@ -56,19 +56,35 @@ obj_t *make_num(int64_t num);
 obj_t *make_pair(obj_t *car, obj_t *cdr);
 obj_t *make_clos(obj_t *body, obj_t *env);
 obj_t *make_prim(prim_t *func);
-obj_t *make_fwd(obj_t *ptr);
+obj_t *make_fwd(void *ptr);
 
 char *as_atom(obj_t *obj);
 i64 as_num(obj_t *obj);
 pair_t *as_pair(obj_t *obj);
 clos_t *as_clos(obj_t *obj);
 prim_t *as_prim(obj_t *obj);
-obj_t *as_fwd(obj_t *obj);
+void *as_fwd(obj_t *obj);
 
 obj_t *car(obj_t *obj);
 obj_t *cdr(obj_t *obj);
 obj_t *intern(const char *atom_buf, size_t atom_len);
 bool obj_equal(obj_t *a, obj_t *b);
+
+typedef struct
+{
+  tag_t tag;
+  union
+  {
+    char *as_atom;
+    i64 as_num;
+    pair_t as_pair;
+    clos_t as_clos;
+    prim_t *as_prim;
+    void *as_fwd;
+  };
+} obj_canon_t;
+
+obj_canon_t as_canon(obj_t *);
 
 #endif
 

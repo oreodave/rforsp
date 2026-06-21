@@ -29,16 +29,30 @@ obj_t *make_num(int64_t num)
 
 obj_t *make_pair(obj_t *car, obj_t *cdr)
 {
-  pair_t *pair = malloc(sizeof(*pair));
-  *pair        = (typeof(*pair)){car, cdr};
+  gc_root_push(&car);
+  gc_root_push(&cdr);
+
+  obj_t **pair = gc_alloc();
+  pair[0]      = car;
+  pair[1]      = cdr;
+
+  gc_root_pop();
+  gc_root_pop();
   return TAG_TYPE(pair, PAIR);
 }
 
 obj_t *make_clos(obj_t *body, obj_t *env)
 {
-  clos_t *clos = malloc(sizeof(*clos));
-  *clos        = (typeof(*clos)){body, env};
-  return TAG_TYPE(clos, CLOS);
+  gc_root_push(&body);
+  gc_root_push(&env);
+
+  obj_t **pair = gc_alloc();
+  pair[0]      = body;
+  pair[1]      = env;
+
+  gc_root_pop();
+  gc_root_pop();
+  return TAG_TYPE(pair, CLOS);
 }
 
 obj_t *make_prim(prim_t *func)
@@ -46,7 +60,7 @@ obj_t *make_prim(prim_t *func)
   return TAG_TYPE(func, PRIM);
 }
 
-obj_t *make_fwd(obj_t *ptr)
+obj_t *make_fwd(void *ptr)
 {
   return TAG_TYPE(ptr, FWD);
 }
@@ -86,11 +100,11 @@ prim_t *as_prim(obj_t *obj)
   return (prim_t *)UNTAG(obj);
 }
 
-obj_t *as_fwd(obj_t *obj)
+void *as_fwd(obj_t *obj)
 {
   if (!IS_FWD(obj))
     return NULL;
-  return (obj_t *)UNTAG(obj);
+  return (void *)UNTAG(obj);
 }
 
 obj_t *car(obj_t *obj)
@@ -124,6 +138,38 @@ obj_t *intern(const char *atom_buf, size_t atom_len)
 bool obj_equal(obj_t *a, obj_t *b)
 {
   return (a == b);
+}
+
+obj_canon_t as_canon(obj_t *obj)
+{
+  tag_t tag = get_tag(obj);
+  switch (tag)
+  {
+  case TAG_NIL:
+    return (obj_canon_t){.tag = tag};
+    break;
+  case TAG_ATOM:
+    return (obj_canon_t){.tag = tag, .as_atom = as_atom(obj)};
+    break;
+  case TAG_NUM:
+    return (obj_canon_t){.tag = tag, .as_num = as_num(obj)};
+    break;
+  case TAG_PAIR:
+    return (obj_canon_t){.tag = tag, .as_pair = *as_pair(obj)};
+    break;
+  case TAG_CLOS:
+    return (obj_canon_t){.tag = tag, .as_clos = *as_clos(obj)};
+    break;
+  case TAG_PRIM:
+    return (obj_canon_t){.tag = tag, .as_prim = as_prim(obj)};
+    break;
+  case TAG_FWD:
+    return (obj_canon_t){.tag = tag, .as_fwd = as_fwd(obj)};
+    break;
+  default:
+    return (obj_canon_t){0};
+    break;
+  }
 }
 
 /* Copyright (c) 2024 Anthony Bonkoski

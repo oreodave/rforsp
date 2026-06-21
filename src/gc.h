@@ -6,7 +6,7 @@
 
  This is a GC for the Forsp language.  It's essentially an implementation of
  Cheney's algorithm.  This GC works under the assumption that all heap allocated
- objects are formed of exactly two objects i.e. sizeof(T) = 2 . sizeof(obj_t *).
+ objects are formed of exactly two objects i.e. sizeof(T) = 2 * sizeof(obj_t *).
  */
 
 #ifndef GC_H
@@ -16,7 +16,7 @@
 #include "obj.h"
 #include "vec.h"
 
-#define PAGE_INIT_CAPACITY 1024
+#define PAGE_INIT_CAPACITY 128
 
 typedef struct
 {
@@ -49,20 +49,30 @@ typedef struct
 {
   page_t *current, *backup;
   vec_t roots;
+#if DEBUG > 1
+  size_t collect_hits;
+#endif
 } gc_t;
 
 void gc_init();
 void gc_stop();
 
+/** Push a new root into the GC structure.
+ * This root will be updated and evacuated during collection.
+ */
 void gc_root_push(obj_t **);
+
+/** Pop a root from the GC structure.
+ * This removes this pointer-to-object from the purview of the GC collection.
+ */
 obj_t **gc_root_pop();
 
-/** Allocate a new object pair in the current GC structure.
+/** Allocate a new object pair using the GC.
  * May collect if there is not enough space in the current page.
  */
 obj_t **gc_alloc();
 
-/** Perform a collection as per Cheney's algorithm in the current GC structure.
+/** Perform a collection as per Cheney's algorithm.
  */
 void gc_collect();
 

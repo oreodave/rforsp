@@ -72,6 +72,7 @@ void prim_print(obj_t **_)
 {
   (void)_;
   print(pop());
+  printf("\n");
 }
 
 void prim_stack(obj_t **_)

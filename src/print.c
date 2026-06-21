@@ -71,7 +71,7 @@ void print_recurse(obj_t *obj)
   case TAG_FWD:
   {
     // NOTE: We should never have to print these.
-    printf("FWD<%p>", (void *)obj);
+    printf("FWD<%p>", (void *)UNTAG(obj));
   }
   break;
   }
@@ -80,7 +80,6 @@ void print_recurse(obj_t *obj)
 void print(obj_t *obj)
 {
   print_recurse(obj);
-  printf("\n");
 }
 
 /* Copyright (c) 2024 Anthony Bonkoski

@@ -12,8 +12,11 @@ void compute(obj_t *comp, obj_t *env)
 #if DEBUG > 1
   printf("compute: ");
   print(comp);
+  printf("\n");
 #endif
 
+  gc_root_push(&comp);
+  gc_root_push(&env);
   while (comp != NULL)
   {
     auto cmd = car(comp);
@@ -32,7 +35,14 @@ void compute(obj_t *comp, obj_t *env)
         continue;
       }
 
-      // Otherwise perform a lookup and "call" the value.
+// Otherwise perform a lookup and "call" the value.
+#if DEBUG > 1
+      printf("env-lookup:\n\tlooking for: ");
+      print(cmd);
+      printf("\n\tin: ");
+      print(env);
+      printf("\n");
+#endif
       auto val = env_find(env, cmd);
       if (IS_CLOS(val))
       {
@@ -63,6 +73,8 @@ void compute(obj_t *comp, obj_t *env)
       break;
     }
   }
+  gc_root_pop();
+  gc_root_pop();
 }
 
 /* Copyright (c) 2024 Anthony Bonkoski

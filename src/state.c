@@ -7,6 +7,32 @@
 #include "state.h"
 #include "primitives.h"
 
+void state_init()
+{
+  memset(state, 0, sizeof(state));
+  state->atom_true  = intern("t", 1);
+  state->atom_quote = intern("quote", 5);
+  state->atom_push  = intern("push", 4);
+  state->atom_pop   = intern("pop", 3);
+
+  gc_init();
+  state_env_setup();
+  vec_init(&state->read_stack, 3);
+}
+
+void state_stop()
+{
+  vec_stop(&state->read_stack);
+  for (size_t i = 0; i < state->interned_atoms.length; ++i)
+  {
+    obj_t *oatom = state->interned_atoms.items[i];
+    char *atom   = as_atom(oatom);
+    free(atom);
+  }
+  vec_stop(&state->interned_atoms);
+  gc_stop();
+}
+
 /*******************************************************************
  * Stack
  ******************************************************************/

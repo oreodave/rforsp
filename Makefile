@@ -1,5 +1,5 @@
 CC=cc
-CFLAGS=-std=c23 -Wall -Wextra -Wpedantic -Wswitch-enum -Werror -ggdb
+CFLAGS=-std=c23 -Wall -Wextra -Wpedantic -Wswitch-enum -Werror -ggdb -O1
 LDFLAGS=
 
 DIST=bin

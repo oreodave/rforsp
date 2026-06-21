@@ -53,9 +53,6 @@ void compute(obj_t *comp, obj_t *env)
     case TAG_PAIR:
       push(make_clos(cmd, env));
       break;
-    case TAG_FWD:
-      FAIL("Unexpected FWD object (%p) in `compute` call", (void *)cmd);
-      break;
     case TAG_NUM:
     case TAG_CLOS:
     case TAG_PRIM:

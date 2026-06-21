@@ -48,11 +48,6 @@ obj_t *make_prim(prim_t *func)
   return TAG_TYPE(func, PRIM);
 }
 
-obj_t *make_fwd(void *ptr)
-{
-  return TAG_TYPE(ptr, FWD);
-}
-
 char *as_atom(obj_t *obj)
 {
   if (!IS_ATOM(obj))
@@ -86,13 +81,6 @@ prim_t *as_prim(obj_t *obj)
   if (!IS_PRIM(obj))
     return NULL;
   return (prim_t *)UNTAG(obj);
-}
-
-void *as_fwd(obj_t *obj)
-{
-  if (!IS_FWD(obj))
-    return NULL;
-  return (void *)UNTAG(obj);
 }
 
 obj_t *car(obj_t *obj)
@@ -150,9 +138,6 @@ obj_canon_t as_canon(obj_t *obj)
     break;
   case TAG_PRIM:
     return (obj_canon_t){.tag = tag, .as_prim = as_prim(obj)};
-    break;
-  case TAG_FWD:
-    return (obj_canon_t){.tag = tag, .as_fwd = as_fwd(obj)};
     break;
   default:
     return (obj_canon_t){0};

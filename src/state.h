@@ -9,7 +9,6 @@
 #define STATE_H
 
 #include "common.h"
-#include "gc.h"
 #include "obj.h"
 #include "vec.h"
 

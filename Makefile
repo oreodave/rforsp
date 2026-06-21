@@ -1,6 +1,7 @@
 CC=cc
 CFLAGS=-std=c23 -Wall -Wextra -Wpedantic -Wswitch-enum -Werror -ggdb -O1
 LDFLAGS=
+DEPS=
 
 DIST=bin
 OUT=$(DIST)/forsp
@@ -21,7 +22,7 @@ TESTS=$(DIST)/test_gc
 all: $(OUT) $(TESTS)
 
 $(OUT): $(HEADERS) $(LIB) src/main.c | $(DIST)
-	$(CC) $(CFLAGS) -Isrc -o $@ $(LIB) src/main.c
+	$(CC) $(DEPS) $(CFLAGS) -Isrc -o $@ $(LIB) src/main.c
 
 $(DIST)/test_gc: $(HEADERS) tests/libtest.h $(LIB) tests/test_gc.c | $(DIST)
 	$(CC) $(CFLAGS) -Itests -o $@ tests/test_gc.c $(LIB)

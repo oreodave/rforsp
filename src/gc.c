@@ -215,9 +215,43 @@ size_t gc_sweep(void)
   return freed;
 }
 
+static inline void gc_mark_stack_march(void)
+{
+  void *sp;
+  __asm__ volatile("mov %%rsp, %0" : "=r"(sp));
+
+#if (DEBUG & DEBUG_GC) != 0
+  BORDER();
+  printf("GC:collect:stack_march: iterating from rsp=%p -> rbp=%p\n", sp,
+         (void *)state->gc.stack_base);
+#endif
+  for (void **p = sp; p < state->gc.stack_base; ++p)
+  {
+    obj_t *maybe = *(obj_t **)p;
+    if (IS_ALLOC(maybe))
+    {
+      void *raw = (void *)UNTAG(maybe);
+      if (gc_find_chunk(raw, NULL))
+      {
+#if DEBUG & DEBUG_GC
+        printf("\tMarking allocation %p => %p\n", (void *)p, raw);
+#endif
+        gc_mark_obj(maybe);
+      }
+    }
+  }
+#if DEBUG & DEBUG_GC
+  printf("GC:collect:stack_march: Finished\n");
+  BORDER();
+#endif
+}
+
 size_t gc_collect(void)
 {
-  // FIXME: Implement marking of root objects once integrated into interpreter.
+  gc_mark_stack_march();
+  gc_mark_obj(state->stack);
+  gc_mark_obj(state->env);
+
   return gc_sweep();
 }
 

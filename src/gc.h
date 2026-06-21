@@ -103,7 +103,6 @@ size_t gc_sweep(void);
 
 /** Performs a complete Mark + Sweep cycle.
  * Returns number freed.
- * FIXME: Currently marking of root objects is not implemented.
  */
 size_t gc_collect(void);
 

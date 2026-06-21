@@ -158,7 +158,7 @@ Obvious.
 On first call to ~compute~, you pass an expression and an environment.
 
 The only time we recur is when dealing with closures.  Instead of
-arranging machine stack-based recursion, why not setup a queue of
+arranging machine-stack based recursion, why not setup a queue of
 these closures (with the parameters being the first member) and yield
 out of this queue?
 * TODO Consider compiling to x86_64 directly

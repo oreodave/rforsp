@@ -23,8 +23,8 @@ all: $(OUT) $(TESTS)
 $(OUT): $(HEADERS) $(LIB) src/main.c | $(DIST)
 	$(CC) $(CFLAGS) -Isrc -o $@ $(LIB) src/main.c
 
-$(DIST)/test_gc: tests/libtest.h $(HEADERS) tests/test_gc.c src/gc.c | $(DIST)
-	$(CC) $(CFLAGS) -Itests -o $@ tests/test_gc.c src/gc.c
+$(DIST)/test_gc: $(HEADERS) tests/libtest.h $(LIB) tests/test_gc.c | $(DIST)
+	$(CC) $(CFLAGS) -Itests -o $@ tests/test_gc.c $(LIB)
 
 $(DIST):
 	mkdir -p $(DIST)

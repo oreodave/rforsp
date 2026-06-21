@@ -56,6 +56,7 @@ int main(int argc, char *argv[])
   printf("GC: %luB in use at exit\n", state->gc.metadata.alloc_bytes);
 #endif
 
+  // free(state->input_str);
   // state_stop();
 
   return 0;

@@ -1,6 +1,7 @@
 CC=cc
 CFLAGS=-std=c23 -Wall -Wextra -Wpedantic -Wswitch-enum -Werror -ggdb -Isrc
 LDFLAGS=
+
 DIST=bin
 OUT=$(DIST)/forsp
 
@@ -23,7 +24,6 @@ $(DIST)/test_gc: tests/libtest.h tests/test_gc.c src/gc.c $(HEADERS) | $(DIST)
 .PHONY: test-gc
 test-gc: $(DIST)/test_gc
 	./$(DIST)/test_gc
-
 
 $(DIST):
 	mkdir -p $(DIST)
@@ -50,4 +50,4 @@ scratch: $(OUT) scratch.fp
 
 .PHONY: clean
 clean:
-	rm -fv $(OUT) tests/test_gc
+	rm -rfv $(DIST)

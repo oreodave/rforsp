@@ -7,15 +7,19 @@
 #include "gc.h"
 #include "state.h"
 
-void gc_reset(void)
+static inline void bitmap_set(u64 *bits, size_t idx)
 {
-  for (size_t i = 0; i < state->gc.pool.length; ++i)
-  {
-    free(state->gc.pool.chunks[i]);
-  }
-  free(state->gc.pool.chunks);
-  memset(&state->gc, 0, sizeof(state->gc));
-  state->gc.metadata.threshold = 64 * 16;
+  bits[idx / 64] |= (1ULL << (idx % 64));
+}
+
+static inline void bitmap_clear(u64 *bits, size_t idx)
+{
+  bits[idx / 64] &= ~(1ULL << (idx % 64));
+}
+
+static inline bool bitmap_test(const u64 *bits, size_t idx)
+{
+  return (bits[idx / 64] >> (idx % 64)) & 1;
 }
 
 static inline void gc_free_list_push(void *slot)
@@ -34,6 +38,17 @@ static inline void *gc_free_list_pop()
   return slot;
 }
 
+void gc_reset(void)
+{
+  for (size_t i = 0; i < state->gc.pool.length; ++i)
+  {
+    free(state->gc.pool.chunks[i]);
+  }
+  free(state->gc.pool.chunks);
+  memset(&state->gc, 0, sizeof(state->gc));
+  state->gc.metadata.threshold = GC_THRESHOLD_DEFAULT;
+}
+
 /** Construct a new chunk and push it onto the pool.
  */
 static gc_chunk_t *gc_new_chunk(void)
@@ -45,7 +60,7 @@ static gc_chunk_t *gc_new_chunk(void)
     FAIL("GC: failed to allocate chunk");
   }
   memset(c->mark_bits, 0, sizeof(c->mark_bits));
-  memset(c->alloc_bits, 0, sizeof(c->alloc_bits));
+  memset(c->live_bits, 0, sizeof(c->live_bits));
 
   // Chain all new slots into the free list
   for (size_t i = 0; i < GC_CHUNK_SLOTS; ++i)
@@ -78,9 +93,12 @@ static gc_chunk_t *gc_new_chunk(void)
   return c;
 }
 
-/** Locate which chunk owns a raw pointer.
+/** Locate which chunk owns a raw pointer, returning it.
+ * If no chunk is found, return NULL.
+
+ * The slot position of the pointer in the chunk is stored in `slot_id`.
  */
-static gc_chunk_t *gc_find_chunk(void *raw_ptr)
+static gc_chunk_t *gc_find_chunk(void *raw_ptr, size_t *slot_id)
 {
   u8 *raw = raw_ptr;
   for (size_t i = 0; i < state->gc.pool.length; ++i)
@@ -89,34 +107,12 @@ static gc_chunk_t *gc_find_chunk(void *raw_ptr)
     auto start = c->data;
     auto end   = start + GC_CHUNK_DATA_SIZE;
     if (raw >= start && raw < end)
+    {
+      *slot_id = (((u8 *)raw_ptr - c->data) / 16);
       return c;
+    }
   }
   return NULL;
-}
-
-/** Get the index slot index for a given pointer, for use in
- * mark_bits/alloc_bits.
- */
-static size_t gc_slot_index(gc_chunk_t *c, void *raw)
-{
-  return ((u8 *)raw - c->data) / 16;
-}
-
-/** Bitmap helpers — work for both mark_bits and alloc_bits.
- */
-static inline void gc_bit_set(u64 *bits, size_t idx)
-{
-  bits[idx / 64] |= (1ULL << (idx % 64));
-}
-
-static inline void gc_bit_clear(u64 *bits, size_t idx)
-{
-  bits[idx / 64] &= ~(1ULL << (idx % 64));
-}
-
-static inline bool gc_bit_test(const u64 *bits, size_t idx)
-{
-  return (bits[idx / 64] >> (idx % 64)) & 1;
 }
 
 __attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
@@ -125,17 +121,18 @@ __attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
   {
     gc_collect();
   }
-
   if (!state->gc.free_list)
+  {
     gc_new_chunk();
+  }
 
   void *slot = gc_free_list_pop();
   state->gc.metadata.alloc_live++;
   state->gc.metadata.alloc_bytes += 16;
 
-  gc_chunk_t *c = gc_find_chunk(slot);
-  size_t idx    = gc_slot_index(c, slot);
-  gc_bit_set(c->alloc_bits, idx);
+  size_t idx    = 0;
+  gc_chunk_t *c = gc_find_chunk(slot, &idx);
+  bitmap_set(c->live_bits, idx);
 
   return TAG_CANON(slot, tag);
 }
@@ -149,15 +146,13 @@ void gc_mark_obj(obj_t *obj)
     return;
 
   void *raw     = (void *)UNTAG(obj);
-  gc_chunk_t *c = gc_find_chunk(raw);
-  if (!c)
+  size_t idx    = 0;
+  gc_chunk_t *c = gc_find_chunk(raw, &idx);
+
+  if (!c || bitmap_test(c->mark_bits, idx))
     return;
 
-  size_t idx = gc_slot_index(c, raw);
-  if (gc_bit_test(c->mark_bits, idx))
-    return;
-
-  gc_bit_set(c->mark_bits, idx);
+  bitmap_set(c->mark_bits, idx);
 
   // pair_t and clos_t both start with two obj_t* fields
   obj_t **fields = (obj_t **)raw;
@@ -173,14 +168,14 @@ size_t gc_sweep(void)
     gc_chunk_t *c = state->gc.pool.chunks[i];
     for (size_t j = 0; j < GC_CHUNK_SLOTS; ++j)
     {
-      if (!gc_bit_test(c->alloc_bits, j))
+      if (!bitmap_test(c->live_bits, j))
         continue;
 
-      if (!gc_bit_test(c->mark_bits, j))
+      if (!bitmap_test(c->mark_bits, j))
       {
         void *slot = c->data + j * 16;
         gc_free_list_push(slot);
-        gc_bit_clear(c->alloc_bits, j);
+        bitmap_clear(c->live_bits, j);
         freed++;
       }
     }
@@ -189,9 +184,8 @@ size_t gc_sweep(void)
 
   state->gc.metadata.alloc_live -= freed;
   state->gc.metadata.alloc_bytes = state->gc.metadata.alloc_live * 16;
-  state->gc.metadata.threshold   = state->gc.metadata.alloc_bytes * 2;
-  if (state->gc.metadata.threshold < 64 * 16)
-    state->gc.metadata.threshold = 64 * 16;
+  state->gc.metadata.threshold =
+      MAX(GC_THRESHOLD_DEFAULT, state->gc.metadata.alloc_bytes * 2);
 
   return freed;
 }
@@ -200,21 +194,6 @@ size_t gc_collect(void)
 {
   // FIXME: Implement marking of root objects once integrated into interpreter.
   return gc_sweep();
-}
-
-size_t gc_alloc_count(void)
-{
-  return state->gc.metadata.alloc_live;
-}
-
-size_t gc_bytes_allocated(void)
-{
-  return state->gc.metadata.alloc_bytes;
-}
-
-size_t gc_num_chunks(void)
-{
-  return state->gc.pool.length;
 }
 
 /* Copyright (c) 2024 Anthony Bonkoski

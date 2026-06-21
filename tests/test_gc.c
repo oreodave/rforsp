@@ -38,18 +38,19 @@ static void test_alloc_and_collect(void)
   TSTART("alloc and collect dead objects");
   gc_reset();
 
-  size_t before = gc_alloc_count();
+  size_t before = state->gc.metadata.alloc_live;
 
   // Allocate five pairs, no roots -> all garbage
   for (int i = 0; i < 5; ++i)
     mkpair(NULL, NULL);
 
-  TCHECK(gc_alloc_count() == before + 5, "alloc count should be +5");
+  TCHECK(state->gc.metadata.alloc_live == before + 5,
+         "alloc count should be +5");
 
   size_t freed = gc_collect();
   TCHECK(freed == 5, "all 5 should be collected");
-  TCHECK(gc_alloc_count() == 0, "alloc count should be 0");
-  TCHECK(gc_bytes_allocated() == 0, "bytes should be 0");
+  TCHECK(state->gc.metadata.alloc_live == 0, "alloc count should be 0");
+  TCHECK(state->gc.metadata.alloc_bytes == 0, "bytes should be 0");
   TPASS();
 
 done:
@@ -63,7 +64,7 @@ static void test_live_object_survives(void)
 
   obj_t *live = mkpair(NULL, NULL);
   (void)mkpair(NULL, NULL); // garbage
-  size_t before = gc_alloc_count();
+  size_t before = state->gc.metadata.alloc_live;
   TCHECK(before == 2, "should have 2 allocations");
 
   // Mark only 'live'
@@ -77,7 +78,7 @@ static void test_live_object_survives(void)
   pair_t *p = as_pair(live);
   TCHECK(p->car == NULL && p->cdr == NULL, "live pair fields intact");
 
-  TCHECK(gc_alloc_count() == 1, "1 object remaining");
+  TCHECK(state->gc.metadata.alloc_live == 1, "1 object remaining");
   TPASS();
 
 done:
@@ -97,7 +98,7 @@ static void test_chain_survives(void)
   // Also allocate garbage
   mkpair(NULL, NULL);
 
-  size_t before = gc_alloc_count();
+  size_t before = state->gc.metadata.alloc_live;
   TCHECK(before == 4, "4 allocations");
 
   // Root only the head
@@ -106,7 +107,7 @@ static void test_chain_survives(void)
   TCHECK(freed == 1, "1 garbage object collected");
 
   // All 3 chain pairs should survive
-  TCHECK(gc_alloc_count() == 3, "3 objects survive");
+  TCHECK(state->gc.metadata.alloc_live == 3, "3 objects survive");
 
   pair_t *hp = as_pair(head);
   TCHECK(hp->car == mid, "head.car is mid");
@@ -131,12 +132,12 @@ static void test_self_referencing_garbage(void)
     p->cdr    = self;
   }
 
-  size_t before = gc_alloc_count();
+  size_t before = state->gc.metadata.alloc_live;
   TCHECK(before == 1, "1 allocation");
 
   size_t freed = gc_collect();
   TCHECK(freed == 1, "self-referencing cycle should be collected");
-  TCHECK(gc_alloc_count() == 0, "no objects remain");
+  TCHECK(state->gc.metadata.alloc_live == 0, "no objects remain");
   TPASS();
 
 done:
@@ -155,11 +156,11 @@ static void test_mutual_cycle_garbage(void)
     p_a->cdr    = b;
   }
 
-  TCHECK(gc_alloc_count() == 2, "2 allocations");
+  TCHECK(state->gc.metadata.alloc_live == 2, "2 allocations");
 
   size_t freed = gc_collect();
   TCHECK(freed == 2, "mutual cycle should be collected");
-  TCHECK(gc_alloc_count() == 0, "no objects remain");
+  TCHECK(state->gc.metadata.alloc_live == 0, "no objects remain");
   TPASS();
 
 done:
@@ -175,13 +176,13 @@ static void test_closure_survives(void)
   obj_t *body = mkpair(NULL, NULL); // dummy body
   obj_t *clos = mkclos(body, env);
 
-  TCHECK(gc_alloc_count() == 3, "3 allocations");
+  TCHECK(state->gc.metadata.alloc_live == 3, "3 allocations");
 
   // Mark only the closure — body and env reached transitively
   gc_mark_obj(clos);
   size_t freed = gc_collect();
   TCHECK(freed == 0, "body and env reachable via closure mark");
-  TCHECK(gc_alloc_count() == 3, "all 3 survive");
+  TCHECK(state->gc.metadata.alloc_live == 3, "all 3 survive");
 
   clos_t *c = as_clos(clos);
   TCHECK(c->body == body, "closure.body intact");
@@ -203,7 +204,7 @@ static void test_free_list_reuse(void)
   (void)mkpair(NULL, NULL);
   (void)mkpair(NULL, NULL);
   (void)mkpair(NULL, NULL);
-  TCHECK(gc_alloc_count() == 5, "5 allocs");
+  TCHECK(state->gc.metadata.alloc_live == 5, "5 allocs");
 
   size_t freed = gc_collect();
   TCHECK(freed == 5, "all freed");
@@ -211,13 +212,13 @@ static void test_free_list_reuse(void)
   // Allocate again — should come from free list, no new chunk needed
   obj_t *x = mkpair(NULL, NULL);
   (void)mkpair(NULL, NULL); // will be collected below
-  TCHECK(gc_alloc_count() == 2, "2 allocs from free list");
-  TCHECK(gc_bytes_allocated() == 32, "32 bytes");
+  TCHECK(state->gc.metadata.alloc_live == 2, "2 allocs from free list");
+  TCHECK(state->gc.metadata.alloc_bytes == 32, "32 bytes");
 
   // Only mark x
   gc_mark_obj(x);
   gc_collect();
-  TCHECK(gc_alloc_count() == 1, "1 survives");
+  TCHECK(state->gc.metadata.alloc_live == 1, "1 survives");
   pair_t *xp = as_pair(x);
   TCHECK(xp->car == NULL, "x.car intact after reuse cycle");
   TPASS();
@@ -241,13 +242,13 @@ static void test_multiple_collections(void)
     // After the first round, the previous keep is still allocated (allocated
     // but unmarked), so count is 1 + 3 = 4 in later rounds.
     size_t expect = (round == 0) ? 3 : 4;
-    TCHECK(gc_alloc_count() == expect, "allocs before GC");
+    TCHECK(state->gc.metadata.alloc_live == expect, "allocs before GC");
 
     gc_mark_obj(keep);
     size_t freed        = gc_collect();
     size_t expect_freed = (round == 0) ? 2 : 3;
     TCHECK(freed == expect_freed, "dead objects collected");
-    TCHECK(gc_alloc_count() == 1, "1 survives");
+    TCHECK(state->gc.metadata.alloc_live == 1, "1 survives");
     pair_t *kp = as_pair(keep);
     TCHECK(kp->car == NULL, "keep intact");
   }
@@ -274,12 +275,12 @@ static void test_closure_cycle_garbage(void)
     cclos->env    = env;
   }
 
-  TCHECK(gc_alloc_count() == 3, "3 allocs for cycle");
+  TCHECK(state->gc.metadata.alloc_live == 3, "3 allocs for cycle");
 
   // No roots -> all should be collected
   size_t freed = gc_collect();
   TCHECK(freed == 3, "closure cycle collected");
-  TCHECK(gc_alloc_count() == 0, "nothing remains");
+  TCHECK(state->gc.metadata.alloc_live == 0, "nothing remains");
   TPASS();
 
 done:

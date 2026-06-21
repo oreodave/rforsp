@@ -17,19 +17,20 @@
 #include "common.h"
 #include "obj.h"
 
-constexpr size_t GC_CHUNK_SLOTS      = 4096;
-constexpr size_t GC_CHUNK_DATA_SIZE  = GC_CHUNK_SLOTS * 16;
-constexpr size_t GC_CHUNK_MARK_WORDS = (GC_CHUNK_SLOTS + 63) >> 6;
+constexpr size_t GC_CHUNK_SLOTS       = 4096;
+constexpr size_t GC_CHUNK_DATA_SIZE   = GC_CHUNK_SLOTS * 16;
+constexpr size_t GC_CHUNK_MARK_WORDS  = (GC_CHUNK_SLOTS + 63) >> 6;
+constexpr size_t GC_THRESHOLD_DEFAULT = 64 * 6;
 
 /** Chunk of memory managed by the GC.
- * `mark_bits`: bitmap for marks across all allocations.
- * `alloc_bits`: bitmap for whether a given allocation is live.
+ * `mark_bits`: bitmap for marks across all slots.
+ * `live_bits`: bitmap for whether a given slot is live.
  * `data`: raw data where allocations are stored.
  */
 typedef struct
 {
   u64 mark_bits[GC_CHUNK_MARK_WORDS];
-  u64 alloc_bits[GC_CHUNK_MARK_WORDS];
+  u64 live_bits[GC_CHUNK_MARK_WORDS];
   u8 data[GC_CHUNK_DATA_SIZE];
 } gc_chunk_t;
 
@@ -93,10 +94,6 @@ size_t gc_sweep(void);
  * FIXME: Currently marking of root objects is not implemented.
  */
 size_t gc_collect(void);
-
-size_t gc_alloc_count(void);
-size_t gc_bytes_allocated(void);
-size_t gc_num_chunks(void);
 
 #endif
 

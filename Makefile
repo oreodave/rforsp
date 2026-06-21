@@ -59,7 +59,7 @@ tests: $(TESTS)
 
 .PHONY: memperf
 memperf: $(OUT)
-		valgrind -s --show-leak-kinds=all --leak-check=full ./$(OUT) ./examples/factorial.fp &> gc.results;
+		valgrind -s --show-leak-kinds=all --leak-check=full ./$(OUT) ./examples/forsp.fp &> gc.results;
 
 .PHONY: scratch
 scratch: $(OUT) scratch.fp

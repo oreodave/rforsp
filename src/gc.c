@@ -133,7 +133,10 @@ static gc_chunk_t *gc_find_chunk(void *raw_ptr, size_t *slot_id)
     auto end   = start + GC_CHUNK_DATA_SIZE;
     if (raw >= start && raw < end)
     {
-      *slot_id = (((u8 *)raw_ptr - c->data) / 16);
+      if (slot_id)
+      {
+        *slot_id = (((u8 *)raw_ptr - c->data) / 16);
+      }
       return c;
     }
   }
@@ -164,9 +167,6 @@ __attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
 
 void gc_mark_obj(obj_t *obj)
 {
-  if (!obj || IS_NIL(obj))
-    return;
-
   if (!IS_ALLOC(obj))
     return;
 

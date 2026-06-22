@@ -215,17 +215,19 @@ size_t gc_sweep(void)
   return freed;
 }
 
+constexpr size_t GC_STACK_MARCH_LIMIT = 512;
 static inline void gc_mark_stack_march(void)
 {
   void *sp;
   __asm__ volatile("mov %%rsp, %0" : "=r"(sp));
 
+  void **end = (void **)((u8 *)sp + GC_STACK_MARCH_LIMIT);
 #if (DEBUG & DEBUG_GC) != 0
   BORDER();
-  printf("GC:collect:stack_march: iterating from rsp=%p -> rbp=%p\n", sp,
-         (void *)state->gc.stack_base);
+  printf("GC:collect:stack_march: iterating from start=%p -> end=%p\n", sp,
+         (void *)end);
 #endif
-  for (void **p = sp; p < state->gc.stack_base; ++p)
+  for (void **p = sp; p < end; ++p)
   {
     obj_t *maybe = *(obj_t **)p;
     if (IS_ALLOC(maybe))
@@ -248,9 +250,9 @@ static inline void gc_mark_stack_march(void)
 
 size_t gc_collect(void)
 {
-  gc_mark_stack_march();
   gc_mark_obj(state->stack);
   gc_mark_obj(state->env);
+  gc_mark_stack_march();
 
   return gc_sweep();
 }

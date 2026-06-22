@@ -142,7 +142,7 @@ static gc_chunk_t *gc_find_chunk(void *raw_ptr, size_t *slot_id)
 
 __attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
 {
-  if (state->gc.metadata.alloc_bytes >= state->gc.metadata.threshold)
+  if (state->gc.metadata.alloc_live * 16 >= state->gc.metadata.threshold)
   {
     gc_collect();
   }
@@ -153,7 +153,6 @@ __attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
 
   void *slot = gc_free_list_pop();
   state->gc.metadata.alloc_live++;
-  state->gc.metadata.alloc_bytes += 16;
 
   size_t idx    = 0;
   gc_chunk_t *c = gc_find_chunk(slot, &idx);
@@ -205,10 +204,12 @@ size_t gc_sweep(void)
   }
 
   state->gc.metadata.alloc_live -= freed;
-  state->gc.metadata.alloc_bytes = state->gc.metadata.alloc_live * 16;
   state->gc.metadata.threshold =
-      MAX(GC_THRESHOLD_DEFAULT, state->gc.metadata.alloc_bytes * 2);
+      MAX(GC_THRESHOLD_DEFAULT, state->gc.metadata.alloc_live * 32);
 
+#if DEBUG & DEBUG_GC
+  printf("GC:sweep: freed %lu bytes\n", freed * 16);
+#endif
   return freed;
 }
 
@@ -217,10 +218,9 @@ static inline void gc_mark_stack_march(void)
 {
   void *sp;
   __asm__ volatile("mov %%rsp, %0" : "=r"(sp));
-
   void **end = (void **)((u8 *)sp + GC_STACK_MARCH_LIMIT);
+
 #if (DEBUG & DEBUG_GC) != 0
-  BORDER();
   printf("GC:collect:stack_march: iterating from start=%p -> end=%p\n", sp,
          (void *)end);
 #endif
@@ -241,18 +241,21 @@ static inline void gc_mark_stack_march(void)
       }
     }
   }
-#if DEBUG & DEBUG_GC
-  printf("GC:collect:stack_march: Finished\n");
-  BORDER();
-#endif
 }
 
 size_t gc_collect(void)
 {
+#if DEBUG & DEBUG_GC
+  ++state->gc.metadata.num_collections;
+#endif
+
   gc_mark_stack_march();
   gc_mark_obj(state->stack);
   gc_mark_obj(state->env);
 
+#if DEBUG & DEBUG_GC
+  printf("GC:collect:frames: marking %lu frames.\n", state->frame_depth);
+#endif
   for (i64 i = 0; i < state->frame_depth; ++i)
   {
     gc_mark_obj(state->frames[i].comp);
@@ -260,6 +263,11 @@ size_t gc_collect(void)
   }
 
   size_t freed = gc_sweep();
+
+#if DEBUG & DEBUG_GC
+  BORDER();
+#endif
+
   return freed;
 }
 

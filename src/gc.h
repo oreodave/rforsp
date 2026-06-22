@@ -18,11 +18,11 @@
 #include "obj.h"
 
 #ifndef GC_CHUNK_SLOTS
-#define GC_CHUNK_SLOTS 4096
+#define GC_CHUNK_SLOTS (1LU << 11)
 #endif
-constexpr size_t GC_CHUNK_DATA_SIZE   = GC_CHUNK_SLOTS * 16;
+constexpr size_t GC_CHUNK_DATA_SIZE   = GC_CHUNK_SLOTS << 4;
 constexpr size_t GC_CHUNK_MARK_WORDS  = (GC_CHUNK_SLOTS + 63) >> 6;
-constexpr size_t GC_THRESHOLD_DEFAULT = 128 * 16;
+constexpr size_t GC_THRESHOLD_DEFAULT = GC_CHUNK_DATA_SIZE >> 1;
 
 /** Chunk of memory managed by the GC.
  * `mark_bits`: bitmap for marks across all slots.
@@ -55,8 +55,10 @@ typedef struct
 typedef struct
 {
   size_t alloc_live;
-  size_t alloc_bytes;
   size_t threshold;
+#if DEBUG & DEBUG_GC
+  size_t num_collections;
+#endif
 } gc_metadata_t;
 
 /** General GC data structure.

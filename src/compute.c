@@ -7,20 +7,47 @@
 #include "compute.h"
 #include "state.h"
 
+typedef struct
+{
+  obj_t *comp;
+  obj_t *env;
+} frame_t;
+
+constexpr size_t COMPUTE_LIMIT = 1024;
+static frame_t frames[COMPUTE_LIMIT];
+
 void compute(obj_t *comp, obj_t *env)
 {
+  memset(frames, 0, sizeof(frames));
+  frames[0] = (frame_t){.comp = comp, .env = env};
+  i64 depth = 1;
+
+  while (depth > 0)
+  {
+    frame_t *frame = &frames[depth - 1];
+    if (!frame->comp)
+    {
+      --depth;
+      continue;
+    }
+
 #if DEBUG & DEBUG_COMPUTE
-  printf("compute: ");
-  print(comp);
-  printf("\n");
+    printf("compute[%ld]: ", depth);
+    print(frame->comp);
+    printf("\n");
+    printf("stack: ");
+    print(state->stack);
+    printf("\n");
+    printf("env: ");
+    print(frame->env);
+    printf("\n");
+    BORDER();
 #endif
 
-  gc_mark_obj(comp);
-  gc_mark_obj(env);
-  while (comp != NULL)
-  {
-    auto cmd = car(comp);
-    comp     = cdr(comp);
+    gc_mark_obj(frame->comp);
+    gc_mark_obj(frame->env);
+    auto cmd    = car(frame->comp);
+    frame->comp = cdr(frame->comp);
 
     switch (get_tag(cmd))
     {
@@ -28,23 +55,25 @@ void compute(obj_t *comp, obj_t *env)
       // quote is the one special operator.
       if (cmd == state->atom_quote)
       {
-        if (comp == NULL)
+        if (frame->comp == NULL)
           FAIL("Expected data following a quote form");
-        push(car(comp));
-        comp = cdr(comp);
+        push(car(frame->comp));
+        frame->comp = cdr(frame->comp);
         continue;
       }
 
       // Otherwise perform a lookup and "call" the value.
-      auto val = env_find(env, cmd);
+      auto val = env_find(frame->env, cmd);
       if (IS_CLOS(val))
       {
-        auto clos = as_clos(val);
-        compute(clos->body, clos->env);
+        auto new_clos = as_clos(val);
+        frames[depth++] =
+            (frame_t){.comp = new_clos->body, .env = new_clos->env};
       }
       else if (IS_PRIM(val))
       {
-        as_prim(val)(&env);
+        prim_t *prim = as_prim(val);
+        prim(&frame->env);
       }
       else
       {
@@ -53,8 +82,12 @@ void compute(obj_t *comp, obj_t *env)
       break;
     case TAG_NIL:
     case TAG_PAIR:
-      push(make_clos(cmd, env));
-      break;
+    {
+      auto new_clos = make_clos(cmd, frame->env);
+      gc_mark_obj(frame->env);
+      push(new_clos);
+    }
+    break;
     case TAG_NUM:
     case TAG_CLOS:
     case TAG_PRIM:

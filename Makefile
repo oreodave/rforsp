@@ -18,9 +18,6 @@ EXAMPLES=examples/church-numerals.fp examples/currying.fp examples/demo.fp \
 
 TESTS=$(DIST)/test_gc
 
-.PHONY:
-all: $(OUT) $(TESTS)
-
 $(OUT): $(HEADERS) $(LIB) src/main.c | $(DIST)
 	$(CC) $(DEPS) $(CFLAGS) -Isrc -o $@ $(LIB) src/main.c
 
@@ -59,7 +56,11 @@ tests: $(TESTS)
 
 .PHONY: memperf
 memperf: $(OUT)
-		valgrind -s --show-leak-kinds=all --leak-check=full ./$(OUT) ./examples/forsp.fp &> gc.results;
+	valgrind -s --show-leak-kinds=all --leak-check=full ./$(OUT) ./examples/forsp.fp &> gc.results;
+
+.PHONY: callperf
+callperf: $(OUT)
+	valgrind --tool=callgrind --callgrind-out-file=bin/callgrind.out ./$(OUT) ./examples/forsp.fp;
 
 .PHONY: scratch
 scratch: $(OUT) scratch.fp

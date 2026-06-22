@@ -53,7 +53,14 @@ int main(int argc, char *argv[])
   compute(obj, state->env);
 
 #if DEBUG & DEBUG_GC
-  printf("GC: %luB in use at exit\n", state->gc.metadata.alloc_bytes);
+  BORDER();
+  printf("GC:exit stats\n"
+         "\t%luB over %lu %s allocated, of which %luB are live.\n"
+         "\tCollected %lu times.\n",
+         state->gc.pool.length * GC_CHUNK_DATA_SIZE, state->gc.pool.length,
+         state->gc.pool.length == 1 ? "chunk" : "chunks",
+         state->gc.metadata.alloc_live * 16,
+         state->gc.metadata.num_collections);
 #endif
 
   // free(state->input_str);

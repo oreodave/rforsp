@@ -8,11 +8,6 @@
 #include "gc.h"
 #include "state.h"
 
-tag_t get_tag(obj_t *ptr)
-{
-  return (tag_t)GET_TAG(ptr);
-}
-
 obj_t *make_atom(const char *str, size_t len)
 {
   char *atom_str = malloc(len + 1);
@@ -51,53 +46,6 @@ obj_t *make_prim(prim_t *func)
   return TAG_TYPE(func, PRIM);
 }
 
-char *as_atom(obj_t *obj)
-{
-  if (!IS_ATOM(obj))
-    return NULL;
-  return (char *)UNTAG(obj);
-}
-
-i64 as_num(obj_t *obj)
-{
-  assert(IS_NUM(obj));
-  // NOTE: Arithmetic shift
-  return ((i64)obj) >> 8;
-}
-
-pair_t *as_pair(obj_t *obj)
-{
-  if (!IS_PAIR(obj))
-    return NULL;
-  return (pair_t *)UNTAG(obj);
-}
-
-clos_t *as_clos(obj_t *obj)
-{
-  if (!IS_CLOS(obj))
-    return NULL;
-  return (clos_t *)UNTAG(obj);
-}
-
-prim_t *as_prim(obj_t *obj)
-{
-  if (!IS_PRIM(obj))
-    return NULL;
-  return (prim_t *)UNTAG(obj);
-}
-
-obj_t *car(obj_t *obj)
-{
-  auto pair = as_pair(obj);
-  return pair ? pair->car : NULL;
-}
-
-obj_t *cdr(obj_t *obj)
-{
-  auto pair = as_pair(obj);
-  return pair ? pair->cdr : NULL;
-}
-
 obj_t *intern(const char *atom_buf, size_t atom_len)
 {
   for (u64 i = 0; i < state->interned_atoms.length; ++i)
@@ -112,11 +60,6 @@ obj_t *intern(const char *atom_buf, size_t atom_len)
   auto atom = make_atom(atom_buf, atom_len);
   vec_push(&state->interned_atoms, atom);
   return atom;
-}
-
-bool obj_equal(obj_t *a, obj_t *b)
-{
-  return (a == b);
 }
 
 obj_canon_t as_canon(obj_t *obj)

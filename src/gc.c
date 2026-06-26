@@ -114,6 +114,18 @@ static gc_chunk_t *gc_new_chunk(void)
   return c;
 }
 
+static inline bool gc_ptr_in_chunk(gc_chunk_t *chunk, void *raw_ptr)
+{
+  auto start = chunk->data;
+  auto end   = start + GC_CHUNK_DATA_SIZE;
+  return (u8 *)raw_ptr >= start && (u8 *)raw_ptr < end;
+}
+
+static inline size_t gc_ptr_slot_in_chunk(gc_chunk_t *chunk, void *raw_ptr)
+{
+  return ((u8 *)raw_ptr - chunk->data) / 16;
+}
+
 /** Locate which chunk owns a raw pointer, returning it.
  * If no chunk is found, return NULL.
 
@@ -121,15 +133,12 @@ static gc_chunk_t *gc_new_chunk(void)
  */
 static gc_chunk_t *gc_find_chunk(void *raw_ptr, size_t *slot_id)
 {
-  u8 *raw = raw_ptr;
   for (size_t i = 0; i < state->gc.pool.length; ++i)
   {
-    auto c     = state->gc.pool.chunks[i];
-    auto start = c->data;
-    auto end   = start + GC_CHUNK_DATA_SIZE;
-    if (raw >= start && raw < end)
+    auto c = state->gc.pool.chunks[i];
+    if (gc_ptr_in_chunk(c, raw_ptr))
     {
-      *slot_id = (((u8 *)raw_ptr - c->data) / 16);
+      *slot_id = gc_ptr_slot_in_chunk(c, raw_ptr);
       return c;
     }
   }

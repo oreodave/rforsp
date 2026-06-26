@@ -258,7 +258,7 @@ size_t gc_collect(void)
 #endif
   for (i64 i = 0; i < state->frame_depth; ++i)
   {
-    gc_mark_obj(state->frames[i].comp);
+    gc_mark_obj(state->frames[i].body);
     gc_mark_obj(state->frames[i].env);
   }
 

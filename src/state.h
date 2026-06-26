@@ -13,12 +13,6 @@
 #include "obj.h"
 #include "vec.h"
 
-typedef struct
-{
-  obj_t *comp;
-  obj_t *env;
-} frame_t;
-
 // FIXME: 8192 frames required for examples/forsp.fp.  HOLY!
 constexpr size_t COMPUTE_LIMIT = 1 << 13;
 
@@ -41,7 +35,7 @@ typedef struct state
   obj_t *env;   // top-level / initial environment
 
   gc_t gc;
-  frame_t frames[COMPUTE_LIMIT];
+  clos_t frames[COMPUTE_LIMIT];
   i64 frame_depth;
 } state_t;
 

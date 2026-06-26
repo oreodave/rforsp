@@ -18,11 +18,14 @@
 #include "obj.h"
 
 #ifndef GC_CHUNK_SLOTS
-#define GC_CHUNK_SLOTS (1LU << 11)
+// By default we want 4096 slots per chunk.
+#define GC_CHUNK_SLOTS (1LU << 12)
 #endif
-constexpr size_t GC_CHUNK_DATA_SIZE   = GC_CHUNK_SLOTS << 4;
-constexpr size_t GC_CHUNK_MARK_WORDS  = (GC_CHUNK_SLOTS + 63) >> 6;
-constexpr size_t GC_THRESHOLD_DEFAULT = GC_CHUNK_DATA_SIZE >> 1;
+constexpr size_t GC_SLOT_SIZE       = sizeof(pair_t);
+constexpr size_t GC_CHUNK_DATA_SIZE = GC_SLOT_SIZE * GC_CHUNK_SLOTS;
+constexpr size_t GC_CHUNK_MARK_WORDS =
+    (GC_CHUNK_SLOTS + 63) / 64; // = ceil(GC_CHUNK_SLOTS / 64)
+constexpr size_t GC_THRESHOLD_DEFAULT = GC_CHUNK_DATA_SIZE / 2;
 
 /** Chunk of memory managed by the GC.
  * `mark_bits`: bitmap for marks across all slots.

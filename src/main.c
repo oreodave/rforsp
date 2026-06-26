@@ -34,16 +34,13 @@ state_t state[1];
 
 int main(int argc, char *argv[])
 {
-  volatile void **frame_base;
-  __asm__ volatile("mov %%rbp, %0" : "=r"(frame_base));
-
   if (argc != 2)
   {
     fprintf(stderr, "usage: %s <path>\n", argv[0]);
     return 1;
   }
 
-  state_init((void *)frame_base);
+  state_init();
 
   state->input_name = argv[1];
   state->input_str  = load_file(argv[1], &state->input_len);

@@ -11,7 +11,7 @@
  * State Constructor/Destructor                                               *
  ******************************************************************************/
 
-void state_init(void **stack_base)
+void state_init()
 {
   memset(state, 0, sizeof(state));
   state->atom_true  = intern("t", 1);
@@ -20,7 +20,7 @@ void state_init(void **stack_base)
   state->atom_pop   = intern("pop", 3);
 
   vec_init(&state->read_stack, 3);
-  gc_init(stack_base);
+  gc_init();
   state_env_setup();
 }
 

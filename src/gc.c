@@ -32,18 +32,16 @@ static inline bool bitmap_test(const u64 *bits, size_t idx)
 
 static inline void gc_free_list_push(void *slot)
 {
-  *(void **)slot      = state->gc.free_list;
-  state->gc.free_list = slot;
+  ((pair_t *)slot)->car = state->gc.free_list;
+  state->gc.free_list   = slot;
 }
 
 static inline void *gc_free_list_pop()
 {
-  void *slot = state->gc.free_list;
-  if (slot)
-  {
-    state->gc.free_list = *(void **)slot;
-  }
-  return slot;
+  pair_t *free_slot = state->gc.free_list;
+  if (free_slot)
+    state->gc.free_list = free_slot->car;
+  return free_slot;
 }
 
 /******************************************************************************

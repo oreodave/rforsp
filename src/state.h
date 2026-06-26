@@ -14,7 +14,7 @@
 #include "vec.h"
 
 // FIXME: 8192 frames required for examples/forsp.fp.  HOLY!
-constexpr size_t COMPUTE_LIMIT = 1 << 13;
+constexpr size_t COMPUTE_LIMIT = 1 << 7;
 
 typedef struct state
 {

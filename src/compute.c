@@ -41,7 +41,15 @@ static inline void eval(clos_t *frame)
     {
       auto new_clos = as_clos(val);
       // equivalent to a recursive "compute" call.
-      frames_push(new_clos->body, new_clos->env);
+      if (frame->body == NULL)
+      {
+        // TCO for free?????
+        *frame = *new_clos;
+      }
+      else
+      {
+        frames_push(new_clos->body, new_clos->env);
+      }
     }
     else if (IS_PRIM(val))
     {

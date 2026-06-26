@@ -60,7 +60,11 @@ memperf: $(OUT)
 
 .PHONY: callperf
 callperf: $(OUT)
-	valgrind --tool=callgrind --callgrind-out-file=bin/callgrind.out ./$(OUT) ./examples/forsp.fp;
+	valgrind --tool=callgrind \
+		--callgrind-out-file=bin/callgrind.out \
+		--collect-jumps=yes \
+		--dump-instr=yes \
+		./$(OUT) ./examples/forsp.fp;
 
 .PHONY: scratch
 scratch: $(OUT) scratch.fp

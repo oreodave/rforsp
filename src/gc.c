@@ -183,16 +183,22 @@ size_t gc_sweep(void)
   for (size_t i = 0; i < state->gc.pool.length; ++i)
   {
     gc_chunk_t *c = state->gc.pool.chunks[i];
-    for (size_t j = 0; j < GC_CHUNK_SLOTS; ++j)
+    for (size_t w = 0; w < GC_CHUNK_MARK_WORDS; ++w)
     {
-      if (!bitmap_test(c->live_bits, j))
-        continue;
-
-      if (!bitmap_test(c->mark_bits, j))
+      // We only want to free those that are both live and unmarked.
+      u64 to_free  = c->live_bits[w] & ~c->mark_bits[w];
+      u64 word_pos = w * 64;
+      while (to_free)
       {
-        void *slot = c->data + j * 16;
+        // Find the lowest bit which is nonzero through a single hardware inst.
+        int bit = __builtin_ctzll(to_free);
+        // Clear the lowest bit.
+        to_free &= to_free - 1;
+
+        // Access the slot and put it on the free list.
+        void *slot = c->data + ((word_pos + bit) * 16);
         gc_free_list_push(slot);
-        bitmap_clear(c->live_bits, j);
+        bitmap_clear(c->live_bits, word_pos + bit);
         freed++;
       }
     }

@@ -36,24 +36,34 @@
 
   ; compute [$comp $stack $env -> $stack]
   ($compute $eval
-    ^if (dup is-nil) (rot $_ $_) ( ; false case: return $stack
-      stack-pop
-      ^if (dup 'quote eq)
-        ($_ stack-pop rot swap stack-push swap ^eval compute)
-        (swap $comp eval ^comp ^eval compute) endif
-    ) endif
+    ^if (dup is-nil)
+      (rot $_ $_) ; false case: return $stack
+      (stack-pop
+       ^if (dup 'quote eq)
+         ($_ stack-pop rot swap
+             stack-push swap
+             ^eval compute)
+         (swap $comp eval ^comp ^eval compute)
+       endif)
+    endif
   ) rec $compute
 
   ; eval: [$expr $stack $env -> $stack $env]
   ($eval
-    ^if (dup is-atom) (
-      over2 swap env-find dup $callable
-      ^if (dup is-closure) (swap $stack cdr unpack-closure ^stack swap ^eval compute)
-      (^if (dup is-clos)   (force)
-                           (stack-push)  endif) endif)
-    (^if (dup is-list)
-      (over2 swap make-closure stack-push)
-      (stack-push) endif) endif
+    ^if (dup is-atom)
+      (over2 swap env-find dup $callable
+       ^if (dup is-closure)
+         (swap $stack cdr unpack-closure ^stack swap ^eval compute)
+         (^if (dup is-clos)
+            (force)
+            (stack-push)
+          endif)
+       endif)
+      (^if (dup is-list)
+         (over2 swap make-closure stack-push)
+         (stack-push)
+       endif)
+    endif
   ) rec $eval
 
  ; tag function
@@ -99,8 +109,9 @@
 
   ; factorial
   ($self $n
-    ^if [ ^n 0 eq ] 1
-      ([ ^n 1 - ] self ^n *)
+    ^if (^n 0 eq)
+      (1)
+      (^n 1 - self ^n *)
     endif
   ) rec $factorial
 

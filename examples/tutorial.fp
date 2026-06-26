@@ -206,9 +206,9 @@
   ; Now we can implement recursive functions:
 
   ($self $list
-    ^if (^list '() eq) 0 (
-      ^list cdr self 1 +
-    ) endif
+    ^if (^list '() eq) 0
+      (^list cdr self 1 +)
+    endif
   ) rec $length
 
   '()      length print ; 0

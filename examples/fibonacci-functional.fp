@@ -37,9 +37,9 @@
 
   ; implementation
   (0 1 ($self $a $b $n
-    ^if (^n 0 eq) ^b (
-      ^n 1 - ^a ^b + ^b self
-    ) endif
+    ^if (^n 0 eq) ^b
+      (^n 1 - ^a ^b + ^b self)
+    endif
   ) rec force) $fibonacci
 
   10 1 range

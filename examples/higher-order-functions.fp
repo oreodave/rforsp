@@ -43,23 +43,26 @@
   ; map [$fn $list -> $out-list]
   ($self $fn $list
     ^if (^list null?) nil
-      ( ^list car fn ^list cdr ^fn self swap cons)
+      (^list car fn ^list cdr ^fn self swap cons)
     endif
   ) rec $map
 
   ; filter [$pred $list -> $out-list]
   ($self $pred $list
-    ^if (^list null?) nil (
-      ^list cdr ^pred self
-      ^if (^list car pred) (^list car cons) () endif
-    ) endif
+    ^if (^list null?) nil
+      (^list cdr ^pred self
+        ^if (^list car pred)
+          (^list car cons)
+          ()
+        endif)
+    endif
   ) rec $filter
 
   ; reduce [$fn $init $list -> $out]
   ($self $fn $init $list
-    ^if (^list null?) ^init (
-      ^list cdr ^list car ^init fn ^fn self
-    ) endif
+    ^if (^list null?) ^init
+      (^list cdr ^list car ^init fn ^fn self)
+    endif
   ) rec $reduce
 
   ; is-even

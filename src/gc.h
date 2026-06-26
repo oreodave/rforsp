@@ -69,9 +69,6 @@ typedef struct
 typedef struct
 {
   gc_metadata_t metadata;
-
-  void **stack_base;
-
   void *free_list;
   gc_pool_t pool;
 } gc_t;
@@ -79,7 +76,7 @@ typedef struct
 /** Initialise the GC.
  * NOTE: This doesn't allocate anything on the heap.
  */
-void gc_init(void **stack_base);
+void gc_init();
 
 /** Stop the GC and free all associated memory.
  */

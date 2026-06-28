@@ -51,7 +51,7 @@ typedef struct clos
 
 typedef void(prim_t)(obj_t **);
 
-inline tag_t get_tag(obj_t *ptr)
+static inline tag_t get_tag(obj_t *ptr)
 {
   return (tag_t)GET_TAG(ptr);
 }
@@ -62,59 +62,59 @@ obj_t *make_pair(obj_t *car, obj_t *cdr);
 obj_t *make_clos(obj_t *body, obj_t *env);
 obj_t *make_prim(prim_t *func);
 
-inline char *as_atom(obj_t *obj)
+static inline char *as_atom(obj_t *obj)
 {
   if (!IS_ATOM(obj))
     return NULL;
   return (char *)UNTAG(obj);
 }
 
-inline i64 as_num(obj_t *obj)
+static inline i64 as_num(obj_t *obj)
 {
   assert(IS_NUM(obj));
   // NOTE: Arithmetic shift
   return ((i64)obj) >> 8;
 }
 
-inline pair_t *as_pair(obj_t *obj)
+static inline pair_t *as_pair(obj_t *obj)
 {
   if (!IS_PAIR(obj))
     return NULL;
   return DIRECT_UNTAG(obj, pair_t *);
 }
 
-inline clos_t *as_clos(obj_t *obj)
+static inline clos_t *as_clos(obj_t *obj)
 {
   if (!IS_CLOS(obj))
     return NULL;
   return DIRECT_UNTAG(obj, clos_t *);
 }
 
-inline prim_t *as_prim(obj_t *obj)
+static inline prim_t *as_prim(obj_t *obj)
 {
   if (!IS_PRIM(obj))
     return NULL;
   return DIRECT_UNTAG(obj, prim_t *);
 }
 
-inline obj_t *car(obj_t *obj)
+static inline obj_t *car(obj_t *obj)
 {
   auto pair = as_pair(obj);
   return pair ? pair->car : NULL;
 }
 
-inline obj_t *cdr(obj_t *obj)
+static inline obj_t *cdr(obj_t *obj)
 {
   auto pair = as_pair(obj);
   return pair ? pair->cdr : NULL;
 }
 
-obj_t *intern(const char *atom_buf, size_t atom_len);
-
-inline bool obj_equal(obj_t *a, obj_t *b)
+static inline bool obj_equal(obj_t *a, obj_t *b)
 {
   return (a == b);
 }
+
+obj_t *intern(const char *atom_buf, size_t atom_len);
 
 typedef struct
 {

@@ -223,10 +223,10 @@ size_t gc_sweep(void)
         // Put the slot designated by the bit into the free list.
         void *slot = c->data + slot_index * 16;
         gc_free_list_push(slot, i, slot_index);
-        freed++;
       }
 
       // Clear all live bits in one go.
+      freed += __builtin_popcountll(to_free);
       c->live_bits[w] &= ~to_free;
     }
     memset(c->mark_bits, 0, sizeof(c->mark_bits));

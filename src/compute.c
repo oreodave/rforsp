@@ -90,9 +90,8 @@ static inline void eval(clos_t *frame)
 void compute(obj_t *comp, obj_t *env)
 {
   frames_push(comp, env);
-  while (frames_available())
+  for (clos_t *frame = frames_peek(); frames_available(); frame = frames_peek())
   {
-    clos_t *frame = frames_peek();
     if (!frame->body)
     {
       --state->frame_depth;

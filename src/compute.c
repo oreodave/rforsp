@@ -100,7 +100,7 @@ void compute(obj_t *comp, obj_t *env)
 
 #if DEBUG & DEBUG_COMPUTE
     printf("compute[%ld]: ", state->frame_depth);
-    print(frame->comp);
+    print(frame->body);
     printf("\n");
     printf("stack: ");
     print(state->stack);

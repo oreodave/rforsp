@@ -73,7 +73,7 @@ typedef struct
  */
 typedef struct
 {
-  size_t alloc_live;
+  size_t slots_live;
   size_t threshold;
 #if DEBUG & DEBUG_GC
   size_t num_collections;

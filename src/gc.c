@@ -160,9 +160,14 @@ static gc_chunk_t *gc_find_chunk(void *raw_ptr, size_t *slot_id)
   return NULL;
 }
 
+static inline bool gc_threshold_met(void)
+{
+  return gc->metadata.slots_live >= gc->metadata.threshold;
+}
+
 __attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
 {
-  if (gc->metadata.alloc_live * 16 >= gc->metadata.threshold)
+  if (gc_threshold_met())
   {
     gc_collect();
   }
@@ -175,7 +180,7 @@ __attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
   }
 
   auto slot = gc_free_list_pop();
-  gc->metadata.alloc_live++;
+  gc->metadata.slots_live++;
 
   gc_chunk_t *c = gc->pool.chunks[slot->chunk_id];
   bitmap_set(c->live_bits, slot->slot_id);
@@ -250,9 +255,9 @@ size_t gc_sweep(void)
     memset(c->mark_bits, 0, sizeof(c->mark_bits));
   }
 
-  gc->metadata.alloc_live -= freed;
+  gc->metadata.slots_live -= freed;
   gc->metadata.threshold =
-      MAX(GC_THRESHOLD_DEFAULT, gc->metadata.alloc_live * 32);
+      MAX(GC_THRESHOLD_DEFAULT, gc->metadata.slots_live * 2);
 
 #if DEBUG & DEBUG_GC
   printf("GC:sweep: freed %lu bytes\n", freed * 16);
@@ -336,7 +341,7 @@ void gc_stats(FILE *)
          (state->gc.pool.length * GC_CHUNK_DATA_SIZE) / 16,
          state->gc.pool.length * GC_CHUNK_DATA_SIZE, state->gc.pool.length,
          state->gc.pool.length == 1 ? "chunk" : "chunks",
-         state->gc.metadata.alloc_live, state->gc.metadata.alloc_live * 16,
+         state->gc.metadata.slots_live, state->gc.metadata.slots_live * 16,
          state->gc.metadata.num_collections);
 #endif
 }

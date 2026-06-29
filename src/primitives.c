@@ -8,7 +8,8 @@
 
 void prim_push(obj_t **env)
 {
-  push(env_find(*env, pop()));
+  auto key = pop();
+  push(env_find(*env, key));
 }
 
 void prim_pop(obj_t **env)

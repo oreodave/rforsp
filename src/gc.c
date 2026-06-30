@@ -196,22 +196,36 @@ void gc_mark_obj(obj_t *obj)
   if (!IS_ALLOC(obj))
     return;
 
-  void *raw     = (void *)UNTAG(obj);
-  size_t idx    = 0;
-  gc_chunk_t *c = gc_find_chunk(raw, &idx);
+  constexpr size_t MARK_STACK_SIZE = 256;
+  obj_t *mark_stack[MARK_STACK_SIZE];
+  u64 mark_sp           = 0;
+  mark_stack[mark_sp++] = obj;
 
-  if (!c || bitmap_test(c->mark_bits, idx))
-    return;
-#if DEBUG & DEBUG_GC
-    printf("\tMarked %p\n", raw);
-#endif
+  while (mark_sp > 0)
+  {
+    obj_t *item = mark_stack[--mark_sp];
 
-  bitmap_set(c->mark_bits, idx);
+    void *raw     = (void *)UNTAG(item);
+    size_t idx    = 0;
+    gc_chunk_t *c = gc_find_chunk(raw, &idx);
 
-  // pair_t and clos_t both start with two obj_t* fields
-  obj_t **fields = (obj_t **)raw;
-  gc_mark_obj(fields[0]);
-  gc_mark_obj(fields[1]);
+    if (!c || bitmap_test(c->mark_bits, idx))
+      continue;
+
+    bitmap_set(c->mark_bits, idx);
+
+    // pair_t and clos_t both start with two obj_t* fields
+    obj_t **fields = (obj_t **)raw;
+    for (size_t i = 0; i < 2; ++i)
+    {
+      if (!IS_ALLOC(fields[i]))
+        continue;
+      else if (mark_sp >= MARK_STACK_SIZE)
+        gc_mark_obj(fields[i]);
+      else
+        mark_stack[mark_sp++] = fields[i];
+    }
+  }
 }
 
 size_t gc_sweep(void)

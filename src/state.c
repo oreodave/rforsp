@@ -13,10 +13,10 @@
 
 void frames_init()
 {
-  state->frames.capacity = COMPUTE_DEFAULT;
-  state->frames.length   = 0;
-  state->frames.items =
-      calloc(state->frames.capacity, sizeof(state->frames.items[0]));
+  state->fstack.capacity = COMPUTE_DEFAULT;
+  state->fstack.length   = 0;
+  state->fstack.frames =
+      calloc(state->fstack.capacity, sizeof(state->fstack.frames[0]));
 }
 
 void state_init()

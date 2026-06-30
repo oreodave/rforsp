@@ -9,26 +9,26 @@
 
 static inline bool frames_available()
 {
-  return state->frames.length > 0;
+  return state->fstack.length > 0;
 }
 
 static inline void frames_push(obj_t *comp, obj_t *env)
 {
-  if (state->frames.capacity - state->frames.length == 0)
+  if (state->fstack.capacity - state->fstack.length == 0)
   {
-    state->frames.capacity *= 2;
-    state->frames.items =
-        realloc(state->frames.items,
-                state->frames.capacity * sizeof(state->frames.items[0]));
+    state->fstack.capacity *= 2;
+    state->fstack.frames =
+        realloc(state->fstack.frames,
+                state->fstack.capacity * sizeof(state->fstack.frames[0]));
   }
 
-  state->frames.items[state->frames.length++] =
+  state->fstack.frames[state->fstack.length++] =
       (clos_t){.body = comp, .env = env};
 }
 
 static inline clos_t *frames_peek(void)
 {
-  return &state->frames.items[state->frames.length - 1];
+  return &state->fstack.frames[state->fstack.length - 1];
 }
 
 static inline void eval(clos_t *frame)
@@ -103,7 +103,7 @@ void compute(obj_t *comp, obj_t *env)
   {
     if (!frame->body)
     {
-      --state->frames.length;
+      --state->fstack.length;
       continue;
     }
 

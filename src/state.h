@@ -15,19 +15,12 @@
 
 constexpr size_t COMPUTE_DEFAULT = 1 << 7;
 
-typedef struct
-{
-  u64 length, capacity;
-  clos_t *items;
-} frame_stack_t;
-
 typedef struct state
 {
-  const char *input_name; // name for source of input data
-  char *input_str;        // input data string used by read()
-  size_t input_len;       // input data length used by read()
-  size_t input_pos;       // input data position used by read()
-
+  char *input_name; // name for source of input data
+  char *input_str;  // input data string used by read()
+  size_t input_len; // input data length used by read()
+  size_t input_pos; // input data position used by read()
   vec_t read_stack; // defered obj to emit from read
 
   vec_t interned_atoms; // interned atoms list
@@ -38,9 +31,12 @@ typedef struct state
 
   obj_t *stack; // top-of-stack (implemented with pairs)
   obj_t *env;   // top-level / initial environment
-
-  gc_t gc;
-  frame_stack_t frames;
+  gc_t gc;      // allocator for pairs/closures
+  struct fstack // self-managed dynamic array of call frames
+  {
+    u64 length, capacity;
+    clos_t *frames;
+  } fstack;
 } state_t;
 
 extern state_t state[1];

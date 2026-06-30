@@ -38,10 +38,10 @@ typedef struct
 // By default we want 4096 slots per chunk.
 #define GC_CHUNK_SLOTS (1LU << 12)
 #endif
-constexpr size_t GC_CHUNK_DATA_SIZE = sizeof(gc_free_slot_t) * GC_CHUNK_SLOTS;
-constexpr size_t GC_CHUNK_MARK_WORDS =
-    (GC_CHUNK_SLOTS + 63) / 64; // = ceil(GC_CHUNK_SLOTS / 64)
-constexpr size_t GC_THRESHOLD_DEFAULT = GC_CHUNK_DATA_SIZE / 2;
+
+#define GC_CHUNK_DATA_SIZE   (sizeof(gc_free_slot_t) * GC_CHUNK_SLOTS)
+#define GC_CHUNK_MARK_WORDS  ((GC_CHUNK_SLOTS + 63) / 64)
+#define GC_THRESHOLD_DEFAULT (GC_CHUNK_SLOTS)
 
 /** Chunk of memory managed by the GC.
  * `mark_bits`: bitmap for marks across all slots.

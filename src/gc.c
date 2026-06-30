@@ -283,7 +283,6 @@ size_t gc_sweep(void)
   return freed;
 }
 
-constexpr size_t GC_STACK_MARCH_LIMIT = 512;
 /** Perform a march through the machine stack, marking objects.
  * This march is done up from the current `rsp` by GC_STACK_MARCH_LIMIT words.
  * Each word is checked to see if it is a valid object that may have been
@@ -293,6 +292,7 @@ constexpr size_t GC_STACK_MARCH_LIMIT = 512;
  */
 static inline void gc_mark_stack_march(void)
 {
+  constexpr size_t GC_STACK_MARCH_LIMIT = 512;
   void *sp;
   __asm__ volatile("mov %%rsp, %0" : "=r"(sp));
   void **end = (void **)((u8 *)sp + GC_STACK_MARCH_LIMIT);

@@ -13,7 +13,7 @@
 
 void frames_init()
 {
-  state->fstack.capacity = COMPUTE_DEFAULT;
+  state->fstack.capacity = FSTACK_DEFAULT_CAPACITY;
   state->fstack.length   = 0;
   state->fstack.frames =
       calloc(state->fstack.capacity, sizeof(state->fstack.frames[0]));

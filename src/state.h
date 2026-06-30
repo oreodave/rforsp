@@ -13,7 +13,7 @@
 #include "obj.h"
 #include "vec.h"
 
-constexpr size_t COMPUTE_DEFAULT = 1 << 7;
+#define FSTACK_DEFAULT_CAPACITY (1 << 7)
 
 typedef struct state
 {

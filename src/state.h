@@ -13,7 +13,13 @@
 #include "obj.h"
 #include "vec.h"
 
-constexpr size_t COMPUTE_LIMIT = 1 << 7;
+constexpr size_t COMPUTE_DEFAULT = 1 << 7;
+
+typedef struct
+{
+  u64 length, capacity;
+  clos_t *items;
+} frame_stack_t;
 
 typedef struct state
 {
@@ -34,8 +40,7 @@ typedef struct state
   obj_t *env;   // top-level / initial environment
 
   gc_t gc;
-  clos_t frames[COMPUTE_LIMIT];
-  i64 frame_depth;
+  frame_stack_t frames;
 } state_t;
 
 extern state_t state[1];

@@ -11,6 +11,14 @@
  * State Constructor/Destructor                                               *
  ******************************************************************************/
 
+void frames_init()
+{
+  state->frames.capacity = COMPUTE_DEFAULT;
+  state->frames.length   = 0;
+  state->frames.items =
+      calloc(state->frames.capacity, sizeof(state->frames.items[0]));
+}
+
 void state_init()
 {
   memset(state, 0, sizeof(state));
@@ -21,6 +29,7 @@ void state_init()
 
   vec_init(&state->read_stack, 3);
   gc_init();
+  frames_init();
   state_env_setup();
 }
 

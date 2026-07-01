@@ -53,14 +53,20 @@ memperf: $(OUT)
 .PHONY: callperf
 callperf: $(OUT)
 	valgrind --tool=callgrind \
-		--callgrind-out-file=bin/callgrind.out \
+		--callgrind-out-file=$(DIST)/callgrind.out \
 		--collect-jumps=yes \
 		--dump-instr=yes \
 		./$(OUT) ./examples/bigrange.fp;
 
+BEFORE=$(DIST)/forsp.original
+AFTER=$(OUT)
 .PHONY: benchmark
 benchmark: $(OUT)
-	poop -d 10000 "bin/forsp.original ./examples/forsp.fp" "$(OUT) ./examples/forsp.fp" > new-benchmark.txt
+	poop -d 10000 \
+		"$(BEFORE) ./examples/forsp.fp" \
+		"$(AFTER) ./examples/forsp.fp" \
+	> $(DIST)/benchmark.txt;
+	@cat $(DIST)/benchmark.txt;
 
 scratch.fp:
 	echo "()" > scratch.fp

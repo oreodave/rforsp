@@ -180,7 +180,14 @@ __attribute__((noinline)) obj_t **gc_alloc()
     gc_new_chunk();
   }
 
-  auto slot = gc_free_list_pop();
+  gc_free_slot_t *slot = gc_free_list_pop();
+
+#if DEBUG & DEBUG_GC
+  // Ensure liveness invariant is met - only done in debug builds.
+  assert(
+      !bitmap_test(gc->pool.chunks[slot->chunk_id]->live_bits, slot->slot_id));
+#endif
+
   gc->metadata.slots_live++;
 
   gc_chunk_t *c = gc->pool.chunks[slot->chunk_id];

@@ -1,7 +1,7 @@
 #+filetags: forsp
 
 * TODO GC :gc:
-** TODO [#C] Liveness invariant check
+** DONE [#C] Liveness invariant check
 Benchmark if checking at ~gc_alloc~ that the slot we've popped off the
 free list is truly free via the bitmap degrades performance.
 
@@ -11,6 +11,8 @@ just allows us to catch regressions easier.
 
 [[file:src/gc.c::__attribute__((noinline)) obj_t
 **gc_alloc()][Location]].
+*** DONE Benchmark
+- Success: ~make examples~.
 ** TODO [#A] Reader bugs :reader:
 The current interpreter fails to execute
 [[file:examples/loads-of-cons.fp]].  If we lower

@@ -167,7 +167,7 @@ static inline bool gc_threshold_met(void)
   return gc->metadata.slots_live >= gc->metadata.threshold;
 }
 
-__attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
+__attribute__((noinline)) obj_t **gc_alloc()
 {
   if (gc_threshold_met())
   {
@@ -188,7 +188,7 @@ __attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
   bitmap_set(c->live_bits, slot->slot_id);
   memset(slot, 0, sizeof(*slot));
 
-  return TAG_CANON(slot, tag);
+  return (obj_t **)slot;
 }
 
 void gc_mark_obj(obj_t *obj)

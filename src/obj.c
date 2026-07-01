@@ -25,20 +25,18 @@ obj_t *make_num(int64_t num)
 
 obj_t *make_pair(obj_t *car, obj_t *cdr)
 {
-  obj_t *opair = gc_alloc(TAG_PAIR);
-  pair_t *pair = DIRECT_UNTAG(opair, pair_t *);
-  pair->car    = car;
-  pair->cdr    = cdr;
-  return opair;
+  auto pair = (pair_t *)gc_alloc();
+  pair->car = car;
+  pair->cdr = cdr;
+  return TAG_TYPE(pair, PAIR);
 }
 
 obj_t *make_clos(obj_t *body, obj_t *env)
 {
-  obj_t *oclos = gc_alloc(TAG_CLOS);
-  clos_t *clos = DIRECT_UNTAG(oclos, clos_t *);
-  clos->body   = body;
-  clos->env    = env;
-  return oclos;
+  auto clos  = (clos_t *)gc_alloc();
+  clos->body = body;
+  clos->env  = env;
+  return TAG_TYPE(clos, CLOS);
 }
 
 obj_t *make_prim(prim_t *func)

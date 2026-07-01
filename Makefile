@@ -56,7 +56,7 @@ callperf: $(OUT)
 		--callgrind-out-file=bin/callgrind.out \
 		--collect-jumps=yes \
 		--dump-instr=yes \
-		./$(OUT) ./examples/forsp.fp;
+		./$(OUT) ./examples/bigrange.fp;
 
 .PHONY: benchmark
 benchmark: $(OUT)

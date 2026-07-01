@@ -71,7 +71,7 @@ static inline bool gc_ptr_in_chunk(gc_chunk_t *chunk, void *raw_ptr)
  */
 static inline size_t gc_ptr_slot_in_chunk(gc_chunk_t *chunk, void *raw_ptr)
 {
-  return ((u8 *)raw_ptr - chunk->data) / 16;
+  return ((u8 *)raw_ptr - chunk->data) / sizeof(gc_free_slot_t);
 }
 
 /******************************************************************************
@@ -104,7 +104,6 @@ void gc_reset()
  */
 static inline gc_chunk_t *gc_new_chunk(void)
 {
-  // aligned_alloc(4096, ...) gives 16-byte alignment for slots
   gc_chunk_t *c = aligned_alloc(16, sizeof(gc_chunk_t));
   if (!c)
   {
@@ -220,7 +219,7 @@ void gc_mark_obj(obj_t *obj)
     {
       if (!IS_ALLOC(fields[i]))
         continue;
-      else if (mark_sp >= MARK_STACK_SIZE)
+      else if (mark_sp == MARK_STACK_SIZE - 1)
         gc_mark_obj(fields[i]);
       else
         mark_stack[mark_sp++] = fields[i];
@@ -287,8 +286,6 @@ size_t gc_sweep(void)
  * This march is done up from the current `rsp` by GC_STACK_MARCH_LIMIT words.
  * Each word is checked to see if it is a valid object that may have been
  * allocated.
-
- * NOTE: Incredibly flimsy, breaks under -O2 and beyond.
  */
 static inline void gc_mark_stack_march(void)
 {
@@ -351,18 +348,21 @@ size_t gc_collect(void)
   return freed;
 }
 
-void gc_stats(FILE *)
+void gc_stats(FILE *fp)
 {
 #if DEBUG & DEBUG_GC
-  printf("stats\n"
-         "\t%lu slots (%luB) over %lu %s allocated, of which %lu (%luB) are "
-         "live.\n"
-         "\tCollected %lu times.\n",
-         (state->gc.pool.length * GC_CHUNK_DATA_SIZE) / 16,
-         state->gc.pool.length * GC_CHUNK_DATA_SIZE, state->gc.pool.length,
-         state->gc.pool.length == 1 ? "chunk" : "chunks",
-         state->gc.metadata.slots_live, state->gc.metadata.slots_live * 16,
-         state->gc.metadata.num_collections);
+  fprintf(fp,
+          "stats\n"
+          "\t%lu slots (%luB) over %lu %s allocated, of which %lu (%luB) are "
+          "live.\n"
+          "\tCollected %lu times.\n",
+          (state->gc.pool.length * GC_CHUNK_DATA_SIZE) / 16,
+          state->gc.pool.length * GC_CHUNK_DATA_SIZE, state->gc.pool.length,
+          state->gc.pool.length == 1 ? "chunk" : "chunks",
+          state->gc.metadata.slots_live, state->gc.metadata.slots_live * 16,
+          state->gc.metadata.num_collections);
+#else
+  (void)fp;
 #endif
 }
 

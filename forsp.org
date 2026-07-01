@@ -13,7 +13,7 @@ just allows us to catch regressions easier.
 **gc_alloc()][Location]].
 *** DONE Benchmark
 - Success: ~make examples~.
-** TODO [#A] Reader bugs :reader:
+** WIP [#A] Reader bugs :reader:
 The current interpreter fails to execute
 [[file:examples/loads-of-cons.fp]].  If we lower
 ~GC_THRESHOLD_DEFAULT~ to a small number (i.e. 16) all examples fail
@@ -39,6 +39,10 @@ RCA:
   tested with regards to GC.
 
 Solutions to fix this follow.
+*** TODO Suppress GC during read
+Lowest effort - just needs a flag on the ~state_t~ or ~gc_t~.  Won't
+introduce a branch in the ~gc_alloc~ since we can just ~&&~ the flag
+in the ~gc_collect~ branch.
 *** TODO Complete stack march
 Get the base pointer right from ~main~ and make every stack scan a
 complete one.  Blows up performance - or at least, I think it would.
@@ -46,10 +50,6 @@ May not?
 
 NOTE: having a [[*Better ~gc_find_chunk~][better ~gc_find_chunk~]]
 could help here.
-*** TODO Suppress GC during read
-Lowest effort - just needs a flag on the ~state_t~ or ~gc_t~.  Won't
-introduce a branch in the ~gc_alloc~ since we can just ~&&~ the flag
-in the ~gc_collect~ branch.
 *** TODO Explicit root stack
 Painful and annoying.
 *** TODO Make reader iterative

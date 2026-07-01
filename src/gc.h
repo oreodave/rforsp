@@ -34,11 +34,7 @@ typedef struct
   u32 chunk_id, slot_id;
 } gc_free_slot_t;
 
-#ifndef GC_CHUNK_SLOTS
-// By default we want 4096 slots per chunk.
-#define GC_CHUNK_SLOTS (1LU << 12)
-#endif
-
+#define GC_CHUNK_SLOTS       (1LU << 12)
 #define GC_CHUNK_DATA_SIZE   (sizeof(gc_free_slot_t) * GC_CHUNK_SLOTS)
 #define GC_CHUNK_MARK_WORDS  ((GC_CHUNK_SLOTS + 63) / 64)
 #define GC_THRESHOLD_DEFAULT (GC_CHUNK_SLOTS)

@@ -197,6 +197,17 @@ __attribute__((noinline)) obj_t **gc_alloc()
   return (obj_t **)slot;
 }
 
+void gc_root_push(obj_t *root)
+{
+  vec_push(&gc->rstack, root);
+}
+
+void gc_root_pop(void)
+{
+  obj_t *_;
+  vec_try_pop(&gc->rstack, &_);
+}
+
 void gc_mark_obj(obj_t *obj)
 {
   if (!IS_ALLOC(obj))
@@ -344,6 +355,14 @@ size_t gc_collect(void)
   {
     gc_mark_obj(state->fstack.frames[i].body);
     gc_mark_obj(state->fstack.frames[i].env);
+  }
+
+#if DEBUG & DEBUG_GC
+  printf("GC:collect:rstack: marking %lu roots.\n", state->rstack.length);
+#endif
+  for (u64 i = 0; i < gc->rstack.length; ++i)
+  {
+    gc_mark_obj(gc->rstack.items[i]);
   }
 
   size_t freed = gc_sweep();

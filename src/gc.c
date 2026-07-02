@@ -292,24 +292,23 @@ size_t gc_sweep(void)
 }
 
 /** Perform a march through the machine stack, marking objects.
- * This march is done up from the current `rsp` by GC_STACK_MARCH_LIMIT words.
+ * This march is done up from the current `rsp` up to `gc->stack_base`.
  * Each word is checked to see if it is a valid object that may have been
  * allocated.
  */
 static inline void gc_mark_stack_march(void)
 {
-  constexpr size_t GC_STACK_MARCH_LIMIT = 512;
+  __builtin_unwind_init();
   void *sp;
   __asm__ volatile("mov %%rsp, %0" : "=r"(sp));
-  void **end = (void **)((u8 *)sp + GC_STACK_MARCH_LIMIT);
 
 #if DEBUG & DEBUG_GC
-  printf("GC:collect:stack_march: Iterating from start=%p -> end=%p\n", sp,
-         (void *)end);
+  printf("GC:collect:stack_march: Iterating from %p -> %p\n", sp,
+         (void *)gc->stack_base);
 #endif
 
   size_t _ = 0;
-  for (void **p = sp; p < end; ++p)
+  for (void **p = sp; p < gc->stack_base; ++p)
   {
     obj_t *maybe = *(obj_t **)p;
     if (IS_ALLOC(maybe))

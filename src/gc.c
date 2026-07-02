@@ -240,9 +240,18 @@ void gc_mark_obj(obj_t *obj)
 
     bitmap_set(c->mark_bits, slot_id);
 
-    // pair_t and clos_t both start with two obj_t* fields
-    obj_t **fields = (obj_t **)raw;
-    for (size_t i = 0; i < 2; ++i)
+    // pair_t/clos_t both have two obj_t* fields, so we presume them by default.
+    auto fields      = (obj_t **)raw;
+    u64 fields_count = 2;
+    if (bitmap_test(c->vec_bits, slot_id))
+    {
+      // vec_t requires marking the constituent members.
+      vec_t *vec   = raw;
+      fields       = vec->items;
+      fields_count = vec->length;
+    }
+
+    for (size_t i = 0; i < fields_count; ++i)
     {
       gc_mark_field(fields[i], &mark_sp, mark_stack);
     }

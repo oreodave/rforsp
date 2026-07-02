@@ -186,7 +186,10 @@ marking/sweeping as we'd want to iterate through all the objects in a
 *** DONE Refactor ~gc_alloc~ to take ~tag_t~
 Need to make sure we're setting the vec bitmap correctly when
 allocating a ~vec_t~.
-*** TODO Refactor ~gc_mark~ to treat vector tagged slots differently
+*** DONE Refactor ~gc_mark~ to treat vector tagged slots differently
+Main thing is making sure we recursively mark the members of the
+vector by accessing the items array, rather than marking just the two
+objects in the slot (which is an error).
 *** TODO Refactor ~gc_sweep~ to deal with vectors separately
 ** WAIT Cheney's algorithm
 2026-06-21: My initial Cheney's algorithm impl didn't go so well.

@@ -182,7 +182,7 @@ composed of simply two objects.  We need special iteration when
 marking/sweeping as we'd want to iterate through all the objects in a
 ~vec_t~ when marking, and when sweeping we want to specially treat the
 ~items~ buffer.
-*** TODO Introduce bitmap for vectors
+*** DONE Introduce bitmap for vectors
 *** TODO Refactor ~gc_alloc~ to take ~tag_t~
 *** TODO Refactor ~gc_mark~ to treat vector tagged slots differently
 *** TODO Refactor ~gc_sweep~ to deal with vectors separately

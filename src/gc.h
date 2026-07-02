@@ -42,12 +42,14 @@ typedef struct
 /** Chunk of memory managed by the GC.
  * `mark_bits`: bitmap for marks across all slots.
  * `live_bits`: bitmap for whether a given slot is live.
+ * `vec_bits`: bitmap for whether a given slot is a vector.
  * `data`: raw data where allocations are stored.
  */
 typedef struct
 {
   u64 mark_bits[GC_CHUNK_MARK_WORDS];
   u64 live_bits[GC_CHUNK_MARK_WORDS];
+  u64 vec_bits[GC_CHUNK_MARK_WORDS];
   u8 data[GC_CHUNK_DATA_SIZE];
 } gc_chunk_t;
 

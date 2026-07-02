@@ -29,7 +29,10 @@
   ($self $acc $start $end
     ^if (^start ^end eq)
       (acc end cons)
-      ([ end 1 - ] start [ acc end cons ] self)
+      (end 1 -
+       start
+       acc end cons
+       self)
     endif
   ) rec $--range
 
@@ -40,12 +43,19 @@
   ($self $fn $init $list
     ^if (list '() eq)
       (init)
-      ([ list cdr ] [ list car init fn ] ^fn self)
+      (list cdr
+       list car init fn
+       ^fn
+       self)
     endif
   ) rec $reduce
 
-  [
-    [ 1 17 << ] 0 range
+  [ 1 18 << ] $end
+
+  end print
+  '=> print
+
+    end 0 range
     0 (+) reduce
-  ] print
+  print
 )

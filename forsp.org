@@ -170,7 +170,22 @@ cost of this check.  Let's investigate this.
 *** TODO Hashmap
 *** TODO Benchmark
 - Success: ~make examples~
-** TODO Introduce vectors into the gc
+** WIP Introduce vectors into the gc
+Couple possible ideas:
+- Separate pool for ~vec_t~; more metadata required, ~vec_t~ chunks
+  may not be touched as often, etc
+- Same pool for ~vec_t~ as the rest; instead we introduce a dedicated
+  bitmap to say "this slot is a ~vec_t~"
+
+We need a separation because, while ~vec_t~ is only 16 bytes, it isn't
+composed of simply two objects.  We need special iteration when
+marking/sweeping as we'd want to iterate through all the objects in a
+~vec_t~ when marking, and when sweeping we want to specially treat the
+~items~ buffer.
+*** TODO Introduce bitmap for vectors
+*** TODO Refactor ~gc_alloc~ to take ~tag_t~
+*** TODO Refactor ~gc_mark~ to treat vector tagged slots differently
+*** TODO Refactor ~gc_sweep~ to deal with vectors separately
 ** WAIT Cheney's algorithm
 2026-06-21: My initial Cheney's algorithm impl didn't go so well.
 Leaving this in WAIT for potential future work.  Looking at other GC

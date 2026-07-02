@@ -111,6 +111,7 @@ static inline gc_chunk_t *gc_new_chunk(void)
   }
   memset(c->mark_bits, 0, sizeof(c->mark_bits));
   memset(c->live_bits, 0, sizeof(c->live_bits));
+  memset(c->vec_bits, 0, sizeof(c->vec_bits));
 
   // Chain all new slots into the free list
   for (size_t i = 0; i < GC_CHUNK_SLOTS; ++i)

@@ -137,17 +137,26 @@ obj_t *read_list(void)
     obj_t *item = read();
     if (!root)
     {
+      gc_root_push(item);
       root = make_pair(item, NULL);
-      cur  = root;
+      gc_root_pop();
+
+      cur = root;
+      gc_root_push(cur);
     }
     else
     {
       pair_t *pair = as_pair(cur);
-      pair->cdr    = make_pair(item, NULL);
-      cur          = pair->cdr;
+
+      gc_root_push(item);
+      pair->cdr = make_pair(item, NULL);
+      gc_root_pop();
+
+      cur = pair->cdr;
     }
   }
 
+  gc_root_pop();
   c = peek();
   if (c != ')')
   {

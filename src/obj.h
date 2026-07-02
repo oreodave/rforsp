@@ -49,18 +49,24 @@ typedef struct clos
   obj_t *body, *env;
 } clos_t;
 
-typedef void(prim_t)(obj_t **);
-
-static inline tag_t get_tag(obj_t *ptr)
+typedef struct vec
 {
-  return (tag_t)GET_TAG(ptr);
-}
+  u32 length, capacity;
+  obj_t **items;
+} vec_t;
+
+typedef void(prim_t)(obj_t **);
 
 obj_t *make_atom(const char *str, size_t len);
 obj_t *make_num(int64_t num);
 obj_t *make_pair(obj_t *car, obj_t *cdr);
 obj_t *make_clos(obj_t *body, obj_t *env);
 obj_t *make_prim(prim_t *func);
+
+static inline tag_t get_tag(obj_t *ptr)
+{
+  return (tag_t)GET_TAG(ptr);
+}
 
 static inline char *as_atom(obj_t *obj)
 {
@@ -115,6 +121,12 @@ static inline bool obj_equal(obj_t *a, obj_t *b)
 }
 
 obj_t *intern(const char *atom_buf, size_t atom_len);
+
+void vec_init(vec_t *vec, size_t initial_capacity);
+void vec_stop(vec_t *vec);
+void vec_push(vec_t *vec, obj_t *item);
+void vec_push_mult(vec_t *vec, obj_t **items, u64 num_items);
+bool vec_try_pop(vec_t *vec, obj_t **ret);
 
 typedef struct
 {

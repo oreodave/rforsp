@@ -5,7 +5,7 @@
  * Commentary:
  */
 
-#include "vec.h"
+#include "obj.h"
 
 void vec_init(vec_t *vec, size_t initial_capacity)
 {

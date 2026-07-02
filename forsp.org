@@ -13,7 +13,7 @@ just allows us to catch regressions easier.
 **gc_alloc()][Location]].
 *** DONE Benchmark
 - Success: ~make examples~.
-** WIP [#A] Reader bugs :reader:
+** DONE [#A] Reader bugs :reader:
 The current interpreter fails to execute
 [[file:examples/loads-of-cons.fp]].  If we lower
 ~GC_THRESHOLD_DEFAULT~ to a small number (i.e. 16) all examples fail
@@ -39,22 +39,65 @@ RCA:
   tested with regards to GC.
 
 Solutions to fix this follow.
-*** TODO Suppress GC during read
+*** DONE Suppress GC during read
 Lowest effort - just needs a flag on the ~state_t~ or ~gc_t~.  Won't
 introduce a branch in the ~gc_alloc~ since we can just ~&&~ the flag
 in the ~gc_collect~ branch.
-*** TODO Complete stack march
+
+See the ~reader!gc-suppress~ branch for the implementation.
+
+Issues:
+- Really large files will definitely force a collection the first time
+  we allocate in ~compute~, which means a massive slow down on the
+  first compute iteration we do.
+*** DONE Complete stack march
 Get the base pointer right from ~main~ and make every stack scan a
 complete one.  Blows up performance - or at least, I think it would.
 May not?
 
 NOTE: having a [[*Better ~gc_find_chunk~][better ~gc_find_chunk~]]
 could help here.
-*** TODO Explicit root stack
-Painful and annoying.
-*** TODO Make reader iterative
-Largest effort.  Will be interesting at least.
-*** TODO Benchmark
+
+See the ~reader!gc-complete-stack-march~ branch for the
+implementation.
+
+Issues:
+- Requires a complete stack march; needs to be benchmarked if it's
+  more expensive.
+- `-O2` optimisation may not spill all objects onto the stack; certain
+  objects may still be in registers rather than in the stack, which is
+  a problem for the stack march.  So, we use `__builtin_unwind_init`
+  to fix this.  This is even more expensive.
+
+*** DONE Explicit root stack
+Bit painful, requires extra state on ~gc_t~, but might be worth
+investigating.
+
+The only place that requires intervention is in the ~read~ phase since
+~compute/eval~ are dealt with by the ~fstack~, and primitives are
+dealt with by the stack march.
+
+In particular, the only place that may trigger collection is in
+~read_list~, which calls ~make_pair~.  So that's the only place we
+need to target.
+
+Issues:
+- Extra state on ~gc_t~ to deal with.  Ew.
+- It's covering such a tiny portion, which makes the infra we have to
+  setup so painful.
+*** COMPLETE Make reader iterative
+2026-07-02: not worth it.  Since we need to form some sort of stack or
+queue to deal with currently building lists, they escape the purview
+of the limited machine stack scan.  So either we need to:
+- Preserve them by forcing ~gc_collect~ to mark the constituent
+  objects of every list builder frame; which is the same as the
+  explicit root stack, but worse.
+- Extend the stack march to cover the read phase, at which point why
+  not just do the complete stack march - which we've confirmed to be
+  working?
+
+This idea is worthless to pursue currently.
+*** DONE Benchmark
 - Success: can it run
   [[file:examples/loads-of-cons.fp][loads-of-cons]]?
 

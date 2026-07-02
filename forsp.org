@@ -190,7 +190,10 @@ allocating a ~vec_t~.
 Main thing is making sure we recursively mark the members of the
 vector by accessing the items array, rather than marking just the two
 objects in the slot (which is an error).
-*** TODO Refactor ~gc_sweep~ to deal with vectors separately
+*** DONE Refactor ~gc_sweep~ to deal with vectors separately
+For live but unmarked slots, check if they're a vector.  If they are,
+make sure to free ~vec_t.items~ before putting on the free list.  And
+clear the vector bitmap to ensure the slot can be reused for anything.
 ** WAIT Cheney's algorithm
 2026-06-21: My initial Cheney's algorithm impl didn't go so well.
 Leaving this in WAIT for potential future work.  Looking at other GC

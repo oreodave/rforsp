@@ -20,6 +20,11 @@ static inline void bitmap_set(u64 *bits, size_t idx)
   bits[idx / 64] |= (1ULL << (idx % 64));
 }
 
+static inline void bitmap_clear(u64 *bits, size_t idx)
+{
+  bits[idx / 64] &= ~(1ULL << (idx % 64));
+}
+
 static inline bool bitmap_test(const u64 *bits, size_t idx)
 {
   return (bits[idx / 64] >> (idx % 64)) & 1;
@@ -276,12 +281,20 @@ size_t gc_sweep(void)
       for (u64 todo = to_free; todo; todo &= todo - 1)
       {
         // Find the lowest bit which is nonzero through a single hardware inst.
-        int bit           = stdc_trailing_zeros_ull(todo);
-        size_t slot_index = base + bit;
+        int bit        = stdc_trailing_zeros_ull(todo);
+        size_t slot_id = base + bit;
 
-        // Put the slot designated by the bit into the free list.
-        void *slot = c->data + slot_index * 16;
-        gc_free_list_push(slot, i, slot_index);
+        void *slot = c->data + slot_id * 16;
+
+        // If the slot is actually a vector, we need to reclaim the `items`
+        // array.
+        if (bitmap_test(c->vec_bits, slot_id))
+        {
+          vec_t *vslot = slot;
+          free(vslot->items);
+        }
+
+        gc_free_list_push(slot, i, slot_id);
       }
 
       // Clear all live bits in one go.

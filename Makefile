@@ -14,7 +14,8 @@ HEADERS=src/common.h src/gc.h src/vec.h src/obj.h src/primitives.h src/state.h \
 
 EXAMPLES=examples/church-numerals.fp examples/currying.fp examples/demo.fp \
 		examples/factorial.fp examples/fibonacci-functional.fp examples/forsp.fp \
-		examples/higher-order-functions.fp examples/tutorial.fp
+		examples/higher-order-functions.fp examples/tutorial.fp \
+		examples/bigrange.fp examples/loads-of-cons.fp
 
 $(OUT): $(DIST) $(HEADERS) $(LIB) src/main.c
 	$(CC) $(CFLAGS) -Isrc -o $@ $(LIB) src/main.c $(LDFLAGS) $(DEFS)

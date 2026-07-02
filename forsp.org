@@ -1,5 +1,29 @@
 #+filetags: forsp
 
+* WIP Vectors
+We want to introduce a Vector type to our object model.  Obviously, as
+per the tagged pointer model, this will be by pointer; which means
+primitives that work on vectors will always take by reference and not
+by value.
+
+** DONE Inline vec.h into obj.h
+** WIP Setup vec_t into the object model
+*** DONE Tagging
+*** WIP make_vec
+Reliant on [[*Introduce vectors into the gc][gc]].
+*** DONE as_vec
+*** DONE print
+*** DONE compute
+Currently ~vec_t~ should just self-push; no changes.
+** TODO Primitives
+*** TODO ~prim_vec_make~
+*** TODO ~prim_vec_push~
+*** TODO ~prim_vec_pop~
+*** TODO ~prim_copy~
+Should do a deep copy and push it onto the stack.  This should also
+deal with lists.  However, closures should be unaffected.
+** TODO Replace stack with a vector
+This is a big one.
 * TODO GC :gc:
 ** DONE [#C] Liveness invariant check
 Benchmark if checking at ~gc_alloc~ that the slot we've popped off the
@@ -146,6 +170,7 @@ cost of this check.  Let's investigate this.
 *** TODO Hashmap
 *** TODO Benchmark
 - Success: ~make examples~
+** TODO Introduce vectors into the gc
 ** WAIT Cheney's algorithm
 2026-06-21: My initial Cheney's algorithm impl didn't go so well.
 Leaving this in WAIT for potential future work.  Looking at other GC
@@ -233,7 +258,6 @@ program.
 The original =xorforsp= project cannot run this program by the way -
 so we're finally beating the original in terms of being able to
 interpret a program it can't.
-
 * TODO Big integers
 We can only compute $18!$.  Unacceptable.  It's due to only having 56
 bit integers.  We could get away with bumping this up to 63 bits by

@@ -78,9 +78,10 @@ static inline size_t gc_ptr_slot_in_chunk(gc_chunk_t *chunk, void *raw_ptr)
  * GC Methods                                                                 *
  ******************************************************************************/
 
-void gc_init()
+void gc_init(void **stack_base)
 {
   memset(&state->gc, 0, sizeof(state->gc));
+  gc->stack_base         = stack_base;
   gc->metadata.threshold = GC_THRESHOLD_DEFAULT;
 }
 
@@ -96,8 +97,9 @@ void gc_stop()
 
 void gc_reset()
 {
+  auto stack_base = gc->stack_base;
   gc_stop();
-  gc_init();
+  gc_init(stack_base);
 }
 
 /** Construct a new chunk and push it onto the pool.

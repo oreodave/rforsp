@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  state_init();
+  state_init(__builtin_frame_address(0));
 
   state->input_name = argv[1];
   state->input_str  = load_file(argv[1], &state->input_len);

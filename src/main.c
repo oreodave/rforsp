@@ -46,6 +46,7 @@ int main(int argc, char *argv[])
   state->input_str  = load_file(argv[1], &state->input_len);
   state->input_pos  = 0;
 
+  state->gc.enable = false;
 #if DEBUG
   printf("read: starting\n");
 #endif
@@ -58,6 +59,7 @@ int main(int argc, char *argv[])
 #endif
   printf("compute: starting\n");
 #endif
+  state->gc.enable = true;
   compute(obj, state->env);
 
 #if DEBUG & DEBUG_GC

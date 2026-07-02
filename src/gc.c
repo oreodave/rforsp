@@ -200,39 +200,51 @@ __attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
   return TAG_CANON(slot, tag);
 }
 
+constexpr size_t MARK_STACK_SIZE = 256;
+static inline void gc_mark_field(obj_t *field, u64 *mark_sp, obj_t **mark_stack)
+{
+  if (!IS_ALLOC(field))
+  {
+    return;
+  }
+  else if (*mark_sp == MARK_STACK_SIZE - 1)
+  {
+    gc_mark_obj(field);
+  }
+  else
+  {
+    STACK_PUSH(mark_stack, *mark_sp, field);
+  }
+}
+
 void gc_mark_obj(obj_t *obj)
 {
   if (!IS_ALLOC(obj))
     return;
 
-  constexpr size_t MARK_STACK_SIZE = 256;
   obj_t *mark_stack[MARK_STACK_SIZE];
-  u64 mark_sp           = 0;
-  mark_stack[mark_sp++] = obj;
+  u64 mark_sp = 0;
+
+  STACK_PUSH(mark_stack, mark_sp, obj);
 
   while (mark_sp > 0)
   {
-    obj_t *item = mark_stack[--mark_sp];
+    obj_t *item = STACK_POP(mark_stack, mark_sp);
 
-    void *raw     = (void *)UNTAG(item);
-    size_t idx    = 0;
-    gc_chunk_t *c = gc_find_chunk(raw, &idx);
+    void *raw      = (void *)UNTAG(item);
+    size_t slot_id = 0;
+    gc_chunk_t *c  = gc_find_chunk(raw, &slot_id);
 
-    if (!c || bitmap_test(c->mark_bits, idx))
+    if (!c || bitmap_test(c->mark_bits, slot_id))
       continue;
 
-    bitmap_set(c->mark_bits, idx);
+    bitmap_set(c->mark_bits, slot_id);
 
     // pair_t and clos_t both start with two obj_t* fields
     obj_t **fields = (obj_t **)raw;
     for (size_t i = 0; i < 2; ++i)
     {
-      if (!IS_ALLOC(fields[i]))
-        continue;
-      else if (mark_sp == MARK_STACK_SIZE - 1)
-        gc_mark_obj(fields[i]);
-      else
-        mark_stack[mark_sp++] = fields[i];
+      gc_mark_field(fields[i], &mark_sp, mark_stack);
     }
   }
 }

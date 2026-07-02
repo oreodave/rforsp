@@ -80,6 +80,9 @@ obj_canon_t as_canon(obj_t *obj)
   case TAG_CLOS:
     return (obj_canon_t){.tag = tag, .as_clos = *as_clos(obj)};
     break;
+  case TAG_VEC:
+    return (obj_canon_t){.tag = tag, .as_vec = *as_vec(obj)};
+    break;
   case TAG_PRIM:
     return (obj_canon_t){.tag = tag, .as_prim = as_prim(obj)};
     break;

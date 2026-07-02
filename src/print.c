@@ -57,6 +57,19 @@ void print_recurse(obj_t *obj)
     printf(", %p>", (void *)clos->env);
   }
   break;
+  case TAG_VEC:
+  {
+    printf("[");
+    vec_t *vec = as_vec(obj);
+    for (size_t i = 0; i < vec->length; ++i)
+    {
+      print(vec->items[i]);
+      if (i != vec->length - 1)
+        printf(" ");
+    }
+    printf("]");
+  }
+  break;
   case TAG_PRIM:
   {
     // NOTE: Illegal trick.  I should be deported for this.

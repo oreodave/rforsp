@@ -16,7 +16,8 @@ typedef enum Tag
   TAG_NUM  = 2,
   TAG_PAIR = 3,
   TAG_CLOS = 4,
-  TAG_PRIM = 5,
+  TAG_VEC  = 5,
+  TAG_PRIM = 6,
 } tag_t;
 
 typedef struct obj obj_t;
@@ -32,6 +33,7 @@ typedef struct obj obj_t;
 #define IS_PAIR(obj) (GET_TAG(obj) == TAG_PAIR)
 #define IS_CLOS(obj) (GET_TAG(obj) == TAG_CLOS)
 #define IS_PRIM(obj) (GET_TAG(obj) == TAG_PRIM)
+#define IS_VEC(obj)  (GET_TAG(obj) == TAG_VEC)
 
 #define IS_ALLOC(OBJ) (IS_PAIR(OBJ) || IS_CLOS(OBJ))
 
@@ -61,6 +63,7 @@ obj_t *make_atom(const char *str, size_t len);
 obj_t *make_num(int64_t num);
 obj_t *make_pair(obj_t *car, obj_t *cdr);
 obj_t *make_clos(obj_t *body, obj_t *env);
+obj_t *make_vec(obj_t *body, obj_t *env);
 obj_t *make_prim(prim_t *func);
 
 static inline tag_t get_tag(obj_t *ptr)
@@ -94,6 +97,13 @@ static inline clos_t *as_clos(obj_t *obj)
   if (!IS_CLOS(obj))
     return NULL;
   return DIRECT_UNTAG(obj, clos_t *);
+}
+
+static inline vec_t *as_vec(obj_t *obj)
+{
+  if (!IS_VEC(obj))
+    return NULL;
+  return DIRECT_UNTAG(obj, vec_t *);
 }
 
 static inline prim_t *as_prim(obj_t *obj)
@@ -137,6 +147,7 @@ typedef struct
     i64 as_num;
     pair_t as_pair;
     clos_t as_clos;
+    vec_t as_vec;
     prim_t *as_prim;
   };
 } obj_canon_t;

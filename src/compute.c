@@ -99,6 +99,7 @@ static inline void eval(clos_t *frame)
   case TAG_NUM:
   case TAG_CLOS:
   case TAG_PRIM:
+  case TAG_VEC:
   default:
     push(cmd);
     break;

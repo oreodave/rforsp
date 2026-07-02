@@ -307,6 +307,7 @@ size_t gc_sweep(void)
  */
 static inline void gc_mark_stack_march(void)
 {
+  __builtin_unwind_init();
   constexpr size_t GC_STACK_MARCH_LIMIT = 512;
   void *sp;
   __asm__ volatile("mov %%rsp, %0" : "=r"(sp));

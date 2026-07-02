@@ -35,7 +35,7 @@ typedef struct obj obj_t;
 #define IS_PRIM(obj) (GET_TAG(obj) == TAG_PRIM)
 #define IS_VEC(obj)  (GET_TAG(obj) == TAG_VEC)
 
-#define IS_ALLOC(OBJ) (IS_PAIR(OBJ) || IS_CLOS(OBJ))
+#define IS_ALLOC(OBJ) (IS_PAIR(OBJ) || IS_CLOS(OBJ) || IS_VEC(OBJ))
 
 #define DIRECT_UNTAG(X, T) ((T)UNTAG(X))
 #define DIRECT_CAR(O)      (((pair_t *)(UNTAG(O)))->car)

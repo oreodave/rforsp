@@ -183,7 +183,9 @@ marking/sweeping as we'd want to iterate through all the objects in a
 ~vec_t~ when marking, and when sweeping we want to specially treat the
 ~items~ buffer.
 *** DONE Introduce bitmap for vectors
-*** TODO Refactor ~gc_alloc~ to take ~tag_t~
+*** DONE Refactor ~gc_alloc~ to take ~tag_t~
+Need to make sure we're setting the vec bitmap correctly when
+allocating a ~vec_t~.
 *** TODO Refactor ~gc_mark~ to treat vector tagged slots differently
 *** TODO Refactor ~gc_sweep~ to deal with vectors separately
 ** WAIT Cheney's algorithm

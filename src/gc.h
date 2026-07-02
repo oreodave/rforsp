@@ -105,10 +105,10 @@ void gc_stop(void);
  */
 void gc_reset(void);
 
-/** Allocate a new slot in the GC.
- * NOTE: Returns a pointer to exactly two objects.
+/** Allocate a new slot in the GC, given a tag.
+ * Returns a tagged pointer to the slots allocated.
  */
-__attribute__((noinline)) obj_t **gc_alloc();
+__attribute__((noinline)) obj_t *gc_alloc(tag_t tag);
 
 /** Mark an obj_t* as reachable.
  * Call for each root before gc_sweep().

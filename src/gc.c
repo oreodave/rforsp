@@ -163,7 +163,7 @@ static inline gc_chunk_t *gc_find_chunk(void *raw_ptr, size_t *slot_id)
 
 static inline bool gc_threshold_met(void)
 {
-  return gc->metadata.slots_live >= gc->metadata.threshold;
+  return gc->enable && gc->metadata.slots_live >= gc->metadata.threshold;
 }
 
 __attribute__((noinline)) obj_t **gc_alloc()

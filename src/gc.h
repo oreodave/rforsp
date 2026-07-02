@@ -86,6 +86,7 @@ typedef struct
   gc_metadata_t metadata;
   void *free_list;
   gc_pool_t pool;
+  bool enable;
 } gc_t;
 
 /** Initialise the GC.

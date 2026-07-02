@@ -16,6 +16,7 @@
 
 #include "common.h"
 #include "obj.h"
+#include "vec.h"
 
 /** Type for a free slot in the GC.
  * Free slots are arranged in a linked list, and are used to allow re-use of
@@ -85,6 +86,7 @@ typedef struct
 {
   gc_metadata_t metadata;
   void *free_list;
+  vec_t rstack;
   gc_pool_t pool;
 } gc_t;
 
@@ -105,7 +107,16 @@ void gc_reset(void);
 /** Allocate a new slot in the GC.
  * NOTE: Returns a pointer to exactly two objects.
  */
-__attribute__((noinline)) obj_t **gc_alloc();
+__attribute__((noinline)) obj_t **gc_alloc(void);
+
+/** Push a root onto the root stack.
+ * Anything pushed onto the root stack is preserved between collections.
+ */
+void gc_root_push(obj_t *root);
+
+/** Pop a root off the root stack.
+ */
+void gc_root_pop(void);
 
 /** Mark an obj_t* as reachable.
  * Call for each root before gc_sweep().

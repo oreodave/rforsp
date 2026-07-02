@@ -67,7 +67,7 @@
   ) rec $eval
 
  ; tag function
- ($x ((^x tag) 4 ^x is-closure if) 5 (^x is-clos) if) $new-tag
+ ($x ((^x tag) 4 ^x is-closure if) 7 (^x is-clos) if) $new-tag
 
  ; init-env
  '()

@@ -26,13 +26,13 @@ static inline void fstack_push(obj_t *comp, obj_t *env)
                 state->fstack.capacity * sizeof(state->fstack.frames[0]));
   }
 
-  state->fstack.frames[state->fstack.length++] =
-      (clos_t){.body = comp, .env = env};
+  STACK_PUSH(state->fstack.frames, state->fstack.length,
+             ((clos_t){.body = comp, .env = env}));
 }
 
 static inline clos_t *fstack_peek(void)
 {
-  return &state->fstack.frames[state->fstack.length - 1];
+  return &STACK_PEEK(state->fstack.frames, state->fstack.length);
 }
 
 static inline void fstack_pop(void)

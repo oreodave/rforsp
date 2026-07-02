@@ -201,25 +201,9 @@ __attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
   return TAG_CANON(slot, tag);
 }
 
-constexpr size_t MARK_STACK_SIZE = 256;
-static inline void gc_mark_field(obj_t *field, u64 *mark_sp, obj_t **mark_stack)
-{
-  if (!IS_ALLOC(field))
-  {
-    return;
-  }
-  else if (*mark_sp == MARK_STACK_SIZE - 1)
-  {
-    gc_mark_obj(field);
-  }
-  else
-  {
-    STACK_PUSH(mark_stack, *mark_sp, field);
-  }
-}
-
 void gc_mark_obj(obj_t *obj)
 {
+  constexpr size_t MARK_STACK_SIZE = 256;
   if (!IS_ALLOC(obj))
     return;
 
@@ -254,7 +238,12 @@ void gc_mark_obj(obj_t *obj)
 
     for (size_t i = 0; i < fields_count; ++i)
     {
-      gc_mark_field(fields[i], &mark_sp, mark_stack);
+      if (!IS_ALLOC(fields[i]))
+        continue;
+      else if (mark_sp == MARK_STACK_SIZE - 1)
+        gc_mark_obj(fields[i]);
+      else
+        STACK_PUSH(mark_stack, mark_sp, fields[i]);
     }
   }
 }

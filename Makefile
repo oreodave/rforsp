@@ -52,21 +52,26 @@ tests: $(TESTS)
 memperf: $(OUT)
 	valgrind -s --show-leak-kinds=all --leak-check=full ./$(OUT) ./examples/forsp.fp &> gc.results;
 
+BENCH_EXAMPLE=./examples/forsp.fp
+
 .PHONY: callperf
 callperf: $(OUT)
 	valgrind --tool=callgrind \
 		--callgrind-out-file=$(DIST)/callgrind.out \
 		--collect-jumps=yes \
 		--dump-instr=yes \
-		./$(OUT) ./examples/bigrange.fp;
+		./$(OUT) $(BENCH_EXAMPLE);
 
 BEFORE=$(DIST)/forsp.original
 AFTER=$(OUT)
+BENCH_BEFORE=$(BENCH_EXAMPLE)
+BENCH_AFTER=$(BENCH_EXAMPLE)
+
 .PHONY: benchmark
 benchmark: $(OUT)
 	poop -d 10000 \
-		"$(BEFORE) ./examples/forsp.fp" \
-		"$(AFTER) ./examples/forsp.fp" \
+		"$(BEFORE) $(BENCH_BEFORE)" \
+		"$(AFTER) $(BENCH_AFTER)" \
 	> $(DIST)/benchmark.txt;
 	@cat $(DIST)/benchmark.txt;
 

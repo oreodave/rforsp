@@ -11,33 +11,34 @@
  * Frame Stack Helpers                                                        *
  ******************************************************************************/
 
+static struct fstack *fstack = &state->fstack;
+
 static inline bool fstack_available()
 {
-  return state->fstack.length > 0;
+  return fstack->length > 0;
 }
 
 static inline void fstack_push(obj_t *comp, obj_t *env)
 {
-  if (state->fstack.capacity - state->fstack.length == 0)
+  if (fstack->capacity - fstack->length == 0)
   {
-    state->fstack.capacity *= 2;
-    state->fstack.frames =
-        realloc(state->fstack.frames,
-                state->fstack.capacity * sizeof(state->fstack.frames[0]));
+    fstack->capacity *= 2;
+    fstack->frames =
+        realloc(fstack->frames, fstack->capacity * sizeof(fstack->frames[0]));
   }
 
-  STACK_PUSH(state->fstack.frames, state->fstack.length,
+  STACK_PUSH(fstack->frames, fstack->length,
              ((clos_t){.body = comp, .env = env}));
 }
 
 static inline clos_t *fstack_peek(void)
 {
-  return &STACK_PEEK(state->fstack.frames, state->fstack.length);
+  return &STACK_PEEK(fstack->frames, fstack->length);
 }
 
 static inline void fstack_pop(void)
 {
-  --state->fstack.length;
+  --fstack->length;
 }
 
 /******************************************************************************
@@ -123,7 +124,7 @@ void compute(obj_t *comp, obj_t *env)
     }
 
 #if DEBUG & DEBUG_COMPUTE
-    printf("compute[%ld]: ", state->fstack.length);
+    printf("compute[%ld]: ", fstack->length);
     print(frame->body);
     printf("\n");
     printf("stack: ");

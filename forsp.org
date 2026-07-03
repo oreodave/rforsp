@@ -9,7 +9,7 @@ well with these, since most operations are fundamentally stack
 oriented, which vectors can really help with.
 
 This will require a few changes.
-** TODO Rework compute frames to admit vector bodied closures
+** DONE Rework compute frames to admit vector bodied closures
 Since we can't do the same destructive CDR on frame bodies like we did
 for pair based closures, we need some greater mechanism to deal with
 progression in our frames.
@@ -26,7 +26,7 @@ Now, lists will just be raw reader data.
 *** DONE Deal with closures appropriately
 This really matters when we're replacing the frame body in TCO cases,
 since we'll have different "end of frame" conditions now.
-** WIP Replace examples to use vectors for closures
+** DONE Replace examples to use vectors for closures
 This is a bit of a hassle, but necessary.  It'll show a progression
 from the old Forsp to the new one.
 * TODO GC :gc:

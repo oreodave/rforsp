@@ -1,56 +1,56 @@
-(
-  ($x x)                          $force
-  ($a $b ^a ^b force)             $force2
-  ($a $b $c ^a ^b ^c force)       $force3
-  ($a $b $c $d ^a ^b ^c ^d force) $force4
+[
+  [$x x]                          $force
+  [$a $b ^a ^b force]             $force2
+  [$a $b $c ^a ^b ^c force]       $force3
+  [$a $b $c $d ^a ^b ^c ^d force] $force4
 
-  ($x ^x ^x)                $dup
-  ($x)                      $drop
-  ($x $y ^x ^y)             $swap
-  (0 swap - -)              $+
-  (force cswap drop force)  $if
-  (force4)                  $endif
-  ($cond 't '() ^cond if)   $not
-  ($fn $arg (^arg fn))      $partial
+  [$x ^x ^x]                $dup
+  [$x]                      $drop
+  [$x $y ^x ^y]             $swap
+  [0 swap - -]              $+
+  [force cswap drop force]  $if
+  [force4]                  $endif
+  [$cond 't '() ^cond if]   $not
+  [$fn $arg [^arg fn]]      $partial
 
 
   ;; Y-Combinator
-  ($f
-    ($x (^x x) f)
-    ($x (^x x) f)
+  [$f
+    [$x [^x x] f]
+    [$x [^x x] f]
     force
-  ) $Y
+  ] $Y
 
   ; Recusive function builder
-  (^Y partial) $rec
+  [^Y partial] $rec
 
   ; Sum 1 -> n (recursively defined)
-  ($self $n
-    ^if (0 ^n eq)
-      (^n 1 - self ^n +)
+  [$self $n
+    ^if [0 ^n eq]
+      [^n 1 - self ^n +]
     endif
-  ) rec $sum
+  ] rec $sum
 
   ; Map fn() over list
-  ($self $fn $list
-     ^if ('() ^list eq) '()
-       (^list cdr ^fn self ^list car fn cons)
+  [$self $fn $list
+     ^if ['() ^list eq] '()
+       [^list cdr ^fn self ^list car fn cons]
      endif
-  ) rec $map
+  ] rec $map
 
   ; Range
-  ($self $start $end
-    ^if (^start ^end eq) '()
-      (^end ^start 1 + self ^start cons)
+  [$self $start $end
+    ^if [^start ^end eq] '()
+      [^end ^start 1 + self ^start cons]
     endif
-  ) rec $range
+  ] rec $range
 
   ; Show off some things
 
   5 0 range
   'range print dup print
 
-  (10 *) map
+  [10 *] map
   'map print dup print
 
   cdr
@@ -66,25 +66,25 @@
   34 35 1 - eq print
 
   ; For loop
-  ($self $iter $body
-    ^if ('() ^iter eq) '()
-      (^iter car body
-       ^body ^iter cdr self)
+  [$self $iter $body
+    ^if ['() ^iter eq] '()
+      [^iter car body
+       ^body ^iter cdr self]
     endif
-  ) rec $for
-  (force3) $endfor
+  ] rec $for
+  [force3] $endfor
 
-  ^for ^range 0 10 force3 (print) endfor
-  ^for ^range 0 10 force3 ($n ^n 10 * print) endfor
+  ^for ^range 0 10 force3 [print] endfor
+  ^for ^range 0 10 force3 [$n ^n 10 * print] endfor
 
   ; depth
-  (stack length) $depth
+  [stack length] $depth
 
   'length print
   '(1 2 3 4) length print
 
   ; dropall
-  ($self ^if depth 1 eq () ($_ self) endif)
+  [$self ^if depth 1 eq [] [$_ self] endif]
   rec $dropall
 
   dropall
@@ -95,27 +95,27 @@
   depth print
 
   ; reverse
-  ($self $list $new
-    ^if ('() ^list eq) ^new
-      (^new ^list car cons ^list cdr self)
+  [$self $list $new
+    ^if ['() ^list eq] ^new
+      [^new ^list car cons ^list cdr self]
     endif
-  ) rec
-  ($helper ($list '() ^list helper)) force
+  ] rec
+  [$helper [$list '() ^list helper]] force
   $reverse
 
   ; explode
-  ($self $list
-    ^if ('() ^list eq) ()
-      (^list cdr self ^list car)
+  [$self $list
+    ^if ['() ^list eq] []
+      [^list cdr self ^list car]
     endif
-  ) rec $explode
+  ] rec $explode
 
   ; implode
-  ($self $n
-    ^if (0 ^n eq) '()
-      ($tmp ^n 1 - self ^tmp cons)
+  [$self $n
+    ^if [0 ^n eq] '()
+      [$tmp ^n 1 - self ^tmp cons]
     endif
-  ) rec $implode
+  ] rec $implode
 
 
   'reverse print
@@ -129,30 +129,30 @@
   10 0 range explode 10 + 10 implode print
 
   ; factorial
-  ($self $n
-    ^if (^n 0 eq) 1
-      (^n 1 - self ^n *)
+  [$self $n
+    ^if [^n 0 eq] 1
+      [^n 1 - self ^n *]
     endif
-  ) rec $factorial
+  ] rec $factorial
 
   5 factorial print
 
   ; stack-set
-  ($self $stack
-    ^if (stack length 0 eq)
-      ()
-      (stack vpop self)
+  [$self $stack
+    ^if [stack length 0 eq]
+      []
+      [stack vpop self]
     endif
-  ) rec
-  ($helper
-      ($stack
+  ] rec
+  [$helper
+      [$stack
         stack copy $new-stack
-        dropall ^new-stack helper))
+        dropall ^new-stack helper]]
   force $stack-set
 
   dropall
   5 4
-  (8 9) force
+  [8 9] force
   stack stack-set
   + print
-)
+]

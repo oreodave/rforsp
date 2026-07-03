@@ -36,6 +36,7 @@ void prim_rsh(obj_t **_);
 
 // vectors/container helpers
 void prim_length(obj_t **_);
+void prim_vmake(obj_t **_);
 #endif
 
 /* Copyright (c) 2024 Anthony Bonkoski

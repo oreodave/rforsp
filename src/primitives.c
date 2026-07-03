@@ -152,6 +152,14 @@ void prim_length(obj_t **_)
   push(make_num(size));
 }
 
+void prim_vmake(obj_t **_)
+{
+  (void)_;
+  obj_t *size    = pop();
+  obj_t *new_vec = make_vec(as_num(size));
+  push(new_vec);
+}
+
 /* Copyright (c) 2024 Anthony Bonkoski
  * Copyright (C) 2026 Aryadev Chavali
 

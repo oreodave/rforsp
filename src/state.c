@@ -11,14 +11,6 @@
  * State Constructor/Destructor                                               *
  ******************************************************************************/
 
-void frames_init()
-{
-  state->fstack.capacity = FSTACK_DEFAULT_CAPACITY;
-  state->fstack.length   = 0;
-  state->fstack.frames =
-      calloc(state->fstack.capacity, sizeof(state->fstack.frames[0]));
-}
-
 void state_init()
 {
   memset(state, 0, sizeof(state));
@@ -28,7 +20,7 @@ void state_init()
   state->atom_pop   = intern("pop", 3);
   vec_init(&state->read_stack, 3);
 
-  frames_init();
+  cfstack_init();
   gc_init();
   state->stack = make_vec(256);
 
@@ -44,6 +36,7 @@ void state_stop()
     char *atom   = as_atom(oatom);
     free(atom);
   }
+  cfstack_stop();
   vec_stop(&state->interned_atoms);
   gc_stop();
 }

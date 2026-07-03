@@ -8,11 +8,10 @@
 #ifndef STATE_H
 #define STATE_H
 
+#include "cfstack.h"
 #include "common.h"
 #include "gc.h"
 #include "obj.h"
-
-#define FSTACK_DEFAULT_CAPACITY (1 << 7)
 
 typedef struct state
 {
@@ -28,14 +27,12 @@ typedef struct state
   obj_t *atom_push;     // atom: push
   obj_t *atom_pop;      // atom: pop
 
-  obj_t *stack; // top-of-stack (implemented with pairs)
+  obj_t *stack; // top-of-stack (implemented as a tagged vector)
   obj_t *env;   // top-level / initial environment
-  gc_t gc;      // allocator for pairs/closures
-  struct fstack // self-managed dynamic array of call frames - used in compute.c
-  {
-    u64 length, capacity;
-    clos_t *frames;
-  } fstack;
+
+  gc_t gc; // allocator for pairs/closures
+  // self-managed dynamic array of call frames - used in compute.c
+  cfstack_t cfstack;
 } state_t;
 
 extern state_t state[1];

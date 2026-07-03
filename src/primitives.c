@@ -130,7 +130,7 @@ void prim_rsh(obj_t **_)
 void prim_copy(obj_t **_)
 {
   (void)_;
-  obj_t *item = pop();
+  auto item = pop();
   if (!IS_CONTAINER(item))
   {
     push(item);
@@ -141,9 +141,9 @@ void prim_copy(obj_t **_)
   }
   else if (IS_VEC(item))
   {
-    vec_t *v      = as_vec(item);
-    obj_t *copy   = make_vec(v->length);
-    vec_t *new_v  = as_vec(copy);
+    auto v        = as_vec(item);
+    auto copy     = make_vec(v->length);
+    auto new_v    = as_vec(copy);
     new_v->length = v->length;
     memcpy(new_v->items, v->items, sizeof(*v->items) * v->length);
     push(copy);
@@ -153,7 +153,7 @@ void prim_copy(obj_t **_)
 void prim_length(obj_t **_)
 {
   (void)_;
-  obj_t *item = pop();
+  auto item = pop();
   if (!IS_CONTAINER(item))
   {
     FAIL("prim_length: Expected container, got %p", (void *)item);
@@ -166,7 +166,7 @@ void prim_length(obj_t **_)
   }
   else if (IS_PAIR(item))
   {
-    for (obj_t *top = item; top; top = DIRECT_CDR(top), ++size)
+    for (auto top = item; top; top = DIRECT_CDR(top), ++size)
     {
       continue;
     }
@@ -178,18 +178,18 @@ void prim_length(obj_t **_)
 void prim_vmake(obj_t **_)
 {
   (void)_;
-  obj_t *size = pop();
+  auto size = pop();
   if (!IS_NUM(size) || as_num(size) < 0)
     FAIL("prim_vmake: Expected unsigned number for size, got %p", (void *)size);
-  obj_t *new_vec = make_vec(as_num(size));
+  auto new_vec = make_vec(as_num(size));
   push(new_vec);
 }
 
 void prim_vpush(obj_t **_)
 {
   (void)_;
-  obj_t *item = pop();
-  obj_t *vec  = pop();
+  auto item = pop();
+  auto vec  = pop();
   if (!IS_VEC(vec))
     FAIL("prim_vpush: Expected vector, got %p", (void *)vec);
   vec_push(as_vec(vec), item);
@@ -199,7 +199,7 @@ void prim_vpush(obj_t **_)
 void prim_vpop(obj_t **_)
 {
   (void)_;
-  obj_t *vec = pop();
+  auto vec   = pop();
   obj_t *ret = NULL;
   if (!IS_VEC(vec))
     FAIL("prim_vpop: Expected vector, got %p", (void *)vec);
@@ -213,25 +213,26 @@ void prim_vpop(obj_t **_)
 void prim_vswap(obj_t **_)
 {
   (void)_;
-  obj_t *vec = pop();
+  auto vec = pop();
   if (!IS_VEC(vec))
     FAIL("prim_vswap: Expected vector, got %p", (void *)vec);
-  obj_t *old_stack = state->stack;
-  state->stack     = vec;
+  auto old_stack = state->stack;
+  state->stack   = vec;
   push(old_stack);
 }
 
 void prim_vget(obj_t **_)
 {
   (void)_;
-  obj_t *index = pop();
-  obj_t *vec   = pop();
+  auto index = pop();
+  auto vec   = pop();
   if (!IS_VEC(vec))
     FAIL("prim_vget: Expected vector, got %p", (void *)vec);
   else if (!IS_NUM(index))
     FAIL("prim_vget: Expected number, got %p", (void *)index);
-  i64 ind  = as_num(index);
-  vec_t *v = as_vec(vec);
+
+  auto ind = as_num(index);
+  auto v   = as_vec(vec);
   if (ind >= v->length)
     FAIL("prim_vget: Index (%ld) out of bounds for vec (%u)", ind, v->length);
 
@@ -241,15 +242,16 @@ void prim_vget(obj_t **_)
 void prim_vset(obj_t **_)
 {
   (void)_;
-  obj_t *item  = pop();
-  obj_t *index = pop();
-  obj_t *vec   = pop();
+  auto item  = pop();
+  auto index = pop();
+  auto vec   = pop();
   if (!IS_VEC(vec))
     FAIL("prim_vget: Expected vector, got %p", (void *)vec);
   else if (!IS_NUM(index))
     FAIL("prim_vget: Expected number, got %p", (void *)index);
-  i64 ind  = as_num(index);
-  vec_t *v = as_vec(vec);
+
+  auto ind = as_num(index);
+  auto v   = as_vec(vec);
   if (ind >= v->length)
     FAIL("prim_vget: Index (%ld) out of bounds for vec (%u)", ind, v->length);
 

@@ -43,8 +43,8 @@ obj_t *make_clos(obj_t *body, obj_t *env)
 
 obj_t *make_vec(u32 capacity)
 {
-  auto ovec  = gc_alloc(TAG_VEC);
-  vec_t *vec = TYPED_UNTAG(ovec, vec_t *);
+  auto ovec = gc_alloc(TAG_VEC);
+  auto vec  = TYPED_UNTAG(ovec, vec_t *);
   if (capacity)
   {
     vec->capacity = capacity;

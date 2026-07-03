@@ -47,10 +47,13 @@ int main(int argc, char *argv[])
   state->input_pos  = 0;
 
   state->gc.enable = false;
+
 #if DEBUG
   printf("read: starting\n");
 #endif
+
   obj_t *obj = read();
+
 #if DEBUG
   printf("read: finished\n");
 #if DEBUG & DEBUG_GC
@@ -59,6 +62,7 @@ int main(int argc, char *argv[])
 #endif
   printf("compute: starting\n");
 #endif
+
   state->gc.enable = true;
   compute(obj, state->env);
 

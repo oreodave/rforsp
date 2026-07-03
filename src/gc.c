@@ -168,7 +168,7 @@ void gc_stop()
       size_t base    = w * 64;
       for (u64 todo = to_reclaim; todo; todo &= todo - 1)
       {
-        int bit    = stdc_trailing_zeros_ull(todo);
+        auto bit   = stdc_trailing_zeros_ull(todo);
         auto vslot = (vec_t *)(chunk->data + (base + bit) * 16);
         free(vslot->items);
       }
@@ -210,7 +210,7 @@ __attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
 #endif
   gc->metadata.slots_live++;
 
-  gc_chunk_t *c = gc->pool.chunks[slot->chunk_id];
+  auto c = gc->pool.chunks[slot->chunk_id];
   bitmap_set(c->live_bits, slot->slot_id);
   if (tag == TAG_VEC)
   {
@@ -234,11 +234,11 @@ void gc_mark_obj(obj_t *obj)
 
   while (mark_sp > 0)
   {
-    obj_t *item = STACK_POP(mark_stack, mark_sp);
+    auto item = STACK_POP(mark_stack, mark_sp);
 
     auto raw       = TYPED_UNTAG(item, void *);
     size_t slot_id = 0;
-    gc_chunk_t *c  = gc_find_chunk(raw, &slot_id);
+    auto c         = gc_find_chunk(raw, &slot_id);
 
     if (!c || bitmap_test(c->mark_bits, slot_id))
       continue;
@@ -353,7 +353,7 @@ static inline void gc_mark_stack_march(void)
   size_t _ = 0;
   for (void **p = sp; p < end; ++p)
   {
-    obj_t *maybe = *(obj_t **)p;
+    auto maybe = *(obj_t **)p;
     if (IS_ALLOC(maybe))
     {
       void *raw = (void *)UNTAG(maybe);
@@ -382,7 +382,7 @@ size_t gc_collect(void)
   gc_mark_obj(state->env);
 
 #if DEBUG & DEBUG_GC
-  printf("GC:collect:frames: marking %lu frames.\n", state->fstack.length);
+  printf("GC:collect:frames: marking %lu frames.\n", state->cfstack.length);
 #endif
   for (u64 i = 0; i < state->cfstack.length; ++i)
   {

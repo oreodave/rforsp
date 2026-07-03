@@ -130,7 +130,7 @@ obj_t *read_list(void)
   for (c = peek(); (c && c != ')') || state->read_stack.length;
        skip_white_and_comments(), c = peek())
   {
-    obj_t *item = read();
+    auto item = read();
     if (!root)
     {
       root = make_pair(item, NULL);
@@ -164,15 +164,15 @@ obj_t *read_vec(void)
   size_t start = state->input_pos;
   advance();
 
-  obj_t *ovec = make_vec(0);
-  vec_t *vec  = as_vec(ovec);
+  auto ovec = make_vec(0);
+  auto vec  = as_vec(ovec);
 
   char c = 0;
   skip_white_and_comments();
   for (c = peek(); (c && c != ']') || state->read_stack.length;
        skip_white_and_comments(), c = peek())
   {
-    obj_t *item = read();
+    auto item = read();
     vec_push(vec, item);
   }
 

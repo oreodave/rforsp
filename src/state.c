@@ -32,8 +32,8 @@ void state_stop()
   vec_stop(&state->read_stack);
   for (size_t i = 0; i < state->interned_atoms.length; ++i)
   {
-    obj_t *oatom = state->interned_atoms.items[i];
-    char *atom   = as_atom(oatom);
+    auto oatom = state->interned_atoms.items[i];
+    auto atom  = as_atom(oatom);
     free(atom);
   }
   cfstack_stop();
@@ -52,7 +52,7 @@ void push(obj_t *obj)
 
 bool try_pop(obj_t **_out)
 {
-  vec_t *v = as_vec(state->stack);
+  auto v = as_vec(state->stack);
   return vec_try_pop(v, _out);
 }
 
@@ -75,7 +75,7 @@ obj_t *env_find(obj_t *env, obj_t *key)
 
   while (IS_PAIR(env))
   {
-    obj_t *kv = DIRECT_CAR(env);
+    auto kv = DIRECT_CAR(env);
     if (key == DIRECT_CAR(kv))
     {
       return DIRECT_CDR(kv);
@@ -139,9 +139,9 @@ void state_env_setup()
   for (size_t i = 0; i < ARRSIZE(RECORDS); ++i)
   {
     const struct PrimRecord *const record = RECORDS + i;
-    obj_t *key   = intern(record->name, record->name_size);
-    obj_t *value = make_prim(record->func);
-    env          = env_define(env, key, value);
+    auto key   = intern(record->name, record->name_size);
+    auto value = make_prim(record->func);
+    env        = env_define(env, key, value);
   }
 
   state->env = env;

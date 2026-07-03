@@ -62,7 +62,7 @@ This primitive allows us to swap the current global value stack with a
 user created vector.  May be useful for stuff like collecting the
 output of a function more easily by using stack based operators you
 already have access to.  It's kinda cool actually.
-*** TODO ~prim_vset~/~prim_vget~
+*** DONE ~prim_vset~/~prim_vget~
 We need these to allow generic access to the container without just
 popping.  Not only does popping require us to make copies of a vector
 we don't want to destruct, it's not a really nice way of accessing the

@@ -134,6 +134,8 @@ const struct PrimRecord RECORDS[] = {
     MAKE_PRIM_RECORD("vpush", &prim_vpush),
     MAKE_PRIM_RECORD("vpop", &prim_vpop),
     MAKE_PRIM_RECORD("vswap", &prim_vswap),
+    MAKE_PRIM_RECORD("vget", &prim_vget),
+    MAKE_PRIM_RECORD("vset", &prim_vset),
 };
 
 void state_env_setup()

@@ -217,10 +217,46 @@ void prim_vswap(obj_t **_)
   (void)_;
   obj_t *vec = pop();
   if (!IS_VEC(vec))
-    FAIL("prim_vswap: Expected vector to swap stacks, got %p", (void *)vec);
+    FAIL("prim_vswap: Expected vector, got %p", (void *)vec);
   obj_t *old_stack = state->stack;
   state->stack     = vec;
   push(old_stack);
+}
+
+void prim_vget(obj_t **_)
+{
+  (void)_;
+  obj_t *index = pop();
+  obj_t *vec   = pop();
+  if (!IS_VEC(vec))
+    FAIL("prim_vget: Expected vector, got %p", (void *)vec);
+  else if (!IS_NUM(index))
+    FAIL("prim_vget: Expected number, got %p", (void *)index);
+  i64 ind  = as_num(index);
+  vec_t *v = as_vec(vec);
+  if (ind >= v->length)
+    FAIL("prim_vget: Index (%ld) out of bounds for vec (%u)", ind, v->length);
+
+  push(v->items[ind]);
+}
+
+void prim_vset(obj_t **_)
+{
+  (void)_;
+  obj_t *item  = pop();
+  obj_t *index = pop();
+  obj_t *vec   = pop();
+  if (!IS_VEC(vec))
+    FAIL("prim_vget: Expected vector, got %p", (void *)vec);
+  else if (!IS_NUM(index))
+    FAIL("prim_vget: Expected number, got %p", (void *)index);
+  i64 ind  = as_num(index);
+  vec_t *v = as_vec(vec);
+  if (ind >= v->length)
+    FAIL("prim_vget: Index (%ld) out of bounds for vec (%u)", ind, v->length);
+
+  v->items[ind] = item;
+  push(vec);
 }
 
 /* Copyright (c) 2024 Anthony Bonkoski

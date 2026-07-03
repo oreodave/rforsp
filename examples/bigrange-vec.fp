@@ -23,28 +23,30 @@
 
   ;; Recursive range function which is tail call oriented.
   ($self $acc $start $end
-    ^if (^start ^end eq)
-      (acc end cons)
+    ^if (start end eq)
+      (acc end vpush)
       (end 1 -
        start
-       acc end cons
+       acc end vpush
        self)
     endif
   ) rec                         ; (acc start end -- result)
-  '() swap partial              ; (start end     -- result)
+  (0 vmake) swap partial        ; (start end     -- result)
   $range
 
   ;; Recursive reduce function
-  ($self $fn $init $list
-    ^if (list '() eq)
+  ($self $fn $init $vec
+    ^if (vec length 0 eq)
       (init)
-      (list cdr
-       list car init fn
+      (vec
+       vec vpop init fn
        ^fn self)
     endif
   ) rec $reduce
 
   1 18 << $end
   end print '=> print
-  end 0 range 0 (+) reduce print
+  end 0 range
+  0 (+) reduce
+  print
 )

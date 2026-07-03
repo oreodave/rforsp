@@ -158,6 +158,23 @@ void gc_stop()
 {
   for (size_t i = 0; i < gc->pool.length; ++i)
   {
+    auto chunk = gc->pool.chunks[i];
+
+    // Scan all chunks for live vectors to ensure we've reclaimed their heap
+    // memory.
+    for (size_t w = 0; w < GC_CHUNK_BITMAP_WORDS; ++w)
+    {
+      u64 to_reclaim = chunk->vec_bits[w];
+      size_t base    = w * 64;
+      for (u64 todo = to_reclaim; todo; todo &= todo - 1)
+      {
+        int bit    = stdc_trailing_zeros_ull(todo);
+        auto vslot = (vec_t *)(chunk->data + (base + bit) * 16);
+        free(vslot->items);
+      }
+    }
+
+    // Reclaim memory for the actual chunk itself.
     free(gc->pool.chunks[i]);
   }
   free(gc->pool.chunks);

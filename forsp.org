@@ -15,13 +15,17 @@ Reliant on [[*Introduce vectors into the gc][gc]].
 *** DONE print
 *** DONE compute
 Currently ~vec_t~ should just self-push; no changes.
-** NOTE Bigrange vector refactor
+** Benchmarks
+*** Value stack is improved
+Using a vector for the value stack has improved performance a bunch.
+
+https://gist.github.com/oreodave/9d2e67aee6ef9be30b55de5f74d020a3
+*** Bigrange vector refactor
 We can now refactor actual Forsp programs around using vectors over
 lists.  This actually yields a significant performance benefit,
 similar to employing tail call recursion.
 
 https://gist.github.com/oreodave/abef1a3d27edbd2ff0e074f3277106f8
-
 ** DONE Primitives
 *** DONE ~prim_vmake~
 *** DONE ~prim_vpush~

@@ -141,8 +141,7 @@
   ($self $stack
     ^if (stack length 0 eq)
       ()
-      (stack vpop
-       stack self)
+      (stack vpop self)
     endif
   ) rec
   ($helper

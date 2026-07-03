@@ -209,6 +209,7 @@ void prim_vpop(obj_t **_)
     FAIL("prim_vpop: Vector (%p) has 0 length.", (void *)vec);
 
   push(ret);
+  push(vec);
 }
 
 /* Copyright (c) 2024 Anthony Bonkoski

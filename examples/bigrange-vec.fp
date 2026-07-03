@@ -38,8 +38,8 @@
   ($self $fn $init $vec
     ^if (vec length 0 eq)
       (init)
-      (vec
-       vec vpop init fn
+      (vec vpop ; [value vec]
+       swap init fn
        ^fn self)
     endif
   ) rec $reduce

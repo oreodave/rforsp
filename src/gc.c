@@ -79,32 +79,6 @@ static inline size_t gc_ptr_slot_in_chunk(gc_chunk_t *chunk, void *raw_ptr)
   return ((u8 *)raw_ptr - chunk->data) / sizeof(gc_free_slot_t);
 }
 
-/******************************************************************************
- * GC Methods                                                                 *
- ******************************************************************************/
-
-void gc_init()
-{
-  memset(&state->gc, 0, sizeof(state->gc));
-  gc->metadata.threshold = GC_THRESHOLD_DEFAULT;
-}
-
-void gc_stop()
-{
-  for (size_t i = 0; i < gc->pool.length; ++i)
-  {
-    free(gc->pool.chunks[i]);
-  }
-  free(gc->pool.chunks);
-  memset(&state->gc, 0, sizeof(state->gc));
-}
-
-void gc_reset()
-{
-  gc_stop();
-  gc_init();
-}
-
 /** Construct a new chunk and push it onto the pool.
  */
 static inline gc_chunk_t *gc_new_chunk(void)
@@ -167,14 +141,35 @@ static inline gc_chunk_t *gc_find_chunk(void *raw_ptr, size_t *slot_id)
   return NULL;
 }
 
-static inline bool gc_threshold_met(void)
+/******************************************************************************
+ * GC Methods                                                                 *
+ ******************************************************************************/
+
+void gc_init()
 {
-  return gc->enable && gc->metadata.slots_live >= gc->metadata.threshold;
+  memset(&state->gc, 0, sizeof(state->gc));
+  gc->metadata.threshold = GC_THRESHOLD_DEFAULT;
+}
+
+void gc_stop()
+{
+  for (size_t i = 0; i < gc->pool.length; ++i)
+  {
+    free(gc->pool.chunks[i]);
+  }
+  free(gc->pool.chunks);
+  memset(&state->gc, 0, sizeof(state->gc));
+}
+
+void gc_reset()
+{
+  gc_stop();
+  gc_init();
 }
 
 __attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
 {
-  if (gc_threshold_met())
+  if (gc->enable && gc->metadata.slots_live >= gc->metadata.threshold)
   {
     gc_collect();
   }

@@ -60,6 +60,10 @@ typedef struct vec
 
 typedef void(prim_t)(obj_t **);
 
+/******************************************************************************
+ * Tagged pointer constructors/destructors                                    *
+ ******************************************************************************/
+
 obj_t *make_atom(const char *str, size_t len);
 obj_t *make_num(int64_t num);
 obj_t *make_pair(obj_t *car, obj_t *cdr);
@@ -114,6 +118,10 @@ static inline prim_t *as_prim(obj_t *obj)
   return DIRECT_UNTAG(obj, prim_t *);
 }
 
+/******************************************************************************
+ * Generic helper functions                                                   *
+ ******************************************************************************/
+
 static inline obj_t *car(obj_t *obj)
 {
   auto pair = as_pair(obj);
@@ -133,14 +141,10 @@ static inline bool obj_equal(obj_t *a, obj_t *b)
 
 obj_t *intern(const char *atom_buf, size_t atom_len);
 
-void vec_init(vec_t *vec, size_t initial_capacity);
-void vec_stop(vec_t *vec);
-
-void vec_ensure_free(vec_t *vec, u32);
-void vec_push(vec_t *vec, obj_t *item);
-void vec_push_mult(vec_t *vec, obj_t **items, size_t num_items);
-bool vec_try_pop(vec_t *vec, obj_t **ret);
-
+/** A tagged union that helps to flatten a tagged pointer.
+ * NOTE: Should NOT be used in the runtime.  Only present for debugging
+ * purposes.
+ */
 typedef struct
 {
   tag_t tag;
@@ -156,6 +160,17 @@ typedef struct
 } obj_canon_t;
 
 obj_canon_t as_canon(obj_t *);
+
+/******************************************************************************
+ * Vector methods                                                             *
+ ******************************************************************************/
+
+void vec_init(vec_t *vec, size_t initial_capacity);
+void vec_stop(vec_t *vec);
+void vec_ensure_free(vec_t *vec, u32);
+void vec_push(vec_t *vec, obj_t *item);
+void vec_push_mult(vec_t *vec, obj_t **items, size_t num_items);
+bool vec_try_pop(vec_t *vec, obj_t **ret);
 
 #endif
 

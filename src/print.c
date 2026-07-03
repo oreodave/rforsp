@@ -6,30 +6,7 @@
 
 #include "state.h"
 
-void print_recurse(obj_t *obj);
-
-void print_list_tail(obj_t *obj)
-{
-  if (obj == NULL)
-  {
-    printf(")");
-    return;
-  }
-  if (IS_PAIR(obj))
-  {
-    printf(" ");
-    print_recurse(DIRECT_CAR(obj));
-    print_list_tail(DIRECT_CDR(obj));
-  }
-  else
-  {
-    printf(" . ");
-    print_recurse(obj);
-    printf(")");
-  }
-}
-
-void print_recurse(obj_t *obj)
+void print(obj_t *obj)
 {
   switch (get_tag(obj))
   {
@@ -45,15 +22,33 @@ void print_recurse(obj_t *obj)
   case TAG_PAIR:
   {
     printf("(");
-    print_recurse(DIRECT_CAR(obj));
-    print_list_tail(DIRECT_CDR(obj));
+    while (obj)
+    {
+      if (!IS_PAIR(obj))
+      {
+        print(obj);
+        break;
+      }
+
+      print(DIRECT_CAR(obj));
+      obj = DIRECT_CDR(obj);
+      if (IS_PAIR(obj))
+      {
+        printf(" ");
+      }
+      else if (obj)
+      {
+        printf(" . ");
+      }
+    }
+    printf(")");
   }
   break;
   case TAG_CLOS:
   {
     printf("CLOSURE<");
     clos_t *clos = DIRECT_UNTAG(obj, clos_t *);
-    print_recurse(clos->body);
+    print(clos->body);
     printf(", %p>", (void *)clos->env);
   }
   break;
@@ -82,11 +77,6 @@ void print_recurse(obj_t *obj)
   }
   break;
   }
-}
-
-void print(obj_t *obj)
-{
-  print_recurse(obj);
 }
 
 /* Copyright (c) 2024 Anthony Bonkoski

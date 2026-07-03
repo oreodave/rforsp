@@ -6,18 +6,22 @@
 
 #include "state.h"
 
+/******************************************************************************
+ * Constants                                                                  *
+ ******************************************************************************/
+
+static const char *WHITESPACE = "\n\t ";
+static const char *RESTRICTED = "\'^$()[];\n\t ";
+
+/******************************************************************************
+ * Input stream helpers                                                       *
+ ******************************************************************************/
+
 char peek(void)
 {
   if (state->input_pos == state->input_len)
     return 0;
   return state->input_str[state->input_pos];
-}
-
-char *stream_current(void)
-{
-  if (state->input_pos == state->input_len)
-    return 0;
-  return &state->input_str[state->input_pos];
 }
 
 void advance(void)
@@ -26,8 +30,12 @@ void advance(void)
   state->input_pos++;
 }
 
-static const char *WHITESPACE  = "\n\t ";
-static const char *PUNCTUATION = "\'^$()[];\n\t ";
+char *stream_current(void)
+{
+  if (state->input_pos == state->input_len)
+    return NULL;
+  return &state->input_str[state->input_pos];
+}
 
 void reader_error_position(void)
 {
@@ -54,6 +62,10 @@ void reader_error_position(void)
     reader_error_position(); \
     FAIL(__VA_ARGS__);       \
   } while (0)
+
+/******************************************************************************
+ * Parser subroutines                                                         *
+ ******************************************************************************/
 
 void skip_white_and_comments(void)
 {
@@ -88,7 +100,7 @@ static bool parse_i64(const char *str, size_t len, int64_t *_out)
 
 obj_t *read_scalar(void)
 {
-  size_t size = strcspn(stream_current(), PUNCTUATION);
+  size_t size = strcspn(stream_current(), RESTRICTED);
   char *str   = stream_current();
   state->input_pos += size;
 

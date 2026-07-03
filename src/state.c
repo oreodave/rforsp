@@ -91,7 +91,9 @@ obj_t *env_define(obj_t *env, obj_t *key, obj_t *val)
   return make_pair(make_pair(key, val), env);
 }
 
-/// Constant time table for all the primitives we want to setup.
+/******************************************************************************
+ * Default environment setup                                                  *
+ ******************************************************************************/
 
 struct PrimRecord
 {

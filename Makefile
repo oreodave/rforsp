@@ -6,7 +6,7 @@ DEFS=
 DIST=bin
 OUT=$(DIST)/forsp
 
-LIB=src/vec.c src/obj.c src/gc.c src/primitives.c src/cfstack.c src/state.c \
+LIB=src/obj.c src/gc.c src/primitives.c src/cfstack.c src/state.c \
 		src/compute.c src/reader.c src/print.c
 
 HEADERS=src/common.h src/obj.h src/gc.h src/primitives.h src/cfstack.h \

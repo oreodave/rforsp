@@ -135,8 +135,10 @@ obj_t *intern(const char *atom_buf, size_t atom_len);
 
 void vec_init(vec_t *vec, size_t initial_capacity);
 void vec_stop(vec_t *vec);
+
+void vec_ensure_free(vec_t *vec, u32);
 void vec_push(vec_t *vec, obj_t *item);
-void vec_push_mult(vec_t *vec, obj_t **items, u64 num_items);
+void vec_push_mult(vec_t *vec, obj_t **items, size_t num_items);
 bool vec_try_pop(vec_t *vec, obj_t **ret);
 
 typedef struct

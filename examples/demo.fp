@@ -138,16 +138,21 @@
   5 factorial print
 
   ; stack-set
-  ($self $list
-    ^if ('() ^list eq) ()
-      (^list cdr self ^list car)
+  ($self $stack
+    ^if (stack length 0 eq)
+      ()
+      (stack vpop
+       stack self)
     endif
   ) rec
-  ($helper ($list dropall ^list helper)) force $stack-set
+  ($helper
+    ($stack
+      stack copy $new-stack
+      dropall ^new-stack helper)) force $stack-set
 
   dropall
   5 4
-  stack print
-  (8 9) force stack stack-set + print
-
+  (8 9) force
+  stack stack-set
+  + print
 )

@@ -160,6 +160,15 @@ void prim_vmake(obj_t **_)
   push(new_vec);
 }
 
+void prim_vpush(obj_t **_)
+{
+  (void)_;
+  obj_t *item = pop();
+  obj_t *vec  = pop();
+  vec_push(as_vec(vec), item);
+  push(vec);
+}
+
 /* Copyright (c) 2024 Anthony Bonkoski
  * Copyright (C) 2026 Aryadev Chavali
 

@@ -169,6 +169,18 @@ void prim_vpush(obj_t **_)
   push(vec);
 }
 
+void prim_vpop(obj_t **_)
+{
+  (void)_;
+  obj_t *vec = pop();
+  obj_t *ret = NULL;
+  if (!vec_try_pop(as_vec(vec), &ret))
+  {
+    FAIL("prim_vpop: Vector (%p) has 0 length.", (void *)vec);
+  }
+  push(ret);
+}
+
 /* Copyright (c) 2024 Anthony Bonkoski
  * Copyright (C) 2026 Aryadev Chavali
 

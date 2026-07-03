@@ -133,7 +133,7 @@ void prim_copy(obj_t **_)
   obj_t *item = pop();
   if (!IS_CONTAINER(item))
   {
-    FAIL("prim_copy: Expected container, got %p\n", (void *)item);
+    FAIL("prim_copy: Expected container, got %p", (void *)item);
   }
 
   obj_t *copy = NULL;
@@ -158,7 +158,7 @@ void prim_length(obj_t **_)
   obj_t *item = pop();
   if (!IS_CONTAINER(item))
   {
-    FAIL("prim_length: Expected container, got %p\n", (void *)item);
+    FAIL("prim_length: Expected container, got %p", (void *)item);
   }
 
   u64 size = 0;
@@ -180,7 +180,9 @@ void prim_length(obj_t **_)
 void prim_vmake(obj_t **_)
 {
   (void)_;
-  obj_t *size    = pop();
+  obj_t *size = pop();
+  if (!IS_NUM(size) || as_num(size) < 0)
+    FAIL("prim_vmake: Expected unsigned number for size, got %p", (void *)size);
   obj_t *new_vec = make_vec(as_num(size));
   push(new_vec);
 }
@@ -190,6 +192,8 @@ void prim_vpush(obj_t **_)
   (void)_;
   obj_t *item = pop();
   obj_t *vec  = pop();
+  if (!IS_VEC(vec))
+    FAIL("prim_vpush: Expected vector, got %p", (void *)vec);
   vec_push(as_vec(vec), item);
   push(vec);
 }
@@ -199,10 +203,11 @@ void prim_vpop(obj_t **_)
   (void)_;
   obj_t *vec = pop();
   obj_t *ret = NULL;
-  if (!vec_try_pop(as_vec(vec), &ret))
-  {
+  if (!IS_VEC(vec))
+    FAIL("prim_vpop: Expected vector, got %p", (void *)vec);
+  else if (!vec_try_pop(as_vec(vec), &ret))
     FAIL("prim_vpop: Vector (%p) has 0 length.", (void *)vec);
-  }
+
   push(ret);
 }
 

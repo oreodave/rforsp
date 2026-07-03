@@ -15,7 +15,7 @@ Reliant on [[*Introduce vectors into the gc][gc]].
 *** DONE print
 *** DONE compute
 Currently ~vec_t~ should just self-push; no changes.
-** TODO Reader
+** DONE Reader
 We need to introduce reader-level vectors, the same as reader-level
 lists.  We'll use '[]' to delimit these, but they'll follow the same
 rules as lists.

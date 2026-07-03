@@ -34,7 +34,7 @@
   (0 vmake) swap partial        ; (start end     -- result)
   $range
 
-  ;; Recursive reduce function
+  ;; Destructive recursive reduce function
   ($self $fn $init $vec
     ^if (vec length 0 eq)
       (init)

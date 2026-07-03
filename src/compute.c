@@ -8,37 +8,55 @@
 #include "state.h"
 
 /******************************************************************************
- * Frame Stack Helpers                                                        *
+ * Call Frame Helpers                                                         *
  ******************************************************************************/
 
-static struct fstack *fstack = &state->fstack;
-
-static inline bool fstack_available()
+static inline cframe_t cframe_from_clos(obj_t *body, obj_t *env)
 {
-  return fstack->length > 0;
+  return (cframe_t){.body = as_vec(body), .env = env, .ip = 0};
 }
 
-static inline void fstack_push(obj_t *comp, obj_t *env)
+static inline obj_t *cframe_pop(cframe_t *cframe)
 {
-  if (fstack->capacity - fstack->length == 0)
+  return cframe->body->items[cframe->ip++];
+}
+
+static inline bool cframe_completed(cframe_t *cframe)
+{
+  return cframe->ip == cframe->body->length;
+}
+
+/******************************************************************************
+ * Call Frame Stack Helpers                                                   *
+ ******************************************************************************/
+
+static cfstack_t *cfstack = &state->cfstack;
+
+static inline bool cfstack_available()
+{
+  return cfstack->length > 0;
+}
+
+static inline void cfstack_push(obj_t *comp, obj_t *env)
+{
+  if (cfstack->capacity - cfstack->length == 0)
   {
-    fstack->capacity *= 2;
-    fstack->frames =
-        realloc(fstack->frames, fstack->capacity * sizeof(fstack->frames[0]));
+    cfstack->capacity *= 2;
+    cfstack->frames = realloc(cfstack->frames,
+                              cfstack->capacity * sizeof(cfstack->frames[0]));
   }
 
-  STACK_PUSH(fstack->frames, fstack->length,
-             ((clos_t){.body = comp, .env = env}));
+  STACK_PUSH(cfstack->frames, cfstack->length, cframe_from_clos(comp, env));
 }
 
-static inline clos_t *fstack_peek(void)
+static inline cframe_t *cfstack_peek(void)
 {
-  return &STACK_PEEK(fstack->frames, fstack->length);
+  return &STACK_PEEK(cfstack->frames, cfstack->length);
 }
 
-static inline void fstack_pop(void)
+static inline void cfstack_pop(void)
 {
-  --fstack->length;
+  --cfstack->length;
 }
 
 /******************************************************************************
@@ -49,10 +67,9 @@ static inline void fstack_pop(void)
  * This is called by `compute` (which see) on each member of a closure.
  * eval pushes onto the call frame stack only when a closure is called.
  */
-static inline void eval(clos_t *frame)
+static inline void eval(cframe_t *cframe)
 {
-  auto cmd    = DIRECT_CAR(frame->body);
-  frame->body = DIRECT_CDR(frame->body);
+  auto cmd = cframe_pop(cframe);
 
   switch (get_tag(cmd))
   {
@@ -60,30 +77,30 @@ static inline void eval(clos_t *frame)
     // quote is the one special operator.
     if (cmd == state->atom_quote)
     {
-      if (frame->body == NULL)
+      if (cframe_completed(cframe))
         FAIL("Expected data following a quote form");
-      push(DIRECT_CAR(frame->body));
-      frame->body = DIRECT_CDR(frame->body);
+      push(cframe_pop(cframe));
       return;
     }
 
     // Otherwise perform a lookup and "call" the value.
-    auto val = env_find(frame->env, cmd);
+    auto val = env_find(cframe->env, cmd);
     if (IS_CLOS(val))
     {
       auto new_clos = as_clos(val);
-      if (frame->body)
-        // There is still work to be done in the current frame, establish a new
-        // call frame for this closure.
-        fstack_push(new_clos->body, new_clos->env);
+
+      if (!cframe_completed(cframe))
+        // There is still work to be done in the current cframe.  Thus, we
+        // establish a new call cframe for this closure.
+        cfstack_push(new_clos->body, new_clos->env);
       else
-        // If the current frames work is already complete, we can store this new
-        // closure onto it.  This is essentially a `tail call`.
-        *frame = *new_clos;
+        // However, if there's no work to be done, why inflate the call stack?
+        // Just take the position of the current call cframe and continue.
+        *cframe = cframe_from_clos(new_clos->body, new_clos->env);
     }
     else if (IS_PRIM(val))
     {
-      as_prim(val)(&frame->env);
+      as_prim(val)(&cframe->env);
     }
     else
     {
@@ -91,16 +108,16 @@ static inline void eval(clos_t *frame)
     }
     break;
   case TAG_NIL:
-  case TAG_PAIR:
+  case TAG_VEC:
   {
-    auto new_clos = make_clos(cmd, frame->env);
+    auto new_clos = make_clos(cmd, cframe->env);
     push(new_clos);
   }
   break;
   case TAG_NUM:
   case TAG_CLOS:
   case TAG_PRIM:
-  case TAG_VEC:
+  case TAG_PAIR:
   default:
     push(cmd);
     break;
@@ -109,34 +126,35 @@ static inline void eval(clos_t *frame)
 
 /** Compute function: the main driver of Forsp.
 
- * This is the core loop for evaluation in Forsp.  We keep evaluating a `frame`,
- * member by member through `eval` (which see),
+ * This is the core loop for evaluation in Forsp, which iterates through the
+ * call frame stack.  The top most call frame is used in `eval` (which see).
  */
 void compute(obj_t *comp, obj_t *env)
 {
-  fstack_push(comp, env);
-  for (clos_t *frame = fstack_peek(); fstack_available(); frame = fstack_peek())
+  cfstack_push(comp, env);
+  for (cframe_t *cframe = cfstack_peek(); cfstack_available();
+       cframe           = cfstack_peek())
   {
-    if (!frame->body)
+    if (cframe_completed(cframe))
     {
-      fstack_pop();
+      cfstack_pop();
       continue;
     }
 
 #if DEBUG & DEBUG_COMPUTE
-    printf("compute[%ld]: ", fstack->length);
-    print(frame->body);
+    printf("compute[%ld]: ", cfstack->length);
+    print(TAG_CANON(cframe->body, TAG_VEC));
     printf("\n");
     printf("stack: ");
     print(state->stack);
     printf("\n");
     printf("env: ");
-    print(frame->env);
+    print(cframe->env);
     printf("\n");
     BORDER();
 #endif
 
-    eval(frame);
+    eval(cframe);
   }
 }
 

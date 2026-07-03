@@ -292,6 +292,7 @@ size_t gc_sweep(void)
         {
           vec_t *vslot = slot;
           free(vslot->items);
+          bitmap_clear(c->vec_bits, slot_id);
         }
 
         gc_free_list_push(slot, i, slot_id);

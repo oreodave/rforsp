@@ -369,10 +369,11 @@ size_t gc_collect(void)
 #if DEBUG & DEBUG_GC
   printf("GC:collect:frames: marking %lu frames.\n", state->fstack.length);
 #endif
-  for (u64 i = 0; i < state->fstack.length; ++i)
+  for (u64 i = 0; i < state->cfstack.length; ++i)
   {
-    gc_mark_obj(state->fstack.frames[i].body);
-    gc_mark_obj(state->fstack.frames[i].env);
+    cframe_t frame = state->cfstack.frames[i];
+    gc_mark_obj(TAG_CANON(frame.body, TAG_VEC));
+    gc_mark_obj(frame.env);
   }
 
   size_t freed = gc_sweep();

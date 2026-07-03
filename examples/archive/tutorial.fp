@@ -1,4 +1,4 @@
-[
+(
   ; Welcome to Forsp: A Forth+Lisp Hybrid Lambda Calculus Language
   ;
   ; As you can see, comment lines always start with the ';' semicolon character.
@@ -61,7 +61,7 @@
   ; Forsp also has function abstraction. They are simply () parenthesis
   ; grouping.
 
-  [$x ^x ^x *]
+  ($x ^x ^x *)
   stack print  ; [CLOSURE<(quote x pop quote x push quote x push *), 0x...>]
 
   ; What's this scary value on the stack now? When we build a function with (),
@@ -100,7 +100,7 @@
   ; Let's define another function to remove values for the stack, and use it
   ; to cleanup the stack
 
-  [$_] $drop
+  ($_) $drop
   drop drop drop drop drop
 
   ; Believe it or now, this is ALL of Forsp's syntax and semantics!
@@ -141,7 +141,7 @@
 
   ; Let's implement some common functions:
 
-  [$x ^x ^x] $dup
+  ($x ^x ^x) $dup
 
   ; This function duplicates the top-of the stack. We can now square numbers as follows:
 
@@ -149,9 +149,9 @@
 
   ; Here are a handful of stack manipulation functions:
 
-  [$x $y ^x ^y]       $swap
-  [$x $y ^y ^x ^y]    $over
-  [$x $y $z ^y ^x ^z] $rot
+  ($x $y ^x ^y)       $swap
+  ($x $y ^y ^x ^y)    $over
+  ($x $y $z ^y ^x ^z) $rot
 
   ; Let's demonstrate them by example:
 
@@ -164,57 +164,57 @@
 
   ; You may have noticed that we don't have any way to do addition. We'll it's easy to define:
 
-  [0 swap - -] $+
+  (0 swap - -) $+
   4 5 + print ; 9
 
   ; Another useful function is "force". We can use this function to force computation of a function on the stack:
 
-  [$x x] $force
+  ($x x) $force
 
   ; And here's an example of usage, forcing a function without naming it:
 
-  [dup *] 8 swap force print ; 64
+  (dup *) 8 swap force print ; 64
 
   ; We can also define control structures such as if-statements
 
-  [$cond $true $false cond ^false ^true rot cswap drop force] $if
+  ($cond $true $false cond ^false ^true rot cswap drop force) $if
 
   ; Some examples
 
-  [5] [4] 't  if print  ; 4
-  [5] [4] '() if print  ; 5
+  (5) (4) 't  if print  ; 4
+  (5) (4) '() if print  ; 5
 
   ; Writing if-statements backwards is tricky, so we can fix it by defining "endif" which will flip the arguments:
 
-  [$false $true $cond $if ^false ^true ^cond if] $endif
+  ($false $true $cond $if ^false ^true ^cond if) $endif
 
   ; Now we can write:
 
-  ^if [1 2 eq]
-    ['true print]
-    ['false print]  ; false
+  ^if (1 2 eq)
+    ('true print)
+    ('false print)  ; false
   endif
 
-  ^if [1 1 eq]
-    ['true print]   ; true
-    ['false print]
+  ^if (1 1 eq)
+    ('true print)   ; true
+    ('false print)
   endif
 
   ; Finally, we'll finish with recursion. Forsp uses the Y-Combinator for recursion
 
-  [$f [$x [^x x] f] dup force] $Y
+  ($f ($x (^x x) f) dup force) $Y
 
   ; We'll also implement a wrapper called "rec" that performs the application Y
 
-  [$g [^g Y]] $rec
+  ($g (^g Y)) $rec
 
   ; Now we can implement recursive functions:
 
-  [$self $list
-    ^if [^list '() eq] 0
-      [^list cdr self 1 +]
+  ($self $list
+    ^if (^list '() eq) 0
+      (^list cdr self 1 +)
     endif
-  ] rec $length
+  ) rec $length
 
   '()      length print ; 0
   '(5)     length print ; 1
@@ -222,4 +222,4 @@
   '(1 2 3) length print ; 3
 
   ; This concludes the tutorial. You're encouraged to explore the examples to learn more!
-]
+)

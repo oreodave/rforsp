@@ -133,23 +133,21 @@ void prim_copy(obj_t **_)
   obj_t *item = pop();
   if (!IS_CONTAINER(item))
   {
-    FAIL("prim_copy: Expected container, got %p", (void *)item);
+    push(item);
   }
-
-  obj_t *copy = NULL;
-  if (IS_PAIR(item))
+  else if (IS_PAIR(item))
   {
-    copy = make_pair(DIRECT_CAR(item), DIRECT_CDR(item));
+    push(make_pair(DIRECT_CAR(item), DIRECT_CDR(item)));
   }
   else if (IS_VEC(item))
   {
     vec_t *v      = as_vec(item);
-    copy          = make_vec(v->length);
+    obj_t *copy   = make_vec(v->length);
     vec_t *new_v  = as_vec(copy);
     new_v->length = v->length;
     memcpy(new_v->items, v->items, sizeof(*v->items) * v->length);
+    push(copy);
   }
-  push(copy);
 }
 
 void prim_length(obj_t **_)

@@ -63,7 +63,7 @@ obj_t *make_atom(const char *str, size_t len);
 obj_t *make_num(int64_t num);
 obj_t *make_pair(obj_t *car, obj_t *cdr);
 obj_t *make_clos(obj_t *body, obj_t *env);
-obj_t *make_vec(obj_t *body, obj_t *env);
+obj_t *make_vec(u32 capacity);
 obj_t *make_prim(prim_t *func);
 
 static inline tag_t get_tag(obj_t *ptr)

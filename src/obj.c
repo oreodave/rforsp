@@ -41,6 +41,18 @@ obj_t *make_clos(obj_t *body, obj_t *env)
   return oclos;
 }
 
+obj_t *make_vec(u32 capacity)
+{
+  auto ovec  = gc_alloc(TAG_VEC);
+  vec_t *vec = DIRECT_UNTAG(ovec, vec_t *);
+  if (capacity)
+  {
+    vec->capacity = capacity;
+    vec->items    = calloc(vec->capacity, sizeof(*vec->items));
+  }
+  return ovec;
+}
+
 obj_t *make_prim(prim_t *func)
 {
   return TAG_TYPE(func, PRIM);

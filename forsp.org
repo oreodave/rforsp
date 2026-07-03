@@ -7,23 +7,56 @@ primitives that work on vectors will always take by reference and not
 by value.
 
 ** DONE Inline vec.h into obj.h
-** WIP Setup vec_t into the object model
+** DONE Setup vec_t into the object model
 *** DONE Tagging
-*** WIP make_vec
+*** DONE make_vec
 Reliant on [[*Introduce vectors into the gc][gc]].
 *** DONE as_vec
 *** DONE print
 *** DONE compute
 Currently ~vec_t~ should just self-push; no changes.
-** TODO Primitives
-*** TODO ~prim_vec_make~
-*** TODO ~prim_vec_push~
-*** TODO ~prim_vec_pop~
-*** TODO ~prim_copy~
+** DONE Primitives
+*** DONE ~prim_vmake~
+*** DONE ~prim_vpush~
+*** DONE ~prim_vpop~
+*** DONE ~prim_copy~
 Should do a deep copy and push it onto the stack.  This should also
 deal with lists.  However, closures should be unaffected.
-** TODO Replace stack with a vector
+*** DONE ~prim_length~
+Covers the use of a recursive function in [[file:examples/demo.fp][the
+demo]] that unfortunately doesn't work
+** DONE Replace stack with a vector
 This is a big one.
+
+2026-07-03: we've done it.  Much better benchmark:
+https://gist.github.com/oreodave/9d2e67aee6ef9be30b55de5f74d020a3
+
+We did force a preallocation of the vector on the value stack to
+ensure this works.
+** DONE Introduce vectors into the gc
+Couple possible ideas:
+- Separate pool for ~vec_t~; more metadata required, ~vec_t~ chunks
+  may not be touched as often, etc
+- Same pool for ~vec_t~ as the rest; instead we introduce a dedicated
+  bitmap to say "this slot is a ~vec_t~"
+
+We need a separation because, while ~vec_t~ is only 16 bytes, it isn't
+composed of simply two objects.  We need special iteration when
+marking/sweeping as we'd want to iterate through all the objects in a
+~vec_t~ when marking, and when sweeping we want to specially treat the
+~items~ buffer.
+*** DONE Introduce bitmap for vectors
+*** DONE Refactor ~gc_alloc~ to take ~tag_t~
+Need to make sure we're setting the vec bitmap correctly when
+allocating a ~vec_t~.
+*** DONE Refactor ~gc_mark~ to treat vector tagged slots differently
+Main thing is making sure we recursively mark the members of the
+vector by accessing the items array, rather than marking just the two
+objects in the slot (which is an error).
+*** DONE Refactor ~gc_sweep~ to deal with vectors separately
+For live but unmarked slots, check if they're a vector.  If they are,
+make sure to free ~vec_t.items~ before putting on the free list.  And
+clear the vector bitmap to ensure the slot can be reused for anything.
 * TODO GC :gc:
 ** DONE [#C] Liveness invariant check
 Benchmark if checking at ~gc_alloc~ that the slot we've popped off the
@@ -170,30 +203,6 @@ cost of this check.  Let's investigate this.
 *** TODO Hashmap
 *** TODO Benchmark
 - Success: ~make examples~
-** WIP Introduce vectors into the gc
-Couple possible ideas:
-- Separate pool for ~vec_t~; more metadata required, ~vec_t~ chunks
-  may not be touched as often, etc
-- Same pool for ~vec_t~ as the rest; instead we introduce a dedicated
-  bitmap to say "this slot is a ~vec_t~"
-
-We need a separation because, while ~vec_t~ is only 16 bytes, it isn't
-composed of simply two objects.  We need special iteration when
-marking/sweeping as we'd want to iterate through all the objects in a
-~vec_t~ when marking, and when sweeping we want to specially treat the
-~items~ buffer.
-*** DONE Introduce bitmap for vectors
-*** DONE Refactor ~gc_alloc~ to take ~tag_t~
-Need to make sure we're setting the vec bitmap correctly when
-allocating a ~vec_t~.
-*** DONE Refactor ~gc_mark~ to treat vector tagged slots differently
-Main thing is making sure we recursively mark the members of the
-vector by accessing the items array, rather than marking just the two
-objects in the slot (which is an error).
-*** DONE Refactor ~gc_sweep~ to deal with vectors separately
-For live but unmarked slots, check if they're a vector.  If they are,
-make sure to free ~vec_t.items~ before putting on the free list.  And
-clear the vector bitmap to ensure the slot can be reused for anything.
 ** WAIT Cheney's algorithm
 2026-06-21: My initial Cheney's algorithm impl didn't go so well.
 Leaving this in WAIT for potential future work.  Looking at other GC

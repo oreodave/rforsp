@@ -77,13 +77,6 @@
   ^for ^range 0 10 force3 (print) endfor
   ^for ^range 0 10 force3 ($n ^n 10 * print) endfor
 
-  ; length
-  ($self $list
-    ^if (^list '() eq) 0
-      (^list cdr self 1 +)
-    endif
-  ) rec $length
-
   ; depth
   (stack length) $depth
 

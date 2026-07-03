@@ -127,6 +127,31 @@ void prim_rsh(obj_t **_)
   push(make_num(as_num(a) >> as_num(b)));
 }
 
+void prim_length(obj_t **_)
+{
+  (void)_;
+  obj_t *item = pop();
+  if (!IS_CONTAINER(item))
+  {
+    FAIL("prim_length: Expected container, got %p\n", (void *)item);
+  }
+
+  u64 size = 0;
+  if (IS_VEC(item))
+  {
+    size = DIRECT_UNTAG(item, vec_t *)->length;
+  }
+  else if (IS_PAIR(item))
+  {
+    for (obj_t *top = item; top; top = DIRECT_CDR(top), ++size)
+    {
+      continue;
+    }
+  }
+
+  push(make_num(size));
+}
+
 /* Copyright (c) 2024 Anthony Bonkoski
  * Copyright (C) 2026 Aryadev Chavali
 

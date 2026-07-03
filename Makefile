@@ -81,3 +81,6 @@ scratch.fp:
 .PHONY: scratch
 scratch: $(OUT) scratch.fp
 	./$(OUT) scratch.fp
+
+compile_commands.json:
+	bear -- $(MAKE) -B

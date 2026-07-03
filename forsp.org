@@ -1,89 +1,34 @@
 #+filetags: forsp
 
-* WIP Vectors :vector:
-We want to introduce a Vector type to our object model.  Obviously, as
-per the tagged pointer model, this will be by pointer; which means
-primitives that work on vectors will always take by reference and not
-by value.
+* TODO Reworked evaluation
+Now that we have [[*Vectors][vectors]], why not rework evaluation?
 
-** DONE Inline vec.h into obj.h
-** DONE Setup vec_t into the object model
-*** DONE Tagging
-*** DONE make_vec
-Reliant on [[*Introduce vectors into the gc][gc]].
-*** DONE as_vec
-*** DONE print
-*** DONE compute
-Currently ~vec_t~ should just self-push; no changes.
-** DONE Introduce vectors into the gc
-Couple possible ideas:
-- Separate pool for ~vec_t~; more metadata required, ~vec_t~ chunks
-  may not be touched as often, etc
-- Same pool for ~vec_t~ as the rest; instead we introduce a dedicated
-  bitmap to say "this slot is a ~vec_t~"
+Instead of using _pairs_ as our basic closure building block, why not
+use vectors?  Certainly Forsp's basic computational model works really
+well with these, since most operations are fundamentally stack
+oriented, which vectors can really help with.
 
-We need a separation because, while ~vec_t~ is only 16 bytes, it isn't
-composed of simply two objects.  We need special iteration when
-marking/sweeping as we'd want to iterate through all the objects in a
-~vec_t~ when marking, and when sweeping we want to specially treat the
-~items~ buffer.
-*** DONE Introduce bitmap for vectors
-*** DONE Refactor ~gc_alloc~ to take ~tag_t~
-Need to make sure we're setting the vec bitmap correctly when
-allocating a ~vec_t~.
-*** DONE Refactor ~gc_mark~ to treat vector tagged slots differently
-Main thing is making sure we recursively mark the members of the
-vector by accessing the items array, rather than marking just the two
-objects in the slot (which is an error).
-*** DONE Refactor ~gc_sweep~ to deal with vectors separately
-For live but unmarked slots, check if they're a vector.  If they are,
-make sure to free ~vec_t.items~ before putting on the free list.  And
-clear the vector bitmap to ensure the slot can be reused for anything.
-** DONE Replace stack with a vector
-This is a big one.
+This will require a few changes.
+** TODO Rework compute frames to admit vector bodied closures
+Since we can't do the same destructive CDR on frame bodies like we did
+for pair based closures, we need some greater mechanism to deal with
+progression in our frames.
 
-2026-07-03: we've done it.  Much better benchmark:
-https://gist.github.com/oreodave/9d2e67aee6ef9be30b55de5f74d020a3
-
-We did force a preallocation of the vector on the value stack to
-ensure this works.
-** DONE Primitives
-*** DONE ~prim_vmake~
-*** DONE ~prim_vpush~
-*** DONE ~prim_vpop~
-*** DONE ~prim_copy~
-Should do a deep copy and push it onto the stack.  This should also
-deal with lists.  However, closures should be unaffected.
-*** DONE ~prim_length~
-Covers the use of a recursive function in [[file:examples/demo.fp][the
-demo]] that unfortunately doesn't work.
-*** DONE ~prim_vswap~
-This primitive allows us to swap the current global value stack with a
-user created vector.  May be useful for stuff like collecting the
-output of a function more easily by using stack based operators you
-already have access to.  It's kinda cool actually.
-*** DONE ~prim_vset~/~prim_vget~
-We need these to allow generic access to the container without just
-popping.  Not only does popping require us to make copies of a vector
-we don't want to destruct, it's not a really nice way of accessing the
-nth element.
-
-These primitives should make that better.
-** DONE Reader
-We need to introduce reader-level vectors, the same as reader-level
-lists.  We'll use '[]' to delimit these, but they'll follow the same
-rules as lists.
-** Benchmarks
-*** Value stack is improved
-Using a vector for the value stack has improved performance a bunch.
-
-https://gist.github.com/oreodave/9d2e67aee6ef9be30b55de5f74d020a3
-*** Bigrange vector refactor
-We can now refactor actual Forsp programs around using vectors over
-lists.  This actually yields a significant performance benefit,
-similar to employing tail call recursion.
-
-https://gist.github.com/oreodave/abef1a3d27edbd2ff0e074f3277106f8
+Best idea here is to use an instruction pointer index to tell us which
+instruction is next.  In a sense it'll be its own stack ontop of the
+function body.
+** TODO Rework compute to use new frames
+** TODO Rework eval for vectors
+This will be a two parter
+*** TODO Manage frame IP when obtaining commands from frame
+*** TODO Construct closures when vectors are encountered
+Now, lists will just be raw reader data.
+*** TODO Deal with closures appropriately
+This really matters when we're replacing the frame body in TCO cases,
+since we'll have different "end of frame" conditions now.
+** TODO Replace examples to use vectors for closures
+This is a bit of a hassle, but necessary.  It'll show a progression
+from the old Forsp to the new one.
 * TODO GC :gc:
 ** DONE [#C] Liveness invariant check
 Benchmark if checking at ~gc_alloc~ that the slot we've popped off the
@@ -328,3 +273,87 @@ allow us to store and compute with arbitrarily wide integers.
 Obvious.
 * TODO Consider compiling to x86_64 directly
 * Done tasks
+** DONE Vectors :vector:
+We want to introduce a Vector type to our object model.  Obviously, as
+per the tagged pointer model, this will be by pointer; which means
+primitives that work on vectors will always take by reference and not
+by value.
+
+*** DONE Inline vec.h into obj.h
+*** DONE Setup vec_t into the object model
+**** DONE Tagging
+**** DONE make_vec
+Reliant on [[*Introduce vectors into the gc][gc]].
+**** DONE as_vec
+**** DONE print
+**** DONE compute
+Currently ~vec_t~ should just self-push; no changes.
+*** DONE Introduce vectors into the gc
+Couple possible ideas:
+- Separate pool for ~vec_t~; more metadata required, ~vec_t~ chunks
+  may not be touched as often, etc
+- Same pool for ~vec_t~ as the rest; instead we introduce a dedicated
+  bitmap to say "this slot is a ~vec_t~"
+
+We need a separation because, while ~vec_t~ is only 16 bytes, it isn't
+composed of simply two objects.  We need special iteration when
+marking/sweeping as we'd want to iterate through all the objects in a
+~vec_t~ when marking, and when sweeping we want to specially treat the
+~items~ buffer.
+**** DONE Introduce bitmap for vectors
+**** DONE Refactor ~gc_alloc~ to take ~tag_t~
+Need to make sure we're setting the vec bitmap correctly when
+allocating a ~vec_t~.
+**** DONE Refactor ~gc_mark~ to treat vector tagged slots differently
+Main thing is making sure we recursively mark the members of the
+vector by accessing the items array, rather than marking just the two
+objects in the slot (which is an error).
+**** DONE Refactor ~gc_sweep~ to deal with vectors separately
+For live but unmarked slots, check if they're a vector.  If they are,
+make sure to free ~vec_t.items~ before putting on the free list.  And
+clear the vector bitmap to ensure the slot can be reused for anything.
+*** DONE Replace stack with a vector
+This is a big one.
+
+2026-07-03: we've done it.  Much better benchmark:
+https://gist.github.com/oreodave/9d2e67aee6ef9be30b55de5f74d020a3
+
+We did force a preallocation of the vector on the value stack to
+ensure this works.
+*** DONE Primitives
+**** DONE ~prim_vmake~
+**** DONE ~prim_vpush~
+**** DONE ~prim_vpop~
+**** DONE ~prim_copy~
+Should do a deep copy and push it onto the stack.  This should also
+deal with lists.  However, closures should be unaffected.
+**** DONE ~prim_length~
+Covers the use of a recursive function in [[file:examples/demo.fp][the
+demo]] that unfortunately doesn't work.
+**** DONE ~prim_vswap~
+This primitive allows us to swap the current global value stack with a
+user created vector.  May be useful for stuff like collecting the
+output of a function more easily by using stack based operators you
+already have access to.  It's kinda cool actually.
+**** DONE ~prim_vset~/~prim_vget~
+We need these to allow generic access to the container without just
+popping.  Not only does popping require us to make copies of a vector
+we don't want to destruct, it's not a really nice way of accessing the
+nth element.
+
+These primitives should make that better.
+*** DONE Reader
+We need to introduce reader-level vectors, the same as reader-level
+lists.  We'll use '[]' to delimit these, but they'll follow the same
+rules as lists.
+*** Benchmarks
+**** Value stack is improved
+Using a vector for the value stack has improved performance a bunch.
+
+https://gist.github.com/oreodave/9d2e67aee6ef9be30b55de5f74d020a3
+**** Bigrange vector refactor
+We can now refactor actual Forsp programs around using vectors over
+lists.  This actually yields a significant performance benefit,
+similar to employing tail call recursion.
+
+https://gist.github.com/oreodave/abef1a3d27edbd2ff0e074f3277106f8

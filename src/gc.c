@@ -216,7 +216,7 @@ void gc_mark_obj(obj_t *obj)
   {
     obj_t *item = STACK_POP(mark_stack, mark_sp);
 
-    void *raw      = (void *)UNTAG(item);
+    auto raw       = TYPED_UNTAG(item, void *);
     size_t slot_id = 0;
     gc_chunk_t *c  = gc_find_chunk(raw, &slot_id);
 

@@ -47,7 +47,7 @@ void print(obj_t *obj)
   case TAG_CLOS:
   {
     printf("CLOSURE<");
-    clos_t *clos = DIRECT_UNTAG(obj, clos_t *);
+    clos_t *clos = TYPED_UNTAG(obj, clos_t *);
     print(clos->body);
     printf(", %p>", (void *)clos->env);
   }

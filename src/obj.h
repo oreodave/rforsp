@@ -38,9 +38,9 @@ typedef struct obj obj_t;
 #define IS_CONTAINER(OBJ) (IS_PAIR(OBJ) || IS_VEC(OBJ))
 #define IS_ALLOC(OBJ)     (IS_PAIR(OBJ) || IS_CLOS(OBJ) || IS_VEC(OBJ))
 
-#define DIRECT_UNTAG(X, T) ((T)UNTAG(X))
-#define DIRECT_CAR(O)      (((pair_t *)(UNTAG(O)))->car)
-#define DIRECT_CDR(O)      (((pair_t *)(UNTAG(O)))->cdr)
+#define TYPED_UNTAG(X, T) ((T)UNTAG(X))
+#define DIRECT_CAR(O)     (((pair_t *)(UNTAG(O)))->car)
+#define DIRECT_CDR(O)     (((pair_t *)(UNTAG(O)))->cdr)
 
 typedef struct pair
 {
@@ -94,28 +94,28 @@ static inline pair_t *as_pair(obj_t *obj)
 {
   if (!IS_PAIR(obj))
     return NULL;
-  return DIRECT_UNTAG(obj, pair_t *);
+  return TYPED_UNTAG(obj, pair_t *);
 }
 
 static inline clos_t *as_clos(obj_t *obj)
 {
   if (!IS_CLOS(obj))
     return NULL;
-  return DIRECT_UNTAG(obj, clos_t *);
+  return TYPED_UNTAG(obj, clos_t *);
 }
 
 static inline vec_t *as_vec(obj_t *obj)
 {
   if (!IS_VEC(obj))
     return NULL;
-  return DIRECT_UNTAG(obj, vec_t *);
+  return TYPED_UNTAG(obj, vec_t *);
 }
 
 static inline prim_t *as_prim(obj_t *obj)
 {
   if (!IS_PRIM(obj))
     return NULL;
-  return DIRECT_UNTAG(obj, prim_t *);
+  return TYPED_UNTAG(obj, prim_t *);
 }
 
 /******************************************************************************

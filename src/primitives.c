@@ -162,7 +162,7 @@ void prim_length(obj_t **_)
   u64 size = 0;
   if (IS_VEC(item))
   {
-    size = DIRECT_UNTAG(item, vec_t *)->length;
+    size = TYPED_UNTAG(item, vec_t *)->length;
   }
   else if (IS_PAIR(item))
   {

@@ -26,7 +26,7 @@ obj_t *make_num(int64_t num)
 obj_t *make_pair(obj_t *car, obj_t *cdr)
 {
   auto opair = gc_alloc(TAG_PAIR);
-  auto pair  = DIRECT_UNTAG(opair, pair_t *);
+  auto pair  = TYPED_UNTAG(opair, pair_t *);
   pair->car  = car;
   pair->cdr  = cdr;
   return opair;
@@ -35,7 +35,7 @@ obj_t *make_pair(obj_t *car, obj_t *cdr)
 obj_t *make_clos(obj_t *body, obj_t *env)
 {
   auto oclos = gc_alloc(TAG_CLOS);
-  auto clos  = DIRECT_UNTAG(oclos, clos_t *);
+  auto clos  = TYPED_UNTAG(oclos, clos_t *);
   clos->body = body;
   clos->env  = env;
   return oclos;
@@ -44,7 +44,7 @@ obj_t *make_clos(obj_t *body, obj_t *env)
 obj_t *make_vec(u32 capacity)
 {
   auto ovec  = gc_alloc(TAG_VEC);
-  vec_t *vec = DIRECT_UNTAG(ovec, vec_t *);
+  vec_t *vec = TYPED_UNTAG(ovec, vec_t *);
   if (capacity)
   {
     vec->capacity = capacity;

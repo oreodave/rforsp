@@ -30,7 +30,7 @@ void state_init()
 
   frames_init();
   gc_init();
-  state->stack = make_vec(0);
+  state->stack = make_vec(256);
 
   state_env_setup();
 }

@@ -212,6 +212,17 @@ void prim_vpop(obj_t **_)
   push(vec);
 }
 
+void prim_vswap(obj_t **_)
+{
+  (void)_;
+  obj_t *vec = pop();
+  if (!IS_VEC(vec))
+    FAIL("prim_vswap: Expected vector to swap stacks, got %p", (void *)vec);
+  obj_t *old_stack = state->stack;
+  state->stack     = vec;
+  push(old_stack);
+}
+
 /* Copyright (c) 2024 Anthony Bonkoski
  * Copyright (C) 2026 Aryadev Chavali
 

@@ -40,6 +40,7 @@ void prim_length(obj_t **_);
 void prim_vmake(obj_t **_);
 void prim_vpush(obj_t **_);
 void prim_vpop(obj_t **_);
+void prim_vswap(obj_t **_);
 
 #endif
 

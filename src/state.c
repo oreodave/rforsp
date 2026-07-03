@@ -122,13 +122,16 @@ const struct PrimRecord RECORDS[] = {
     MAKE_PRIM_RECORD("read", &prim_read),
     MAKE_PRIM_RECORD("print", &prim_print),
     MAKE_PRIM_RECORD("stack", &prim_stack),
-    MAKE_PRIM_RECORD("length", &prim_length),
     MAKE_PRIM_RECORD("env", &prim_env),
     MAKE_PRIM_RECORD("-", &prim_sub),
     MAKE_PRIM_RECORD("*", &prim_mul),
     MAKE_PRIM_RECORD("nand", &prim_nand),
     MAKE_PRIM_RECORD("<<", &prim_lsh),
     MAKE_PRIM_RECORD(">>", &prim_rsh),
+    MAKE_PRIM_RECORD("length", &prim_length),
+    MAKE_PRIM_RECORD("vmake", &prim_vmake),
+    MAKE_PRIM_RECORD("vpush", &prim_vpush),
+    MAKE_PRIM_RECORD("vpop", &prim_vpop),
 };
 
 void state_env_setup()

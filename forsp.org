@@ -1,6 +1,6 @@
 #+filetags: forsp
 
-* WIP Vectors
+* WIP Vectors :vector:
 We want to introduce a Vector type to our object model.  Obviously, as
 per the tagged pointer model, this will be by pointer; which means
 primitives that work on vectors will always take by reference and not
@@ -15,6 +15,10 @@ Reliant on [[*Introduce vectors into the gc][gc]].
 *** DONE print
 *** DONE compute
 Currently ~vec_t~ should just self-push; no changes.
+** TODO Reader
+We need to introduce reader-level vectors, the same as reader-level
+lists.  We'll use '[]' to delimit these, but they'll follow the same
+rules as lists.
 ** Benchmarks
 *** Value stack is improved
 Using a vector for the value stack has improved performance a bunch.

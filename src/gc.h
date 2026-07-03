@@ -34,10 +34,10 @@ typedef struct
   u32 chunk_id, slot_id;
 } gc_free_slot_t;
 
-#define GC_CHUNK_SLOTS       (1LU << 12)
-#define GC_CHUNK_DATA_SIZE   (sizeof(gc_free_slot_t) * GC_CHUNK_SLOTS)
-#define GC_CHUNK_MARK_WORDS  ((GC_CHUNK_SLOTS + 63) / 64)
-#define GC_THRESHOLD_DEFAULT (GC_CHUNK_SLOTS)
+#define GC_CHUNK_SLOTS        (1LU << 12)
+#define GC_CHUNK_DATA_SIZE    (sizeof(gc_free_slot_t) * GC_CHUNK_SLOTS)
+#define GC_CHUNK_BITMAP_WORDS ((GC_CHUNK_SLOTS + 63) / 64)
+#define GC_THRESHOLD_DEFAULT  (GC_CHUNK_SLOTS)
 
 /** Chunk of memory managed by the GC.
  * `mark_bits`: bitmap for marks across all slots.
@@ -47,9 +47,9 @@ typedef struct
  */
 typedef struct
 {
-  u64 mark_bits[GC_CHUNK_MARK_WORDS];
-  u64 live_bits[GC_CHUNK_MARK_WORDS];
-  u64 vec_bits[GC_CHUNK_MARK_WORDS];
+  u64 mark_bits[GC_CHUNK_BITMAP_WORDS];
+  u64 live_bits[GC_CHUNK_BITMAP_WORDS];
+  u64 vec_bits[GC_CHUNK_BITMAP_WORDS];
   u8 data[GC_CHUNK_DATA_SIZE];
 } gc_chunk_t;
 
@@ -110,7 +110,7 @@ void gc_reset(void);
  */
 __attribute__((noinline)) obj_t *gc_alloc(tag_t tag);
 
-/** Mark an obj_t* as reachable.
+/** Mark `obj_t` as reachable, recurring through its slots.
  * Call for each root before gc_sweep().
  */
 void gc_mark_obj(obj_t *obj);

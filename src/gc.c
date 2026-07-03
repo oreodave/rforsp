@@ -15,16 +15,19 @@ static gc_t *gc = &state->gc;
  * Bitmap Helpers                                                             *
  ******************************************************************************/
 
+/** Set the bitmap (`bits`) at the specified slot (`idx`) to 1. */
 static inline void bitmap_set(u64 *bits, size_t idx)
 {
   bits[idx / 64] |= (1ULL << (idx % 64));
 }
 
+/** Clear the bitmap (`bits`) at the specified slot (`idx`). */
 static inline void bitmap_clear(u64 *bits, size_t idx)
 {
   bits[idx / 64] &= ~(1ULL << (idx % 64));
 }
 
+/** Return the value of the bitmap (`bits`) at the specified slot (`idx`). */
 static inline bool bitmap_test(const u64 *bits, size_t idx)
 {
   return (bits[idx / 64] >> (idx % 64)) & 1;
@@ -36,8 +39,8 @@ static inline bool bitmap_test(const u64 *bits, size_t idx)
 
 /** Push a new slot onto the free list.
  * This slot is presumed to be unused, thus the data owned by it is mutated to
- * become a `gc_free_slot_t`.
- * `chunk_id` and `slot_id` are stored in this type for allocation purposes.
+ * form a `gc_free_slot_t`.
+ * `chunk_id` and `slot_id` are used for cachiong purposes.
  */
 static inline void gc_free_list_push(void *slot, u32 chunk_id, u32 slot_id)
 {
@@ -259,7 +262,7 @@ size_t gc_sweep(void)
   for (size_t i = 0; i < gc->pool.length; ++i)
   {
     gc_chunk_t *c = gc->pool.chunks[i];
-    for (size_t w = 0; w < GC_CHUNK_MARK_WORDS; ++w)
+    for (size_t w = 0; w < GC_CHUNK_BITMAP_WORDS; ++w)
     {
       // We only want to free those that are both live and unmarked.
       u64 to_free = c->live_bits[w] & ~c->mark_bits[w];

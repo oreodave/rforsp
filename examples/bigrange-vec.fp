@@ -12,10 +12,6 @@
   (0 swap - -)                     $+
   ($fn $arg (^arg fn))             $partial
 
-  ;; These are just delimiters to make code easier to look at.
-  ()                               $[
-  ()                               $]
-
   ;; Core: Recursion
   ($f
     ($x (^x x) f)
@@ -25,37 +21,32 @@
 
   (^Y partial) $rec
 
-  ;; TCO recursive range function
+  ;; Recursive range function which is tail call oriented.
   ($self $acc $start $end
-    ^if (^start ^end eq)
-      (acc end cons)
+    ^if (start end eq)
+      (acc end vpush)
       (end 1 -
        start
-       acc end cons
+       acc end vpush
        self)
     endif
-  ) rec $--range
+  ) rec                         ; (acc start end -- result)
+  (0 vmake) swap partial        ; (start end     -- result)
+  $range
 
-  ;; Proper range function
-  '() ^--range partial $range
-
-  ;; Recursive reduce function
-  ($self $fn $init $list
-    ^if (list '() eq)
+  ;; Destructive recursive reduce function
+  ($self $fn $init $vec
+    ^if (vec length 0 eq)
       (init)
-      (list cdr
-       list car init fn
-       ^fn
-       self)
+      (vec vpop ; [value vec]
+       swap init fn
+       ^fn self)
     endif
   ) rec $reduce
 
-  [ 1 18 << ] $end
-
-  end print
-  '=> print
-
-    end 0 range
-    0 (+) reduce
+  1 18 << $end
+  end print '=> print
+  end 0 range
+  0 (+) reduce
   print
 )

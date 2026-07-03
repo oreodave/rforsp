@@ -26,24 +26,8 @@ void advance(void)
   state->input_pos++;
 }
 
-bool is_white(char c)
-{
-  return c == ' ' || c == '\t' || c == '\n';
-}
-
-bool is_directive(char c)
-{
-  return c == '\'' || c == '^' || c == '$';
-}
-
-bool is_punctuation(char c)
-{
-  return c == 0 || is_white(c) || is_directive(c) || c == '(' || c == ')' ||
-         c == ';';
-}
-
 static const char *WHITESPACE  = "\n\t ";
-static const char *PUNCTUATION = "\'^$();\n\t ";
+static const char *PUNCTUATION = "\'^$()[];\n\t ";
 
 void reader_error_position(void)
 {
@@ -152,12 +136,44 @@ obj_t *read_list(void)
   if (c != ')')
   {
     state->input_pos = start;
-    READER_ERROR("Expected closing brace");
+    READER_ERROR("Expected closing `)`");
   }
   else
   {
     advance();
     return root;
+  }
+}
+
+obj_t *read_vec(void)
+{
+  // NOTE: read_vec only called when `[` encountered in read.  Thus, we record
+  // the starting position for diagnostic purposes, then skip ahead.
+  size_t start = state->input_pos;
+  advance();
+
+  obj_t *ovec = make_vec(0);
+  vec_t *vec  = as_vec(ovec);
+
+  char c = 0;
+  skip_white_and_comments();
+  for (c = peek(); (c && c != ']') || state->read_stack.length;
+       skip_white_and_comments(), c = peek())
+  {
+    obj_t *item = read();
+    vec_push(vec, item);
+  }
+
+  c = peek();
+  if (c != ']')
+  {
+    state->input_pos = start;
+    READER_ERROR("Expected closing `]`");
+  }
+  else
+  {
+    advance();
+    return ovec;
   }
 }
 
@@ -208,6 +224,8 @@ obj_t *read(void)
     return read();
   case '(':
     return read_list();
+  case '[':
+    return read_vec();
   default:
     return read_scalar();
   }

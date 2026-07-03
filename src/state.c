@@ -26,10 +26,12 @@ void state_init()
   state->atom_quote = intern("quote", 5);
   state->atom_push  = intern("push", 4);
   state->atom_pop   = intern("pop", 3);
-
   vec_init(&state->read_stack, 3);
-  gc_init();
+
   frames_init();
+  gc_init();
+  state->stack = make_vec(256);
+
   state_env_setup();
 }
 
@@ -52,19 +54,13 @@ void state_stop()
 
 void push(obj_t *obj)
 {
-  state->stack = make_pair(obj, state->stack);
+  vec_push(as_vec(state->stack), obj);
 }
 
 bool try_pop(obj_t **_out)
 {
-  if (!state->stack)
-  {
-    return false;
-  }
-
-  *_out        = DIRECT_CAR(state->stack);
-  state->stack = DIRECT_CDR(state->stack);
-  return true;
+  vec_t *v = as_vec(state->stack);
+  return vec_try_pop(v, _out);
 }
 
 obj_t *pop(void)
@@ -132,6 +128,14 @@ const struct PrimRecord RECORDS[] = {
     MAKE_PRIM_RECORD("nand", &prim_nand),
     MAKE_PRIM_RECORD("<<", &prim_lsh),
     MAKE_PRIM_RECORD(">>", &prim_rsh),
+    MAKE_PRIM_RECORD("copy", &prim_copy),
+    MAKE_PRIM_RECORD("length", &prim_length),
+    MAKE_PRIM_RECORD("vmake", &prim_vmake),
+    MAKE_PRIM_RECORD("vpush", &prim_vpush),
+    MAKE_PRIM_RECORD("vpop", &prim_vpop),
+    MAKE_PRIM_RECORD("vswap", &prim_vswap),
+    MAKE_PRIM_RECORD("vget", &prim_vget),
+    MAKE_PRIM_RECORD("vset", &prim_vset),
 };
 
 void state_env_setup()

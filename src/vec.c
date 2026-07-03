@@ -5,12 +5,10 @@
  * Commentary:
  */
 
-#include "vec.h"
+#include "obj.h"
 
 void vec_init(vec_t *vec, size_t initial_capacity)
 {
-  if (!vec || vec->capacity >= initial_capacity)
-    return;
   vec->capacity = initial_capacity;
   vec->items    = calloc(initial_capacity, sizeof(*vec->items));
 }
@@ -21,36 +19,31 @@ void vec_stop(vec_t *vec)
   memset(vec, 0, sizeof(*vec));
 }
 
-void vec_push(vec_t *vec, obj_t *item)
+void vec_ensure_free(vec_t *vec, u32 expected_space)
 {
-  if (!vec)
+  if (vec->capacity - vec->length >= expected_space)
     return;
 
-  if (vec->capacity - vec->length == 0)
-  {
-    vec->capacity = MAX(vec->length + 1, vec->capacity * 2);
-    vec->items    = realloc(vec->items, sizeof(item) * vec->capacity);
-  }
-  vec->items[vec->length] = item;
-  vec->length++;
+  vec->capacity = MAX(vec->length + expected_space, vec->capacity * 2);
+  vec->items    = realloc(vec->items, sizeof(vec->items[0]) * vec->capacity);
 }
 
-void vec_push_mult(vec_t *vec, obj_t **items, u64 num_items)
+void vec_push(vec_t *vec, obj_t *item)
 {
-  if (!vec)
-    return;
-  if (vec->capacity - vec->length < num_items)
-  {
-    vec->capacity = MAX(vec->length + num_items, vec->capacity * 2);
-    vec->items    = realloc(vec->items, sizeof(*items) * vec->capacity);
-  }
+  vec_ensure_free(vec, 1);
+  vec->items[vec->length++] = item;
+}
+
+void vec_push_mult(vec_t *vec, obj_t **items, size_t num_items)
+{
+  vec_ensure_free(vec, num_items);
   memcpy(vec->items + vec->length, items, sizeof(*items) * num_items);
   vec->length += num_items;
 }
 
 bool vec_try_pop(vec_t *vec, obj_t **ret)
 {
-  if (!vec || !vec->length)
+  if (!vec->length)
   {
     return false;
   }

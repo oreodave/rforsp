@@ -11,7 +11,6 @@
 #include "common.h"
 #include "gc.h"
 #include "obj.h"
-#include "vec.h"
 
 #define FSTACK_DEFAULT_CAPACITY (1 << 7)
 

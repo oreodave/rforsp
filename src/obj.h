@@ -16,7 +16,8 @@ typedef enum Tag
   TAG_NUM  = 2,
   TAG_PAIR = 3,
   TAG_CLOS = 4,
-  TAG_PRIM = 5,
+  TAG_VEC  = 5,
+  TAG_PRIM = 6,
 } tag_t;
 
 typedef struct obj obj_t;
@@ -32,8 +33,10 @@ typedef struct obj obj_t;
 #define IS_PAIR(obj) (GET_TAG(obj) == TAG_PAIR)
 #define IS_CLOS(obj) (GET_TAG(obj) == TAG_CLOS)
 #define IS_PRIM(obj) (GET_TAG(obj) == TAG_PRIM)
+#define IS_VEC(obj)  (GET_TAG(obj) == TAG_VEC)
 
-#define IS_ALLOC(OBJ) (IS_PAIR(OBJ) || IS_CLOS(OBJ))
+#define IS_CONTAINER(OBJ) (IS_PAIR(OBJ) || IS_VEC(OBJ))
+#define IS_ALLOC(OBJ)     (IS_PAIR(OBJ) || IS_CLOS(OBJ) || IS_VEC(OBJ))
 
 #define DIRECT_UNTAG(X, T) ((T)UNTAG(X))
 #define DIRECT_CAR(O)      (((pair_t *)(UNTAG(O)))->car)
@@ -49,18 +52,25 @@ typedef struct clos
   obj_t *body, *env;
 } clos_t;
 
-typedef void(prim_t)(obj_t **);
-
-static inline tag_t get_tag(obj_t *ptr)
+typedef struct vec
 {
-  return (tag_t)GET_TAG(ptr);
-}
+  u32 length, capacity;
+  obj_t **items;
+} vec_t;
+
+typedef void(prim_t)(obj_t **);
 
 obj_t *make_atom(const char *str, size_t len);
 obj_t *make_num(int64_t num);
 obj_t *make_pair(obj_t *car, obj_t *cdr);
 obj_t *make_clos(obj_t *body, obj_t *env);
+obj_t *make_vec(u32 capacity);
 obj_t *make_prim(prim_t *func);
+
+static inline tag_t get_tag(obj_t *ptr)
+{
+  return (tag_t)GET_TAG(ptr);
+}
 
 static inline char *as_atom(obj_t *obj)
 {
@@ -90,6 +100,13 @@ static inline clos_t *as_clos(obj_t *obj)
   return DIRECT_UNTAG(obj, clos_t *);
 }
 
+static inline vec_t *as_vec(obj_t *obj)
+{
+  if (!IS_VEC(obj))
+    return NULL;
+  return DIRECT_UNTAG(obj, vec_t *);
+}
+
 static inline prim_t *as_prim(obj_t *obj)
 {
   if (!IS_PRIM(obj))
@@ -116,6 +133,14 @@ static inline bool obj_equal(obj_t *a, obj_t *b)
 
 obj_t *intern(const char *atom_buf, size_t atom_len);
 
+void vec_init(vec_t *vec, size_t initial_capacity);
+void vec_stop(vec_t *vec);
+
+void vec_ensure_free(vec_t *vec, u32);
+void vec_push(vec_t *vec, obj_t *item);
+void vec_push_mult(vec_t *vec, obj_t **items, size_t num_items);
+bool vec_try_pop(vec_t *vec, obj_t **ret);
+
 typedef struct
 {
   tag_t tag;
@@ -125,6 +150,7 @@ typedef struct
     i64 as_num;
     pair_t as_pair;
     clos_t as_clos;
+    vec_t as_vec;
     prim_t *as_prim;
   };
 } obj_canon_t;

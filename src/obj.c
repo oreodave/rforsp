@@ -25,18 +25,32 @@ obj_t *make_num(int64_t num)
 
 obj_t *make_pair(obj_t *car, obj_t *cdr)
 {
-  auto pair = (pair_t *)gc_alloc();
-  pair->car = car;
-  pair->cdr = cdr;
-  return TAG_TYPE(pair, PAIR);
+  auto opair = gc_alloc(TAG_PAIR);
+  auto pair  = DIRECT_UNTAG(opair, pair_t *);
+  pair->car  = car;
+  pair->cdr  = cdr;
+  return opair;
 }
 
 obj_t *make_clos(obj_t *body, obj_t *env)
 {
-  auto clos  = (clos_t *)gc_alloc();
+  auto oclos = gc_alloc(TAG_CLOS);
+  auto clos  = DIRECT_UNTAG(oclos, clos_t *);
   clos->body = body;
   clos->env  = env;
-  return TAG_TYPE(clos, CLOS);
+  return oclos;
+}
+
+obj_t *make_vec(u32 capacity)
+{
+  auto ovec  = gc_alloc(TAG_VEC);
+  vec_t *vec = DIRECT_UNTAG(ovec, vec_t *);
+  if (capacity)
+  {
+    vec->capacity = capacity;
+    vec->items    = calloc(vec->capacity, sizeof(*vec->items));
+  }
+  return ovec;
 }
 
 obj_t *make_prim(prim_t *func)
@@ -79,6 +93,9 @@ obj_canon_t as_canon(obj_t *obj)
     break;
   case TAG_CLOS:
     return (obj_canon_t){.tag = tag, .as_clos = *as_clos(obj)};
+    break;
+  case TAG_VEC:
+    return (obj_canon_t){.tag = tag, .as_vec = *as_vec(obj)};
     break;
   case TAG_PRIM:
     return (obj_canon_t){.tag = tag, .as_prim = as_prim(obj)};

@@ -42,12 +42,14 @@ typedef struct
 /** Chunk of memory managed by the GC.
  * `mark_bits`: bitmap for marks across all slots.
  * `live_bits`: bitmap for whether a given slot is live.
+ * `vec_bits`: bitmap for whether a given slot is a vector.
  * `data`: raw data where allocations are stored.
  */
 typedef struct
 {
   u64 mark_bits[GC_CHUNK_MARK_WORDS];
   u64 live_bits[GC_CHUNK_MARK_WORDS];
+  u64 vec_bits[GC_CHUNK_MARK_WORDS];
   u8 data[GC_CHUNK_DATA_SIZE];
 } gc_chunk_t;
 
@@ -103,10 +105,10 @@ void gc_stop(void);
  */
 void gc_reset(void);
 
-/** Allocate a new slot in the GC.
- * NOTE: Returns a pointer to exactly two objects.
+/** Allocate a new slot in the GC, given a tag.
+ * Returns a tagged pointer to the slots allocated.
  */
-__attribute__((noinline)) obj_t **gc_alloc();
+__attribute__((noinline)) obj_t *gc_alloc(tag_t tag);
 
 /** Mark an obj_t* as reachable.
  * Call for each root before gc_sweep().

@@ -42,6 +42,10 @@
 #define MIN(A, B)   ((A) < (B) ? (A) : (B))
 #define ARRSIZE(XS) (sizeof(XS) / sizeof((XS)[0]))
 
+#define STACK_PUSH(STACK, SP, VALUE) ((STACK)[(SP)++] = (VALUE))
+#define STACK_PEEK(STACK, SP)        ((STACK)[(SP) - 1])
+#define STACK_POP(STACK, SP)         ((STACK)[--(SP)])
+
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;

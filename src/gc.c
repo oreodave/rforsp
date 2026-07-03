@@ -20,6 +20,11 @@ static inline void bitmap_set(u64 *bits, size_t idx)
   bits[idx / 64] |= (1ULL << (idx % 64));
 }
 
+static inline void bitmap_clear(u64 *bits, size_t idx)
+{
+  bits[idx / 64] &= ~(1ULL << (idx % 64));
+}
+
 static inline bool bitmap_test(const u64 *bits, size_t idx)
 {
   return (bits[idx / 64] >> (idx % 64)) & 1;
@@ -111,6 +116,7 @@ static inline gc_chunk_t *gc_new_chunk(void)
   }
   memset(c->mark_bits, 0, sizeof(c->mark_bits));
   memset(c->live_bits, 0, sizeof(c->live_bits));
+  memset(c->vec_bits, 0, sizeof(c->vec_bits));
 
   // Chain all new slots into the free list
   for (size_t i = 0; i < GC_CHUNK_SLOTS; ++i)
@@ -166,7 +172,7 @@ static inline bool gc_threshold_met(void)
   return gc->enable && gc->metadata.slots_live >= gc->metadata.threshold;
 }
 
-__attribute__((noinline)) obj_t **gc_alloc()
+__attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
 {
   if (gc_threshold_met())
   {
@@ -187,49 +193,62 @@ __attribute__((noinline)) obj_t **gc_alloc()
   assert(
       !bitmap_test(gc->pool.chunks[slot->chunk_id]->live_bits, slot->slot_id));
 #endif
-
   gc->metadata.slots_live++;
 
   gc_chunk_t *c = gc->pool.chunks[slot->chunk_id];
   bitmap_set(c->live_bits, slot->slot_id);
+  if (tag == TAG_VEC)
+  {
+    bitmap_set(c->vec_bits, slot->slot_id);
+  }
   memset(slot, 0, sizeof(*slot));
 
-  return (obj_t **)slot;
+  return TAG_CANON(slot, tag);
 }
 
 void gc_mark_obj(obj_t *obj)
 {
+  constexpr size_t MARK_STACK_SIZE = 256;
   if (!IS_ALLOC(obj))
     return;
 
-  constexpr size_t MARK_STACK_SIZE = 256;
   obj_t *mark_stack[MARK_STACK_SIZE];
-  u64 mark_sp           = 0;
-  mark_stack[mark_sp++] = obj;
+  u64 mark_sp = 0;
+
+  STACK_PUSH(mark_stack, mark_sp, obj);
 
   while (mark_sp > 0)
   {
-    obj_t *item = mark_stack[--mark_sp];
+    obj_t *item = STACK_POP(mark_stack, mark_sp);
 
-    void *raw     = (void *)UNTAG(item);
-    size_t idx    = 0;
-    gc_chunk_t *c = gc_find_chunk(raw, &idx);
+    void *raw      = (void *)UNTAG(item);
+    size_t slot_id = 0;
+    gc_chunk_t *c  = gc_find_chunk(raw, &slot_id);
 
-    if (!c || bitmap_test(c->mark_bits, idx))
+    if (!c || bitmap_test(c->mark_bits, slot_id))
       continue;
 
-    bitmap_set(c->mark_bits, idx);
+    bitmap_set(c->mark_bits, slot_id);
 
-    // pair_t and clos_t both start with two obj_t* fields
-    obj_t **fields = (obj_t **)raw;
-    for (size_t i = 0; i < 2; ++i)
+    // pair_t/clos_t both have two obj_t* fields, so we presume them by default.
+    auto fields      = (obj_t **)raw;
+    u64 fields_count = 2;
+    if (bitmap_test(c->vec_bits, slot_id))
+    {
+      // vec_t requires marking the constituent members.
+      vec_t *vec   = raw;
+      fields       = vec->items;
+      fields_count = vec->length;
+    }
+
+    for (size_t i = 0; i < fields_count; ++i)
     {
       if (!IS_ALLOC(fields[i]))
         continue;
       else if (mark_sp == MARK_STACK_SIZE - 1)
         gc_mark_obj(fields[i]);
       else
-        mark_stack[mark_sp++] = fields[i];
+        STACK_PUSH(mark_stack, mark_sp, fields[i]);
     }
   }
 }
@@ -262,12 +281,21 @@ size_t gc_sweep(void)
       for (u64 todo = to_free; todo; todo &= todo - 1)
       {
         // Find the lowest bit which is nonzero through a single hardware inst.
-        int bit           = stdc_trailing_zeros_ull(todo);
-        size_t slot_index = base + bit;
+        int bit        = stdc_trailing_zeros_ull(todo);
+        size_t slot_id = base + bit;
 
-        // Put the slot designated by the bit into the free list.
-        void *slot = c->data + slot_index * 16;
-        gc_free_list_push(slot, i, slot_index);
+        void *slot = c->data + slot_id * 16;
+
+        // If the slot is actually a vector, we need to reclaim the `items`
+        // array.
+        if (bitmap_test(c->vec_bits, slot_id))
+        {
+          vec_t *vslot = slot;
+          free(vslot->items);
+          bitmap_clear(c->vec_bits, slot_id);
+        }
+
+        gc_free_list_push(slot, i, slot_id);
       }
 
       // Clear all live bits in one go.

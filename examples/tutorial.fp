@@ -2,72 +2,76 @@
   ; Welcome to Forsp: A Forth+Lisp Hybrid Lambda Calculus Language
   ;
   ; As you can see, comment lines always start with the ';' semicolon character.
-  ; Also, all code is inside () braces. Actually, all code is an S-Expression, but
-  ; if you don't understand what that means, it's okay.
+  ; Also, all code is inside () braces. Actually, all code is an S-Expression,
+  ; but if you don't understand what that means, it's okay.
   ;
   ; In Forsp, we have a value stack. We can print it out as follows:
 
-  stack print  ; ()
+  stack print  ; []
 
-  ; This should print a pair of parenthesis which means that the stack is empty.
-  ; Let's put something on the stack
+  ; This should print a pair of square braces which means that the stack is
+  ; empty.  Let's put something on the stack
 
   5
 
   ; And now let's print the stack again
 
-  stack print ; (5)
+  stack print ; [5]
 
   ; Now we have something! Let's put on a few more numbers
 
   4 3
 
-  stack print ; (3 4 5)
+  stack print ; [5 4 3]
 
-  ; A stack is LIFO order, or Last-In-First-Off. This means that the next value to be
-  ; removed from the stack will be 3. Let's "print" and find out.
+  ; A stack is LIFO order, or Last-In-First-Off. This means that the next value
+  ; to be removed from the stack will be 3. Let's "print" and find out.
 
   print        ; 3
-  stack print  ; (4 5)
+  stack print  ; [5 4]
 
   ; Checks out!
   ; Let's try arithmetic!
 
   * print     ; 20
-  stack print ; ()
+  stack print ; []
 
-  ; The * operation multiplies the top-two values on the stack and then pushes it back to stack.
-  ; Then "print" prints the value, leaving the stack empty.
+  ; The * operation multiplies the top-two values on the stack and then pushes
+  ; it back to stack.  Then "print" prints the value, leaving the stack empty.
 
-  ; Sometimes working only with stack values is challenging. Luckily Forsp has variables as well.
-  ; We can pop the stack and store to a variable as follows:
+  ; Sometimes working only with stack values is challenging. Luckily Forsp has
+  ; variables as well.  We can pop the stack and store to a variable as follows:
 
   5 $my-variable
-  stack print ; ()
+  stack print ; []
 
-  ; Now "my-variable" is bound to 5. To push a value onto the stack from a variable we can do the following:
+  ; Now "my-variable" is bound to 5. To push a value onto the stack from a
+  ; variable we can do the following:
 
   ^my-variable
-  stack print ; (5)
+  stack print ; [5]
   $_
 
-  ; Coolio. Notice that we bound the variable "_" to remove the value from the stack.
-  ; Now, say we wanted to square "my-variable". we could to the following:
+  ; Coolio. Notice that we bound the variable "_" to remove the value from the
+  ; stack.  Now, say we wanted to square "my-variable". we could to the
+  ; following:
 
   ^my-variable ^my-variable * print ; 25
 
-  ; Forsp also has function abstraction. They are simply () parenthesis grouping.
+  ; Forsp also has function abstraction. They are simply () parenthesis
+  ; grouping.
 
   ($x ^x ^x *)
-  stack print  ; (CLOSURE<(quote x pop quote x push quote x push *), 0x...>)
+  stack print  ; [CLOSURE<(quote x pop quote x push quote x push *), 0x...>]
 
-  ; What's this scary value on the stack now? When we build a function with (), it forms a lexical
-  ; closure around the current environment. If you prefer, you can just think of "CLOSURE"
-  ; as a "callable function value".
+  ; What's this scary value on the stack now? When we build a function with (),
+  ; it forms a lexical closure around the current environment. If you prefer,
+  ; you can just think of "CLOSURE" as a "callable function value".
 
-  ; Fair enough, but how do we call it? As it turns out "print" and "stack" are both functions.
-  ; To call a function in Forsp, you simply write the function's name. But, our function has no
-  ; name yet. So, let's give it one by popping it and binding to a variable name!
+  ; Fair enough, but how do we call it? As it turns out "print" and "stack" are
+  ; both functions.  To call a function in Forsp, you simply write the
+  ; function's name. But, our function has no name yet. So, let's give it one by
+  ; popping it and binding to a variable name!
 
   $square
 
@@ -76,21 +80,22 @@
   6 square
   stack print ; 36
 
-  ; How cool! It should be easy enough to understand the function definition: ($x ^x ^x *). Pop and bind "x".
-  ; Push "x". Push "x" again. Call the "*" function.
+  ; How cool! It should be easy enough to understand the function definition:
+  ; ($x ^x ^x *). Pop and bind "x".  Push "x". Push "x" again. Call the "*"
+  ; function.
 
-  ; Sometimes you need to refer to some data that you don't want evaluated.
-  ; For this, you can simply quote the value:
+  ; Sometimes you need to refer to some data that you don't want evaluated.  For
+  ; this, you can simply quote the value:
 
   'something
   '(1 2 3)
   '(abc (1 foo) ())
-  stack print  ; ((abc (1 foo) ()) (1 2 3) something 36)
+  stack print  ; [36 something (1 2 3) (abc (1 foo) ())]
 
   ; You can also write "quote" verbosely:
 
   quote other
-  stack print  ; (other (abc (1 foo) ()) (1 2 3) something 36)
+  stack print  ; [36 something (1 2 3) (abc (1 foo) ()) other]
 
   ; Let's define another function to remove values for the stack, and use it
   ; to cleanup the stack
@@ -150,11 +155,11 @@
 
   ; Let's demonstrate them by example:
 
-  9 8 7 stack print  ; (7 8 9)
-  swap stack print   ; (8 7 9)
-  over stack print   ; (7 8 7 9)
-  drop stack print   ; (8 7 9)
-  rot stack print    ; (9 8 7)
+  9 8 7 stack print  ; [9 8 7]
+  swap stack print   ; [9 7 8]
+  over stack print   ; [9 7 8 7]
+  drop stack print   ; [9 7 8]
+  rot stack print    ; [7 8 9]
   drop drop drop
 
   ; You may have noticed that we don't have any way to do addition. We'll it's easy to define:

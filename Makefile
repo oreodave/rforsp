@@ -9,13 +9,14 @@ OUT=$(DIST)/forsp
 LIB=src/vec.c src/obj.c src/gc.c src/primitives.c src/state.c src/compute.c \
 		src/reader.c src/print.c
 
-HEADERS=src/common.h src/gc.h src/vec.h src/obj.h src/primitives.h src/state.h \
+HEADERS=src/common.h src/obj.h src/gc.h src/primitives.h src/state.h \
 		src/compute.h
 
 EXAMPLES=examples/church-numerals.fp examples/currying.fp examples/demo.fp \
 		examples/factorial.fp examples/fibonacci-functional.fp examples/forsp.fp \
 		examples/higher-order-functions.fp examples/tutorial.fp \
-		examples/bigrange.fp examples/loads-of-cons.fp
+		examples/bigrange-list.fp examples/bigrange-vec.fp \
+		examples/loads-of-cons.fp
 
 $(OUT): $(DIST) $(HEADERS) $(LIB) src/main.c
 	$(CC) $(CFLAGS) -Isrc -o $@ $(LIB) src/main.c $(LDFLAGS) $(DEFS)
@@ -51,21 +52,26 @@ tests: $(TESTS)
 memperf: $(OUT)
 	valgrind -s --show-leak-kinds=all --leak-check=full ./$(OUT) ./examples/forsp.fp &> gc.results;
 
+BENCH_EXAMPLE=./examples/forsp.fp
+
 .PHONY: callperf
 callperf: $(OUT)
 	valgrind --tool=callgrind \
 		--callgrind-out-file=$(DIST)/callgrind.out \
 		--collect-jumps=yes \
 		--dump-instr=yes \
-		./$(OUT) ./examples/bigrange.fp;
+		./$(OUT) $(BENCH_EXAMPLE);
 
 BEFORE=$(DIST)/forsp.original
 AFTER=$(OUT)
+BENCH_BEFORE=$(BENCH_EXAMPLE)
+BENCH_AFTER=$(BENCH_EXAMPLE)
+
 .PHONY: benchmark
 benchmark: $(OUT)
 	poop -d 10000 \
-		"$(BEFORE) ./examples/forsp.fp" \
-		"$(AFTER) ./examples/forsp.fp" \
+		"$(BEFORE) $(BENCH_BEFORE)" \
+		"$(AFTER) $(BENCH_AFTER)" \
 	> $(DIST)/benchmark.txt;
 	@cat $(DIST)/benchmark.txt;
 

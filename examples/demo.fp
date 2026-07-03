@@ -77,13 +77,6 @@
   ^for ^range 0 10 force3 (print) endfor
   ^for ^range 0 10 force3 ($n ^n 10 * print) endfor
 
-  ; length
-  ($self $list
-    ^if (^list '() eq) 0
-      (^list cdr self 1 +)
-    endif
-  ) rec $length
-
   ; depth
   (stack length) $depth
 
@@ -145,16 +138,21 @@
   5 factorial print
 
   ; stack-set
-  ($self $list
-    ^if ('() ^list eq) ()
-      (^list cdr self ^list car)
+  ($self $stack
+    ^if (stack length 0 eq)
+      ()
+      (stack vpop self)
     endif
   ) rec
-  ($helper ($list dropall ^list helper)) force $stack-set
+  ($helper
+      ($stack
+        stack copy $new-stack
+        dropall ^new-stack helper))
+  force $stack-set
 
   dropall
   5 4
-  stack print
-  (8 9) force stack stack-set + print
-
+  (8 9) force
+  stack stack-set
+  + print
 )

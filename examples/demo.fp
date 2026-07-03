@@ -146,9 +146,10 @@
     endif
   ) rec
   ($helper
-    ($stack
-      stack copy $new-stack
-      dropall ^new-stack helper)) force $stack-set
+      ($stack
+        stack copy $new-stack
+        dropall ^new-stack helper))
+  force $stack-set
 
   dropall
   5 4

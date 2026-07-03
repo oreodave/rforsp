@@ -12,10 +12,6 @@
   (0 swap - -)                     $+
   ($fn $arg (^arg fn))             $partial
 
-  ;; These are just delimiters to make code easier to look at.
-  ()                               $[
-  ()                               $]
-
   ;; Core: Recursion
   ($f
     ($x (^x x) f)
@@ -25,7 +21,7 @@
 
   (^Y partial) $rec
 
-  ;; TCO recursive range function
+  ;; Recursive range function which is tail call oriented.
   ($self $acc $start $end
     ^if (^start ^end eq)
       (acc end cons)
@@ -34,10 +30,9 @@
        acc end cons
        self)
     endif
-  ) rec $--range
-
-  ;; Proper range function
-  '() ^--range partial $range
+  ) rec                         ; (acc start end -- result)
+  '() swap partial              ; (start end     -- result)
+  $range
 
   ;; Recursive reduce function
   ($self $fn $init $list
@@ -45,17 +40,11 @@
       (init)
       (list cdr
        list car init fn
-       ^fn
-       self)
+       ^fn self)
     endif
   ) rec $reduce
 
-  [ 1 18 << ] $end
-
-  end print
-  '=> print
-
-    end 0 range
-    0 (+) reduce
-  print
+  1 18 << $end
+  end print '=> print
+  end 0 range 0 (+) reduce print
 )

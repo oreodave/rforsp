@@ -37,6 +37,11 @@ static inline bool cfstack_available()
   return cfstack->length > 0;
 }
 
+static inline void cfstack_pop(void)
+{
+  --cfstack->length;
+}
+
 static inline void cfstack_push(obj_t *comp, obj_t *env)
 {
   if (cfstack->capacity - cfstack->length == 0)
@@ -52,11 +57,6 @@ static inline void cfstack_push(obj_t *comp, obj_t *env)
 static inline cframe_t *cfstack_peek(void)
 {
   return &STACK_PEEK(cfstack->frames, cfstack->length);
-}
-
-static inline void cfstack_pop(void)
-{
-  --cfstack->length;
 }
 
 /******************************************************************************
@@ -91,11 +91,11 @@ static inline void eval(cframe_t *cframe)
 
       if (!cframe_completed(cframe))
         // There is still work to be done in the current cframe.  Thus, we
-        // establish a new call cframe for this closure.
+        // establish a new cframe for this closure.
         cfstack_push(new_clos->body, new_clos->env);
       else
-        // However, if there's no work to be done, why inflate the call stack?
-        // Just take the position of the current call cframe and continue.
+        // If there's no work to be done, why inflate the call stack?  Just
+        // reuse the current call cframe and continue.
         *cframe = cframe_from_clos(new_clos->body, new_clos->env);
     }
     else if (IS_PRIM(val))

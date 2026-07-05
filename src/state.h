@@ -27,12 +27,11 @@ typedef struct state
   obj_t *atom_push;     // atom: push
   obj_t *atom_pop;      // atom: pop
 
-  obj_t *stack; // top-of-stack (implemented as a tagged vector)
-  obj_t *env;   // top-level / initial environment
+  obj_t *env;        // top-level / initial environment
+  obj_t *stack;      // top-of-stack (implemented as a vector)
+  cfstack_t cfstack; // self-managed dynamic array of call frames for compute.
+  gc_t gc;           // allocator for pairs/closures/vectors
 
-  gc_t gc; // allocator for pairs/closures
-  // self-managed dynamic array of call frames - used in compute.c
-  cfstack_t cfstack;
 } state_t;
 
 extern state_t state[1];

@@ -26,7 +26,7 @@ does:
 
 Extract this into ~eval_call(obj_t *val, cframe_t *cframe)~ so we can
 reuse it.
-** TODO Forced calling object
+** PROJ Forced calling object
 There's a slight complication with our idea: CBPV.
 
 CBPV means that we can only call closures and primitives /if/ they're
@@ -155,7 +155,7 @@ items hide their inner values from the optimiser, so this is only
 needed if child-closure inlining introduces new atoms into the parent
 body.  Deferred.
 
-* TODO Rework examples
+* PROJ Rework examples
 We've just about reached the point where the examples are a bit out of
 date; syntax has changed, core data structures that make Forsp have
 changed.
@@ -170,8 +170,8 @@ distinguish them from =xorforsp= because:
    tricky.
 
 So it's time to clear out the old, and in with the new!
-* TODO GC :gc:
-** DONE [#C] Liveness invariant check
+* PROJ GC :gc:
+** COMPLETE [#C] Liveness invariant check
 Benchmark if checking at ~gc_alloc~ that the slot we've popped off the
 free list is truly free via the bitmap degrades performance.
 
@@ -183,7 +183,7 @@ just allows us to catch regressions easier.
 **gc_alloc()][Location]].
 *** DONE Benchmark
 - Success: ~make examples~.
-** DONE [#A] Reader bugs :reader:
+** COMPLETE [#A] Reader bugs :reader:
 The current interpreter fails to execute
 [[file:examples/loads-of-cons.fp]].  If we lower
 ~GC_THRESHOLD_DEFAULT~ to a small number (i.e. 16) all examples fail
@@ -255,7 +255,7 @@ Issues:
 - Extra state on ~gc_t~ to deal with.  Ew.
 - It's covering such a tiny portion, which makes the infra we have to
   setup so painful.
-*** COMPLETE Make reader iterative
+*** NONISSUE Make reader iterative
 2026-07-02: not worth it.  Since we need to form some sort of stack or
 queue to deal with currently building lists, they escape the purview
 of the limited machine stack scan.  So either we need to:
@@ -271,7 +271,7 @@ This idea is worthless to pursue currently.
 - Success: can it run
   [[file:examples/loads-of-cons.fp][loads-of-cons]]?
 
-** TODO [#B] Collection threshold management :threshold:
+** PROJ [#B] Collection threshold management :threshold:
 Our threshold automatically adjusts at the end of a sweep so we don't
 collect as often, but the rule is just a constant 2 times multiplier
 on the number of live slots (floored by GC_THRESHOLD_DEFAULT).  We may
@@ -294,7 +294,7 @@ Then the threshold adjustment works against ~live_slots *
 growth_multiplier~.
 *** TODO Benchmark
 - Success: ~make examples~.
-** TODO [#B] Completely iterative marking :marking:
+** PROJ [#B] Completely iterative marking :marking:
 ~gc_mark_obj~ uses a mixed approach to its DFS: it starts with an
 iterative-based DFS using a statically sized stack, then spills into
 call based recursion when the stack is filled.
@@ -308,7 +308,7 @@ Similar to the ~fstack~, construct a dynamic array implementation that
 resizes to avoid overflow.
 *** TODO Benchmark
 - Success: ~make examples~
-** TODO [#B] Better slot pools :gc:
+** PROJ [#B] Better slot pools :gc:
 The current GC manages a single pool of fixed 16-byte slots, used for
 pairs, closures, and vec metadata (the ~vec_t~ header).  Vec ~items~
 buffers are ~calloc~/~realloc~/~free~'d via libc, which fragments the
@@ -375,7 +375,7 @@ objects to mark will be the same still.
   [[file:examples/bigrange-vec.fp][bigrange-vec]] and
   [[file:examples/forsp.fp][forsp]].
 
-** TODO [#C] Better ~gc_find_chunk~ :find:
+** PROJ [#C] Better ~gc_find_chunk~ :find:
 Currently we just linear search through the chunks.  However, it might
 be worth optimising this further: as #chunks increases, so will the
 cost of this check.  Let's investigate this.
@@ -470,7 +470,7 @@ program.
 The original =xorforsp= project cannot run this program by the way -
 so we're finally beating the original in terms of being able to
 interpret a program it can't.
-* TODO Big integers :bigint:
+* PROJ Big integers :bigint:
 We can only compute $18!$.  Unacceptable.  It's due to only having 56
 bit integers.  We could get away with bumping this up to 63 bits by
 making ~TAG_INT~ unique, but I think that's a bandaid.

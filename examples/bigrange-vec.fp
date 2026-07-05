@@ -9,7 +9,6 @@
   [force cswap drop force]         $if
   [$a $b $c $d ^a ^b ^c ^d force]  $endif
   [$cond 't '() ^cond if]          $not
-  [0 swap - -]                     $+
   [$fn $arg [^arg fn]]             $partial
 
   ;; Core: Recursion

@@ -8,6 +8,29 @@
 #include "state.h"
 
 /******************************************************************************
+ * Call Frame Cache Helpers                                                   *
+ ******************************************************************************/
+static inline obj_t *cframe_find(obj_t *key, cframe_t *frame)
+{
+  for (size_t i = 0; i < frame->cache.count; ++i)
+  {
+    if (frame->cache.keys[i] == key)
+    {
+      return frame->cache.values[i];
+    }
+  }
+
+  // Otherwise, do an `env_find`
+  obj_t *value = env_find(frame->env, key);
+  frame->cache.count %= CFCACHE_CAPACITY;
+  frame->cache.keys[frame->cache.count]   = key;
+  frame->cache.values[frame->cache.count] = value;
+  ++frame->cache.count;
+
+  return value;
+}
+
+/******************************************************************************
  * Call Frame Helpers                                                         *
  ******************************************************************************/
 
@@ -109,7 +132,7 @@ static inline void eval(cframe_t *cframe)
     }
 
     // Otherwise perform a lookup and "call" the value.
-    auto val = env_find(cframe->env, cmd);
+    auto val = cframe_find(cmd, cframe);
     eval_call(val, cframe);
     break;
   case TAG_NIL:

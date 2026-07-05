@@ -9,14 +9,23 @@
 
 #include "obj.h"
 
+#define CFCACHE_CAPACITY         (4)
+#define CFSTACK_DEFAULT_CAPACITY (1 << 7)
+
+typedef struct
+{
+  obj_t *keys[CFCACHE_CAPACITY];
+  obj_t *values[CFCACHE_CAPACITY];
+  u64 count;
+} cfcache_t;
+
 typedef struct
 {
   vec_t *body;
   obj_t *env;
   u64 ip;
+  cfcache_t cache;
 } cframe_t;
-
-#define CFSTACK_DEFAULT_CAPACITY (1 << 7)
 
 typedef struct
 {

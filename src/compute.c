@@ -63,6 +63,31 @@ static inline cframe_t *cfstack_peek(void)
  * Compute/Eval                                                               *
  ******************************************************************************/
 
+static inline void eval_call(obj_t *to_call, cframe_t *cframe)
+{
+  if (IS_CLOS(to_call))
+  {
+    auto new_clos = as_clos(to_call);
+
+    if (!cframe_completed(cframe))
+      // There is still work to be done in the current cframe.  Thus, we
+      // establish a new cframe for this closure.
+      cfstack_push(new_clos->body, new_clos->env);
+    else
+      // If there's no work to be done, why inflate the call stack?  Just
+      // reuse the current call cframe and continue.
+      *cframe = cframe_from_clos(new_clos->body, new_clos->env);
+  }
+  else if (IS_PRIM(to_call))
+  {
+    as_prim(to_call)(&cframe->env);
+  }
+  else
+  {
+    push(to_call);
+  }
+}
+
 /** eval function: the basic object-by-object evaluation model.
  * This is called by `compute` (which see) on each member of a closure.
  * eval pushes onto the call frame stack only when a closure is called.
@@ -85,27 +110,7 @@ static inline void eval(cframe_t *cframe)
 
     // Otherwise perform a lookup and "call" the value.
     auto val = env_find(cframe->env, cmd);
-    if (IS_CLOS(val))
-    {
-      auto new_clos = as_clos(val);
-
-      if (!cframe_completed(cframe))
-        // There is still work to be done in the current cframe.  Thus, we
-        // establish a new cframe for this closure.
-        cfstack_push(new_clos->body, new_clos->env);
-      else
-        // If there's no work to be done, why inflate the call stack?  Just
-        // reuse the current call cframe and continue.
-        *cframe = cframe_from_clos(new_clos->body, new_clos->env);
-    }
-    else if (IS_PRIM(val))
-    {
-      as_prim(val)(&cframe->env);
-    }
-    else
-    {
-      push(val);
-    }
+    eval_call(val, cframe);
     break;
   case TAG_NIL:
   case TAG_VEC:

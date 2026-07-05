@@ -1,6 +1,6 @@
 #+filetags: forsp
 
-* TODO Closure optimisation :optimiser:
+* PROJ Closure optimisation :optimiser:
 Closure construction occurs during ~compute~ time, after a vector has
 been read in.  When evaluated, each atom of the body of that closure
 is resolved via an ~env_find~.
@@ -13,7 +13,7 @@ construction.
 This should save a few runtime ~env_find~ per atom, and cache them as
 well in case of repeated use.
 
-** TODO Refactor ~eval~ to extract ~eval_call~
+** DONE Refactor ~eval~ to extract ~eval_call~
 [[file:src/compute.c::static inline void eval(cframe_t *cframe)][Location]]
 
 We need

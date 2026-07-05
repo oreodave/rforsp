@@ -120,7 +120,8 @@ static inline void eval(cframe_t *cframe)
   }
   break;
   case TAG_CALL:
-    FAIL("TODO: TAG_CALL evaluation semantics.");
+    // TODO: Replace when testing payload based TAG_CALL
+    eval_call(pop(), cframe);
     break;
   case TAG_NUM:
   case TAG_CLOS:

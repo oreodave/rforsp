@@ -78,7 +78,8 @@ void print(obj_t *obj)
   break;
   case TAG_CALL:
   {
-    FAIL("TODO: TAG_CALL print semantics");
+    // TODO: Replace when testing payload based TAG_CALL
+    printf("<CALL>");
   }
   break;
   }

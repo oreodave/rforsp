@@ -58,6 +58,11 @@ obj_t *make_prim(prim_t *func)
   return TAG_TYPE(func, PRIM);
 }
 
+obj_t *make_call(void)
+{
+  return TAG_TYPE(~0ULL, CALL);
+}
+
 /******************************************************************************
  * Generic helper functions                                                   *
  ******************************************************************************/
@@ -105,7 +110,8 @@ obj_canon_t as_canon(obj_t *obj)
     return (obj_canon_t){.tag = tag, .as_prim = as_prim(obj)};
     break;
   case TAG_CALL:
-    FAIL("TODO: TAG_CALL as_canon semantics");
+    // TODO: Replace when testing payload based TAG_CALL
+    return (obj_canon_t){.tag = tag, .as_atom = NULL};
     break;
   default:
     return (obj_canon_t){0};

@@ -119,6 +119,9 @@ static inline void eval(cframe_t *cframe)
     push(new_clos);
   }
   break;
+  case TAG_CALL:
+    FAIL("TODO: TAG_CALL evaluation semantics.");
+    break;
   case TAG_NUM:
   case TAG_CLOS:
   case TAG_PRIM:

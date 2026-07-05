@@ -104,6 +104,9 @@ obj_canon_t as_canon(obj_t *obj)
   case TAG_PRIM:
     return (obj_canon_t){.tag = tag, .as_prim = as_prim(obj)};
     break;
+  case TAG_CALL:
+    FAIL("TODO: TAG_CALL as_canon semantics");
+    break;
   default:
     return (obj_canon_t){0};
     break;

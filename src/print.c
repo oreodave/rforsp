@@ -76,6 +76,11 @@ void print(obj_t *obj)
     printf("PRIM<%p>", u.ptr);
   }
   break;
+  case TAG_CALL:
+  {
+    FAIL("TODO: TAG_CALL print semantics");
+  }
+  break;
   }
 }
 

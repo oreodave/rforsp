@@ -18,6 +18,7 @@ typedef enum Tag
   TAG_CLOS = 4,
   TAG_VEC  = 5,
   TAG_PRIM = 6,
+  TAG_CALL = 7,
 } tag_t;
 
 typedef struct obj obj_t;
@@ -34,6 +35,7 @@ typedef struct obj obj_t;
 #define IS_CLOS(obj) (GET_TAG(obj) == TAG_CLOS)
 #define IS_PRIM(obj) (GET_TAG(obj) == TAG_PRIM)
 #define IS_VEC(obj)  (GET_TAG(obj) == TAG_VEC)
+#define IS_CALL(obj) (GET_TAG(obj) == TAG_CALL)
 
 #define IS_CONTAINER(OBJ) (IS_PAIR(OBJ) || IS_VEC(OBJ))
 #define IS_ALLOC(OBJ)     (IS_PAIR(OBJ) || IS_CLOS(OBJ) || IS_VEC(OBJ))
@@ -119,7 +121,7 @@ static inline prim_t *as_prim(obj_t *obj)
 }
 
 /******************************************************************************
- * Generic helper functions                                                   *
+ * General helper functions                                                   *
  ******************************************************************************/
 
 static inline obj_t *car(obj_t *obj)
@@ -141,6 +143,21 @@ static inline bool obj_equal(obj_t *a, obj_t *b)
 
 obj_t *intern(const char *atom_buf, size_t atom_len);
 
+/******************************************************************************
+ * Vector methods                                                             *
+ ******************************************************************************/
+
+void vec_init(vec_t *vec, size_t initial_capacity);
+void vec_stop(vec_t *vec);
+void vec_ensure_free(vec_t *vec, u32);
+void vec_push(vec_t *vec, obj_t *item);
+void vec_push_mult(vec_t *vec, obj_t **items, size_t num_items);
+bool vec_try_pop(vec_t *vec, obj_t **ret);
+
+/******************************************************************************
+ * Debug methods                                                              *
+ ******************************************************************************/
+
 /** A tagged union that helps to flatten a tagged pointer.
  * NOTE: Should NOT be used in the runtime.  Only present for debugging
  * purposes.
@@ -160,17 +177,6 @@ typedef struct
 } obj_canon_t;
 
 obj_canon_t as_canon(obj_t *);
-
-/******************************************************************************
- * Vector methods                                                             *
- ******************************************************************************/
-
-void vec_init(vec_t *vec, size_t initial_capacity);
-void vec_stop(vec_t *vec);
-void vec_ensure_free(vec_t *vec, u32);
-void vec_push(vec_t *vec, obj_t *item);
-void vec_push_mult(vec_t *vec, obj_t **items, size_t num_items);
-bool vec_try_pop(vec_t *vec, obj_t **ret);
 
 #endif
 

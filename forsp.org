@@ -80,7 +80,8 @@ This unwraps the ~TAG_CALL~ and marks the inner value recursively.
 slots attached to it - it's basically an immediate on its own with a
 reference to some allocation.
 **** TODO Benchmark
-Benchmark both encoding strategies against [[file:examples/bigrange.fp][bigrange]] and
+Benchmark both encoding strategies against
+[[file:examples/bigrange.fp][bigrange]] and
 [[file:examples/forsp.fp][mc interpreter]].
 ** TODO Closure body optimiser
 The optimiser function:
@@ -88,8 +89,8 @@ The optimiser function:
 obj_t *optimize_closure_body(obj_t *body, obj_t *env);
 #+END_SRC
 
-Takes a ~TAG_VEC~ body and the closure's captured env.  Returns a new
-~TAG_VEC~ with resolvable atoms replaced.
+Takes a vector body and the closure's captured env.  Returns a new
+vector with resolvable atoms replaced.
 
 The core algorithm is essentially as follows in a waterfall
 match-style:
@@ -97,6 +98,7 @@ match-style:
   from then on.  Copy it.
 - Any triplet of the form ~quote <x> push~ where <x> has not been
   shadowed may be inlined to ~quote env_find(x, env)~ then copied.
+  Otherwise, just copy as is.
 - Any other ~quote <x>~ should be copied as is.
 - Any bare instance of an atom:
   - Shadowed?  Copy as is.
@@ -306,6 +308,73 @@ Similar to the ~fstack~, construct a dynamic array implementation that
 resizes to avoid overflow.
 *** TODO Benchmark
 - Success: ~make examples~
+** TODO [#B] Better slot pools :gc:
+The current GC manages a single pool of fixed 16-byte slots, used for
+pairs, closures, and vec metadata (the ~vec_t~ header).  Vec ~items~
+buffers are ~calloc~/~realloc~/~free~'d via libc, which fragments the
+heap and requires the ~vec_bits~ special case in sweep/stop.
+
+Proposal: BiBOP (Big Bag of Pages).  Multiple pools, each with a
+different slot size corresponding to a power-of-two number of ~obj_t*~
+pointers (4, 8, 16, 32, ... 512).  The ~vec_t~ header stays in the
+existing 16-byte pool (tagged ~TAG_VEC~ as before), but ~vec_push~
+allocates the ~items~ buffer from the pool whose slot size best fits
+the requested capacity.  On resize (doubling), the old ~items~ buffer
+is immediately returned to its pool's free list and the new one
+allocated from the next size up.
+
+Pools beyond 512 slots (or any missing size class) fall back to a
+managed ~malloc~ with an inline header (~size~ + ~mark bit~) so the GC
+can still trace and reclaim them uniformly.
+
+Benefits:
+- No ~calloc~/~realloc~/~free~ for common vec sizes, so fewer libc
+  calls, better locality, lower fragmentation.
+- Immediate reuse on resize: old buffer goes straight to free list
+  instead of waiting for a GC cycle.
+- Pool memory is contiguous and page-aligned, so we have more
+  cache-friendly GC scans.
+
+Questions:
+- How to find the sized-pool slot from an ~items~ pointer during GC
+  mark?  Copying ~mimalloc~, we could align the chunk such that the
+  header is at the base of the region boundary - then, we just need to
+  clear off the lower N bits of the specific pointer to get the top of
+  the chunk.
+- Chunk layout for sized pools: a 32-byte-slot chunk has half the
+  slots per chunk vs a 16-byte one.  Do we keep ~GC_CHUNK_SLOTS~ fixed
+  (variable chunk size) or fixed chunk size (variable slots per
+  chunk)?  Fixed chunk size is simpler for address arithmetic.
+- The existing ~gc_find_chunk~ already linear-searches for meta-pool
+  chunks.  Adding N more pools to search multiplies the cost
+  proportionally.  Worth bundling with the [[*Better ~gc_find_chunk~]]
+  work.
+*** TODO Sized pool infrastructure
+We need to parameterise the slot size as part of our separate pools,
+then reimplement the various functions based on this slot size.
+*** TODO Integrate ~vec_push~/~make_vec~ with sized pools
+Replace ~calloc~/~realloc~/~free~ in ~vec_ensure_free~ and
+~make_vec~ with pool operations.
+*** TODO GC mark integration
+In ~gc_mark_obj~, when marking a ~TAG_VEC~ slot, locate its ~items~
+buffer in the sized pools and ensure we mark the reachable pointers
+appropriately.
+*** TODO GC sweep integration
+We'll have to iterate through not only the 2 object slot pool, but
+also all the other sized pools.  Each pool gets its own free list.
+Malloc-fallback blocks use the inline header, and ~gc_t~ should have a
+free list dedicated to just those.
+*** TODO GC collect
+We still only need to concern ourselves with the 2 object slot pool -
+vector metadata will always lie there.  So our general choice of
+objects to mark will be the same still.
+*** TODO Benchmark
+- ~make examples~ must produce identical output.
+- Compare instruction count (callgrind) and heap allocations (valgrind)
+  against the current ~vec_bits~/malloc approach on
+  [[file:examples/bigrange-vec.fp][bigrange-vec]] and
+  [[file:examples/forsp.fp][forsp]].
+
 ** TODO [#C] Better ~gc_find_chunk~ :find:
 Currently we just linear search through the chunks.  However, it might
 be worth optimising this further: as #chunks increases, so will the
@@ -401,13 +470,38 @@ program.
 The original =xorforsp= project cannot run this program by the way -
 so we're finally beating the original in terms of being able to
 interpret a program it can't.
-* TODO Big integers
+* TODO Big integers :bigint:
 We can only compute $18!$.  Unacceptable.  It's due to only having 56
 bit integers.  We could get away with bumping this up to 63 bits by
 making ~TAG_INT~ unique, but I think that's a bandaid.
 
 What we really need is Big Integers.  Allocated on the heap, they
 allow us to store and compute with arbitrarily wide integers.
+
+2026-07-03: With the introduction of vectors as a main stay object
+data type, I think this might finally be attainable.  However, it's
+best to benchmark the different encodings first.
+** TODO Encoding: wrapper over vectors.
+Essentially we just use a vector to manage a big integer solution.
+Each object within the vector will simply be a tagged integer.  Lower
+index means lower bytes of the integer obviously.
+
+Pros:
+- Trivial GC impl cos we can just use the vector one.
+- Since big integers are vectors we're not overcomplicating the
+  self-hosting path.
+
+Cons:
+- Only 56 bits can be used currently per slot.  8 bits per slot
+  wasted.  For a 128 bit integer, that means we'd need to allocate 3
+  slots instead of 2.  Not amazing.
+- All in-member operations require untagging, which is a few cycles
+  extra.  Can ramp up with larger and larger integers and more complex
+  operations.
+** TODO Implement type promotion and type generic mathematical functions
+SBCL allows immediate type promotion upon overflow/underflow from
+machine integers to arbitrary size integers.  We should probably do
+the same.
 * TODO Floating point numbers
 Obvious.
 * TODO Consider compiling to x86_64 directly

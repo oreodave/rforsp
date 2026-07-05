@@ -166,9 +166,9 @@ void gc_stop()
     {
       u64 to_reclaim = chunk->vec_bits[w];
       size_t base    = w * 64;
-      for (u64 todo = to_reclaim; todo; todo &= todo - 1)
+      for (u64 cur = to_reclaim; cur; cur &= cur - 1)
       {
-        auto bit   = stdc_trailing_zeros_ull(todo);
+        auto bit   = stdc_trailing_zeros_ull(cur);
         auto vslot = (vec_t *)(chunk->data + (base + bit) * 16);
         free(vslot->items);
       }
@@ -293,10 +293,10 @@ size_t gc_sweep(void)
       }
 #endif
 
-      for (u64 todo = to_free; todo; todo &= todo - 1)
+      for (u64 cur = to_free; cur; cur &= cur - 1)
       {
         // Find the lowest bit which is nonzero through a single hardware inst.
-        int bit        = stdc_trailing_zeros_ull(todo);
+        int bit        = stdc_trailing_zeros_ull(cur);
         size_t slot_id = base + bit;
 
         void *slot = c->data + slot_id * 16;

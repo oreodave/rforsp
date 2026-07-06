@@ -16,29 +16,6 @@ distinguish them from =xorforsp= because:
 
 So it's time to clear out the old, and in with the new!
 * PROJ GC :gc:
-** TODO [#B] Collection threshold management :threshold:
-Our threshold automatically adjusts at the end of a sweep so we don't
-collect as often, but the rule is just a constant 2 times multiplier
-on the number of live slots (floored by GC_THRESHOLD_DEFAULT).  We may
-want to adjust the multiplier in low-yield situations where we haven't
-swept much.  Investigate this.
-
-[[file:src/gc.c::gc->metadata.threshold = MAX(GC_THRESHOLD_DEFAULT,
- gc->metadata.slots_live * 2);][Location]]
-*** TODO Adaptive multiplier
-Based on yield from a sweep, we can increase the multiplier to lower
-collection pressure.
-
-if ~freed/pre_live_slots~ < 0.25 (or some other low constant), we can
-go for something like ~live_slots*4~ instead.
-
-We'll need to introduce more state for this i.e. something like a
-~growth_multiplier~ which we adjust based on the above condition.
-
-Then the threshold adjustment works against ~live_slots *
-growth_multiplier~.
-*** TODO Benchmark
-- Success: ~make examples~.
 ** TODO [#B] Better slot pools :bibop:
 The current GC manages a single pool of fixed 16-byte slots, used for
 pairs, closures, and vec metadata (the ~vec_t~ header).  Vec ~items~
@@ -106,14 +83,6 @@ objects to mark will be the same still.
   [[file:examples/bigrange-vec.fp][bigrange-vec]] and
   [[file:examples/forsp.fp][forsp]].
 
-** TODO [#C] Better ~gc_find_chunk~ :chunksearch:
-Currently we just linear search through the chunks.  However, it might
-be worth optimising this further: as #chunks increases, so will the
-cost of this check.  Let's investigate this.
-*** TODO Sorted chunk list + bsearch
-*** TODO Hashmap
-*** TODO Benchmark
-- Success: ~make examples~
 ** Benchmarking
 Performance benchmarking should be done against
 [[file:examples/bigrange.fp][bigrange]].  It's a particularly intense
@@ -157,15 +126,15 @@ the same.
 * PROJ Floating point numbers :floats:
 Obvious.
 * PROJ Consider compiling to x86_64 directly :compilation:
-* Done/complete tasks
-** DONE Vectors :vector:
+* Complete
+** COMPLETE Vectors :vector:
 We want to introduce a Vector type to our object model.  Obviously, as
 per the tagged pointer model, this will be by pointer; which means
 primitives that work on vectors will always take by reference and not
 by value.
 
 *** DONE Inline vec.h into obj.h
-*** DONE Setup vec_t into the object model
+*** COMPLETE Setup vec_t into the object model
 **** DONE Tagging
 **** DONE make_vec
 Reliant on [[*Introduce vectors into the gc][gc]].
@@ -173,7 +142,7 @@ Reliant on [[*Introduce vectors into the gc][gc]].
 **** DONE print
 **** DONE compute
 Currently ~vec_t~ should just self-push; no changes.
-*** DONE Introduce vectors into the gc
+*** COMPLETE Introduce vectors into the gc
 Couple possible ideas:
 - Separate pool for ~vec_t~; more metadata required, ~vec_t~ chunks
   may not be touched as often, etc
@@ -205,7 +174,7 @@ https://gist.github.com/oreodave/9d2e67aee6ef9be30b55de5f74d020a3
 
 We did force a preallocation of the vector on the value stack to
 ensure this works.
-*** DONE Primitives
+*** COMPLETE Primitives
 **** DONE ~prim_vmake~
 **** DONE ~prim_vpush~
 **** DONE ~prim_vpop~
@@ -242,7 +211,7 @@ lists.  This actually yields a significant performance benefit,
 similar to employing tail call recursion.
 
 https://gist.github.com/oreodave/abef1a3d27edbd2ff0e074f3277106f8
-** DONE Reworked evaluation
+** COMPLETE Reworked evaluation
 Now that we have [[*Vectors][vectors]], why not rework evaluation?
 
 Instead of using _pairs_ as our basic closure building block, why not
@@ -376,7 +345,7 @@ resizes to avoid overflow.
 * Backlog
 ** BACKLOG Closure optimisation :optimiser:
 2026-07-06: Not worth thinking about right now.  Performance dips from
-just a single depth optimise pass.   Maybe later.
+just a single depth optimise pass.  Maybe later.
 
 Closure construction occurs during ~compute~ time, after a vector has
 been read in.  When evaluated, each atom of the body of that closure
@@ -610,7 +579,25 @@ Once we've evacuated everything necessary in ~to~ space, we:
 - Cleanup all of ~from~ space
 - Swap ~to~ and ~from~ such that any new allocations will occur in
   ~to~ instead of ~from~.
-** BACKLOG Make reader iterative :gc:reader:
+** BACKLOG [#C] Better ~gc_find_chunk~ :gc:chunksearch:
+Currently we just linear search through the chunks.  However, it might
+be worth optimising this further: as #chunks increases, so will the
+cost of this check.  Let's investigate this.
+
+2026-07-06: Not worth pursuing currently - the program with the
+largest allocation pressure allocates only 128 chunks
+([[file:examples/bigrange-list.fp][bigrange-list]]).  Also our free
+slot design kinda requires stable indices.  A possible solution is to
+just keep a separate array of indices that are sorted based on the
+underlying pointer i.e. [4, 2, 3, 1] where chunks[4]->data <
+chunks[2]->data ... < chunks[1]->data.  But for now, not worth
+pursuing.
+*** BACKLOG Sorted chunk list + bsearch
+*** BACKLOG Hashmap
+*** BACKLOG Benchmark
+- Success: ~make examples~
+* Explored
+** COMPLETE Make reader iterative :gc:reader:
 2026-07-02: not worth it.  Since we need to form some sort of stack or
 queue to deal with currently building lists, they escape the purview
 of the limited machine stack scan.  So either we need to:
@@ -622,3 +609,31 @@ of the limited machine stack scan.  So either we need to:
   working?
 
 This idea is worthless to pursue currently.
+** COMPLETE [#B] Collection threshold management :threshold:
+2026-07-07: Benchmarking shows NO difference between using a static
+growth multiplier and an adjusted one i.e. all perf stats of the
+dynamic multiplier are within a single standard deviation of the
+static multiplier.  Not worth pursuing further.
+
+Our threshold automatically adjusts at the end of a sweep so we don't
+collect as often, but the rule is just a constant 2 times multiplier
+on the number of live slots (floored by GC_THRESHOLD_DEFAULT).  We may
+want to adjust the multiplier in low-yield situations where we haven't
+swept much.  Investigate this.
+
+[[file:src/gc.c::gc->metadata.threshold = MAX(GC_THRESHOLD_DEFAULT,
+ gc->metadata.slots_live * 2);][Location]]
+*** DONE Adaptive multiplier
+Based on yield from a sweep, we can increase the multiplier to lower
+collection pressure.
+
+if ~freed/pre_live_slots~ < 0.25 (or some other low constant), we can
+go for something like ~live_slots*4~ instead.
+
+We'll need to introduce more state for this i.e. something like a
+~growth_multiplier~ which we adjust based on the above condition.
+
+Then the threshold adjustment works against ~live_slots *
+growth_multiplier~.
+*** DONE Benchmark
+- Success: ~make examples~.

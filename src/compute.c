@@ -130,6 +130,7 @@ static inline void eval(cframe_t *cframe)
   switch (get_tag(cmd))
   {
   case TAG_ATOM:
+  {
     // quote is the one special operator.
     if (cmd == state->atom_quote)
     {
@@ -142,14 +143,15 @@ static inline void eval(cframe_t *cframe)
     // Otherwise perform a lookup and "call" the value.
     auto val = cframe_find(cmd, cframe);
     eval_call(val, cframe);
-    break;
-  case TAG_NIL:
+  }
+  break;
   case TAG_VEC:
   {
     auto new_clos = make_clos(cmd, cframe->env);
     push(new_clos);
   }
   break;
+  case TAG_NIL:
   case TAG_NUM:
   case TAG_CLOS:
   case TAG_PRIM:

@@ -115,5 +115,5 @@
     endif
   ) rec $factorial
 
-  5 factorial print
+  18 factorial print
 )

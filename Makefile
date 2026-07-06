@@ -48,17 +48,17 @@ tests: $(TESTS)
 		./$$test; \
 	done
 
+BENCH_EXAMPLE=./examples/forsp.fp
+
 .PHONY: memperf
 memperf: $(OUT)
 	valgrind -s \
 		--show-leak-kinds=all \
 		--leak-check=full \
 		--track-origins=yes \
-		./$(OUT) ./examples/forsp.fp \
+		./$(OUT) $(BENCH_EXAMPLE) \
 	&> $(DIST)/gc-results.txt;
 	@cat $(DIST)/gc-results.txt;
-
-BENCH_EXAMPLE=./examples/forsp.fp
 
 .PHONY: callperf
 callperf: $(OUT)

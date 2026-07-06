@@ -9,13 +9,14 @@
 
 #include "obj.h"
 
-#define CFCACHE_CAPACITY         (4)
-#define CFSTACK_DEFAULT_CAPACITY (1 << 7)
+#define CFCACHE_CAPACITY         (1 << 2)
+#define CFSTACK_DEFAULT_CAPACITY (1 << 4)
 
 typedef struct
 {
   obj_t *keys[CFCACHE_CAPACITY];
   obj_t *values[CFCACHE_CAPACITY];
+  u64 hits[CFCACHE_CAPACITY];
   u64 count;
 } cfcache_t;
 

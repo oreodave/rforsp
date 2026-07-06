@@ -12,20 +12,28 @@
  ******************************************************************************/
 static inline obj_t *cframe_find(obj_t *key, cframe_t *frame)
 {
+  size_t least_used = 0;
   for (size_t i = 0; i < frame->cache.count; ++i)
   {
     if (frame->cache.keys[i] == key)
     {
+      // Happy path: we cached the key.
+      ++frame->cache.hits[i];
       return frame->cache.values[i];
+    }
+    else if (frame->cache.hits[i] < frame->cache.hits[least_used])
+    {
+      least_used = i;
     }
   }
 
-  // Otherwise, do an `env_find`
+  // Bad path: cache did not store the thing we wanted.
   obj_t *value = env_find(frame->env, key);
-  frame->cache.count %= CFCACHE_CAPACITY;
-  frame->cache.keys[frame->cache.count]   = key;
-  frame->cache.values[frame->cache.count] = value;
-  ++frame->cache.count;
+  size_t index = frame->cache.count == CFCACHE_CAPACITY ? least_used
+                                                        : frame->cache.count++;
+  frame->cache.keys[index]   = key;
+  frame->cache.values[index] = value;
+  frame->cache.hits[index]   = 1;
 
   return value;
 }

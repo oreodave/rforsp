@@ -50,6 +50,7 @@ tests: $(TESTS)
 
 BENCH_EXAMPLE=./examples/forsp.fp
 
+MEMPERF_OUT=$(DIST)/memperf.txt
 .PHONY: memperf
 memperf: $(OUT)
 	valgrind -s \
@@ -57,13 +58,14 @@ memperf: $(OUT)
 		--leak-check=full \
 		--track-origins=yes \
 		./$(OUT) $(BENCH_EXAMPLE) \
-	&> $(DIST)/gc-results.txt;
-	@cat $(DIST)/gc-results.txt;
+	&> $(MEMPERF_OUT);
+	@cat $(MEMPERF_OUT);
 
+CALLPERF_OUT=$(DIST)/callperf.out
 .PHONY: callperf
 callperf: $(OUT)
 	valgrind --tool=callgrind \
-		--callgrind-out-file=$(DIST)/callgrind.out \
+		--callgrind-out-file=$(CALLPERF_OUT) \
 		--collect-jumps=yes \
 		--dump-instr=yes \
 		./$(OUT) $(BENCH_EXAMPLE);
@@ -73,13 +75,14 @@ AFTER=$(OUT)
 BENCH_BEFORE=$(BENCH_EXAMPLE)
 BENCH_AFTER=$(BENCH_EXAMPLE)
 
+BENCHMARK_OUT=$(DIST)/benchmark.txt
 .PHONY: benchmark
 benchmark: $(OUT)
 	poop -d 10000 \
 		"$(BEFORE) $(BENCH_BEFORE)" \
 		"$(AFTER) $(BENCH_AFTER)" \
-	> $(DIST)/benchmark.txt;
-	@cat $(DIST)/benchmark.txt;
+	> $(BENCHMARK_OUT);
+	@cat $(BENCHMARK_OUT);
 
 scratch.fp:
 	echo "()" > scratch.fp

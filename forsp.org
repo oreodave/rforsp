@@ -16,106 +16,6 @@ distinguish them from =xorforsp= because:
 
 So it's time to clear out the old, and in with the new!
 * PROJ GC :gc:
-** COMPLETE [#C] Liveness invariant check
-Benchmark if checking at ~gc_alloc~ that the slot we've popped off the
-free list is truly free via the bitmap degrades performance.
-
-All callers of ~gc_free_list_push~ do already set liveness to 0, so
-this should not be a concern currently, but introducing the assertion
-just allows us to catch regressions easier.
-
-[[file:src/gc.c::__attribute__((noinline)) obj_t
-**gc_alloc()][Location]].
-*** DONE Benchmark
-- Success: ~make examples~.
-** COMPLETE [#A] Reader bugs :reader:
-The current interpreter fails to execute
-[[file:examples/loads-of-cons.fp]].  If we lower
-~GC_THRESHOLD_DEFAULT~ to a small number (i.e. 16) all examples fail
-to execute as well.
-
-Behaviour:
-- The execution failure is always from ~env_find~ (i.e. unable to find
-  a key).
-
-RCA:
-- Initial debugging suggests the object parsed from the file is
-  incomplete, which implies a read phase issue.
-- Limited stack scan algorithm is responsible for marking objects in
-  the machine stack for primitives and the read phase.
-- The recursive ping-pong between ~read~ and ~read_list~ can make old
-  function stacks out of reach of the limited stack scan when a
-  ~gc_collect~ triggers, which means they are left unmarked and thus
-  free to reclaim.
-- Behaviour was mistakenly faulted to "too high GC pressure"
-  previously, which lead to an overly high GC collection threshold.
-  This hid the issues with the read phase by making collections only
-  trigger /after/ the read phase during ~compute/eval~, which is well
-  tested with regards to GC.
-
-Solutions to fix this follow.
-*** DONE Suppress GC during read
-Lowest effort - just needs a flag on the ~state_t~ or ~gc_t~.  Won't
-introduce a branch in the ~gc_alloc~ since we can just ~&&~ the flag
-in the ~gc_collect~ branch.
-
-See the ~reader!gc-suppress~ branch for the implementation.
-
-Issues:
-- Really large files will definitely force a collection the first time
-  we allocate in ~compute~, which means a massive slow down on the
-  first compute iteration we do.
-*** DONE Complete stack march
-Get the base pointer right from ~main~ and make every stack scan a
-complete one.  Blows up performance - or at least, I think it would.
-May not?
-
-NOTE: having a [[*Better ~gc_find_chunk~][better ~gc_find_chunk~]]
-could help here.
-
-See the ~reader!gc-complete-stack-march~ branch for the
-implementation.
-
-Issues:
-- Requires a complete stack march; needs to be benchmarked if it's
-  more expensive.
-- `-O2` optimisation may not spill all objects onto the stack; certain
-  objects may still be in registers rather than in the stack, which is
-  a problem for the stack march.  So, we use `__builtin_unwind_init`
-  to fix this.  This is even more expensive.
-
-*** DONE Explicit root stack
-Bit painful, requires extra state on ~gc_t~, but might be worth
-investigating.
-
-The only place that requires intervention is in the ~read~ phase since
-~compute/eval~ are dealt with by the ~fstack~, and primitives are
-dealt with by the stack march.
-
-In particular, the only place that may trigger collection is in
-~read_list~, which calls ~make_pair~.  So that's the only place we
-need to target.
-
-Issues:
-- Extra state on ~gc_t~ to deal with.  Ew.
-- It's covering such a tiny portion, which makes the infra we have to
-  setup so painful.
-*** NONISSUE Make reader iterative
-2026-07-02: not worth it.  Since we need to form some sort of stack or
-queue to deal with currently building lists, they escape the purview
-of the limited machine stack scan.  So either we need to:
-- Preserve them by forcing ~gc_collect~ to mark the constituent
-  objects of every list builder frame; which is the same as the
-  explicit root stack, but worse.
-- Extend the stack march to cover the read phase, at which point why
-  not just do the complete stack march - which we've confirmed to be
-  working?
-
-This idea is worthless to pursue currently.
-*** DONE Benchmark
-- Success: can it run
-  [[file:examples/loads-of-cons.fp][loads-of-cons]]?
-
 ** PROJ [#B] Collection threshold management :threshold:
 Our threshold automatically adjusts at the end of a sweep so we don't
 collect as often, but the rule is just a constant 2 times multiplier
@@ -139,21 +39,7 @@ Then the threshold adjustment works against ~live_slots *
 growth_multiplier~.
 *** TODO Benchmark
 - Success: ~make examples~.
-** COMPLETE [#B] Completely iterative marking :marking:
-~gc_mark_obj~ uses a mixed approach to its DFS: it starts with an
-iterative-based DFS using a statically sized stack, then spills into
-call based recursion when the stack is filled.
-
-Investigate switching this to a completely iterative approach using a
-dynamic array.
-
-[[file:src/gc.c::void gc_mark_obj(obj_t *obj)][Location]]
-*** DONE Switch to dynamic array
-Similar to the ~fstack~, construct a dynamic array implementation that
-resizes to avoid overflow.
-*** DONE Benchmark
-- Success: ~make examples~
-** PROJ [#B] Better slot pools :gc:
+** PROJ [#B] Better slot pools
 The current GC manages a single pool of fixed 16-byte slots, used for
 pairs, closures, and vec metadata (the ~vec_t~ header).  Vec ~items~
 buffers are ~calloc~/~realloc~/~free~'d via libc, which fragments the
@@ -220,7 +106,7 @@ objects to mark will be the same still.
   [[file:examples/bigrange-vec.fp][bigrange-vec]] and
   [[file:examples/forsp.fp][forsp]].
 
-** PROJ [#C] Better ~gc_find_chunk~ :find:
+** PROJ [#C] Better ~gc_find_chunk~
 Currently we just linear search through the chunks.  However, it might
 be worth optimising this further: as #chunks increases, so will the
 cost of this check.  Let's investigate this.
@@ -228,85 +114,6 @@ cost of this check.  Let's investigate this.
 *** TODO Hashmap
 *** TODO Benchmark
 - Success: ~make examples~
-** WAIT Cheney's algorithm
-2026-06-21: My initial Cheney's algorithm impl didn't go so well.
-Leaving this in WAIT for potential future work.  Looking at other GC
-strategies currently.
-
-Cheney's algorithm describes a method of allocation and collecting.
-We maintain the heap as is, and when it overfills we enter
-~collection~.  To collect, we consider the heap as two portions:
-~from~ and ~to~.  ~from~ is where our objects currently lie, and ~to~
-will be where we stick em.
-
-We consider ~to~ to be a form of bump allocator so we'll use
-~bump_ptr~ to represent the bump index.
-
-*** WAIT Forwarding pointers
-We need a way to say that a given allocation has actually been moved
-over to ~to~ space; this will allow us to stop the later BFS in cases
-where memory has already been copied to ~to~ space.
-
-We do this by introducing a "FORWARD_POINTER" object type within the
-tagged pointer model.  It essentially just masks a pointer into ~to~
-space.
-
-This forwarding pointer object is stored in the first object slot of
-any given allocation (pair or closure).  So to check if an object has
-already been moved we just need to check the tag on the first object
-of an allocation.
-
-We'll also want functions to return the pointer to the forwarded cell
-(i.e. the copied object) given an object pointer.
-*** WAIT Evacuate (move from ~from~ to ~to~)
-Evacuate is a function that drives this entire collection routine.
-Given a pointer ~p~, it works roughly like this:
-- copy contents of ~p~ over to ~to~ space, incrementing ~bump_ptr~.
-  Call the new pointer ~p'~
-- replace first object slot at ~p~ with a forwarding pointer to ~p'~
-
-So, when we look at ~p~ currently (i.e. when looking at stuff that
-references ~p~), checking the first field for a forwarding pointer
-should be enough to say that ~p~ has been migrated.
-*** WAIT Core algorithm
-**** WAIT The initial sweep
-We start by evacuating all the roots:
-- The stack scan will take care of any in-flight objects in C-stack
-  variables.
-- The frame stack scan will take care of our ~comp~/~env~ pairs
-- State stack and env are obvious.
-
-This should leave us with a few forwarding pointers in ~from~ space,
-and a couple allocations to ~to~ space.
-***** WAIT Root maintenance
-Both the stack scan and the frame stack scan need to update, since
-evacuation moves pointers into ~to~ space.
-**** WAIT The BFS
-Then, we scan through all objects in ~to~ space (which should be our
-roots) to move all the still accessible memory located in ~from~ space
-into ~to~ space.  We do this by maintaining a ~scan_ptr~ which starts
-at the beginning of ~to~ space.  Certainly ~scan_ptr < bump_ptr~ by
-initial evacuation.
-
-The routine goes as so:
-1) Look at the members of the object at ~scan_ptr~ (there should be
-   exactly 2)
-   - If the cells are currently in ~from~ space, evacuate them,
-     incrementing ~bump_ptr~ accordingly.
-   - If they're already present in ~to~ space, or they're an
-     immediate, we don't need to do anything.
-2) Bump ~scan_ptr~ to the next object in ~to~ space (16 bytes).
-3) Repeat (1) until ~scan_ptr >= bump_ptr~
-
-Once we escape the loop, we must have scanned everything accessible
-from ~to~ space, which by virtue must be everything accessible in the
-program from the roots.
-**** WAIT The sweep
-Once we've evacuated everything necessary in ~to~ space, we:
-- Update pointers in the ~compute~ stack for ~comp/env~
-- Cleanup all of ~from~ space
-- Swap ~to~ and ~from~ such that any new allocations will occur in
-  ~to~ instead of ~from~.
 ** Benchmarking
 Performance benchmarking should be done against
 [[file:examples/bigrange.fp][bigrange]].  It's a particularly intense
@@ -350,7 +157,7 @@ the same.
 * TODO Floating point numbers
 Obvious.
 * TODO Consider compiling to x86_64 directly
-* Done tasks
+* Done/complete tasks
 ** DONE Vectors :vector:
 We want to introduce a Vector type to our object model.  Obviously, as
 per the tagged pointer model, this will be by pointer; which means
@@ -464,8 +271,110 @@ since we'll have different "end of frame" conditions now.
 *** DONE Replace examples to use vectors for closures
 This is a bit of a hassle, but necessary.  It'll show a progression
 from the old Forsp to the new one.
+** COMPLETE [#A] Reader bugs :gc:reader:
+The current interpreter fails to execute
+[[file:examples/loads-of-cons.fp]].  If we lower
+~GC_THRESHOLD_DEFAULT~ to a small number (i.e. 16) all examples fail
+to execute as well.
+
+Behaviour:
+- The execution failure is always from ~env_find~ (i.e. unable to find
+  a key).
+
+RCA:
+- Initial debugging suggests the object parsed from the file is
+  incomplete, which implies a read phase issue.
+- Limited stack scan algorithm is responsible for marking objects in
+  the machine stack for primitives and the read phase.
+- The recursive ping-pong between ~read~ and ~read_list~ can make old
+  function stacks out of reach of the limited stack scan when a
+  ~gc_collect~ triggers, which means they are left unmarked and thus
+  free to reclaim.
+- Behaviour was mistakenly faulted to "too high GC pressure"
+  previously, which lead to an overly high GC collection threshold.
+  This hid the issues with the read phase by making collections only
+  trigger /after/ the read phase during ~compute/eval~, which is well
+  tested with regards to GC.
+
+Solutions to fix this follow.
+*** DONE Suppress GC during read
+Lowest effort - just needs a flag on the ~state_t~ or ~gc_t~.  Won't
+introduce a branch in the ~gc_alloc~ since we can just ~&&~ the flag
+in the ~gc_collect~ branch.
+
+See the ~reader!gc-suppress~ branch for the implementation.
+
+Issues:
+- Really large files will definitely force a collection the first time
+  we allocate in ~compute~, which means a massive slow down on the
+  first compute iteration we do.
+*** DONE Complete stack march
+Get the base pointer right from ~main~ and make every stack scan a
+complete one.  Blows up performance - or at least, I think it would.
+May not?
+
+NOTE: having a [[*Better ~gc_find_chunk~][better ~gc_find_chunk~]]
+could help here.
+
+See the ~reader!gc-complete-stack-march~ branch for the
+implementation.
+
+Issues:
+- Requires a complete stack march; needs to be benchmarked if it's
+  more expensive.
+- `-O2` optimisation may not spill all objects onto the stack; certain
+  objects may still be in registers rather than in the stack, which is
+  a problem for the stack march.  So, we use `__builtin_unwind_init`
+  to fix this.  This is even more expensive.
+
+*** DONE Explicit root stack
+Bit painful, requires extra state on ~gc_t~, but might be worth
+investigating.
+
+The only place that requires intervention is in the ~read~ phase since
+~compute/eval~ are dealt with by the ~fstack~, and primitives are
+dealt with by the stack march.
+
+In particular, the only place that may trigger collection is in
+~read_list~, which calls ~make_pair~.  So that's the only place we
+need to target.
+
+Issues:
+- Extra state on ~gc_t~ to deal with.  Ew.
+- It's covering such a tiny portion, which makes the infra we have to
+  setup so painful.
+*** DONE Benchmark
+- Success: can it run
+  [[file:examples/loads-of-cons.fp][loads-of-cons]]?
+
+** COMPLETE [#C] Liveness invariant check :gc:
+Benchmark if checking at ~gc_alloc~ that the slot we've popped off the
+free list is truly free via the bitmap degrades performance.
+
+All callers of ~gc_free_list_push~ do already set liveness to 0, so
+this should not be a concern currently, but introducing the assertion
+just allows us to catch regressions easier.
+
+[[file:src/gc.c::__attribute__((noinline)) obj_t
+**gc_alloc()][Location]].
+*** DONE Benchmark
+- Success: ~make examples~.
+** COMPLETE [#B] Completely iterative marking :gc:marking:
+~gc_mark_obj~ uses a mixed approach to its DFS: it starts with an
+iterative-based DFS using a statically sized stack, then spills into
+call based recursion when the stack is filled.
+
+Investigate switching this to a completely iterative approach using a
+dynamic array.
+
+[[file:src/gc.c::void gc_mark_obj(obj_t *obj)][Location]]
+*** DONE Switch to dynamic array
+Similar to the ~fstack~, construct a dynamic array implementation that
+resizes to avoid overflow.
+*** DONE Benchmark
+- Success: ~make examples~
 * Backlog
-** NONISSUE Closure optimisation :optimiser:
+** BACKLOG Closure optimisation :optimiser:
 2026-07-06: Not worth thinking about right now.  Performance dips from
 just a single depth optimise pass.   Maybe later.
 
@@ -481,7 +390,7 @@ construction.
 This should save a few runtime ~env_find~ per atom, and cache them as
 well in case of repeated use.
 
-*** TODO Refactor ~eval~ to extract ~eval_call~
+*** BACKLOG Refactor ~eval~ to extract ~eval_call~
 [[file:src/compute.c::static inline void eval(cframe_t *cframe)][Location]]
 
 We need
@@ -494,7 +403,7 @@ does:
 
 Extract this into ~eval_call(obj_t *val, cframe_t *cframe)~ so we can
 reuse it.
-*** PROJ Forced calling object
+*** BACKLOG Forced calling object
 There's a slight complication with our idea: CBPV.
 
 CBPV means that we can only call closures and primitives /if/ they're
@@ -506,11 +415,11 @@ they'll just be pushed onto the stack rather than actually called.
 My proposal: a new object type to represent "calling an object".
 Purely generated by the optimisation phase and used by the
 ~compute/eval~ phase to actually compute our optimised closures.
-**** TODO New tag: ~TAG_CALL~ (value 7)
+**** BACKLOG New tag: ~TAG_CALL~ (value 7)
 [[file:src/obj.h::typedef enum Tag][Location]]
-**** TODO Encoding
+**** BACKLOG Encoding
 There are two possible ways we could meaningfully encode a ~TAG_CALL~.
-***** TODO Pure sentinel
+***** BACKLOG Pure sentinel
 Any object of ~TAG_CALL~ has no payload - it's an empty object.
 
 The optimizer emits ~[value, TAG_CALL]~ i.e. push ~value~ then see
@@ -521,7 +430,7 @@ When eval sees ~TAG_CALL~ we ~eval_call(pop(), cframe)~.
 Issues:
 - Bloats the body a bit more as we need to add these sentinels for
   each resolved atom that leads to a callable.
-***** TODO Double tagging
+***** BACKLOG Double tagging
 Any object of ~TAG_CALL~ is simply another tagged object.
 
 The optimiser emits ~[CALL(value)]~ i.e. we have a TAG_CALL object
@@ -532,7 +441,7 @@ cframe)~.
 
 Double tagging is technically safe on x86_64 since we have 48 bit
 virtual addresses.
-****** TODO GC integration
+****** BACKLOG GC integration
 [[file:src/gc.c::void gc_mark_obj(obj_t *obj)][Location]]
 At the top of ~gc_mark_obj~, before the ~IS_ALLOC~ check:
 #+BEGIN_SRC c
@@ -547,11 +456,11 @@ This unwraps the ~TAG_CALL~ and marks the inner value recursively.
 ~IS_ALLOC~ should NOT include ~IS_CALL~ since it doesn't actually have
 slots attached to it - it's basically an immediate on its own with a
 reference to some allocation.
-***** TODO Benchmark
+***** BACKLOG Benchmark
 Benchmark both encoding strategies against
 [[file:examples/bigrange.fp][bigrange]] and
 [[file:examples/forsp.fp][mc interpreter]].
-*** TODO Closure body optimiser
+*** BACKLOG Closure body optimiser
 The optimiser function:
 #+BEGIN_SRC c
 obj_t *optimize_closure_body(obj_t *body, obj_t *env);
@@ -579,7 +488,7 @@ NOTE: [[file:src/state.c::obj_t *env_find(obj_t *env, obj_t
 *key)][env_find]] does cause an abort if the key isn't present in the
 environment, but based on the algorithm above any failure would match
 with failures at actual ~eval~ time.
-*** WAIT In-place replacement after first optimisation
+*** BACKLOG In-place replacement after first optimisation
 Once a body is /fully/ optimised (every resolvable atom resolved, no
 shadowed left as-is), we could write the optimised items into the
 original body's ~items~ array and set an ~optimized~ flag (one bit
@@ -603,7 +512,7 @@ Path to implement:
 3) On re-entry, if ~src->optimized~ is true, short-circuit: return
    ~body~ immediately.
 
-*** WAIT Nested closure (child) inlining
+*** BACKLOG Nested closure (child) inlining
 Currently ~TAG_VEC~ items inside a body are skipped (copied as-is).
 A recursive pass could inline them: when encountering a ~TAG_VEC~
 item, call ~optimize_closure_body~ on it immediately, then wrap in
@@ -616,9 +525,100 @@ inner closure per parent call — the parent body becomes
 Cost: recursive optimisation at parent-construction time (one-time).
 Benefit: amortises across all calls to the parent.
 
-*** WAIT Multi-pass optimisation
+*** BACKLOG Multi-pass optimisation
 If a nesting optimisation produces new items that are themselves
 atoms, a second pass could resolve them.  In practice, ~TAG_CALL~
 items hide their inner values from the optimiser, so this is only
 needed if child-closure inlining introduces new atoms into the parent
 body.  Deferred.
+** BACKLOG Cheney's algorithm :gc:
+2026-06-21: My initial Cheney's algorithm impl didn't go so well.
+Leaving this in BACKLOG for potential future work.  Looking at other
+GC strategies currently.
+
+Cheney's algorithm describes a method of allocation and collecting.
+We maintain the heap as is, and when it overfills we enter
+~collection~.  To collect, we consider the heap as two portions:
+~from~ and ~to~.  ~from~ is where our objects currently lie, and ~to~
+will be where we stick em.
+
+We consider ~to~ to be a form of bump allocator so we'll use
+~bump_ptr~ to represent the bump index.
+
+*** BACKLOG Forwarding pointers
+We need a way to say that a given allocation has actually been moved
+over to ~to~ space; this will allow us to stop the later BFS in cases
+where memory has already been copied to ~to~ space.
+
+We do this by introducing a "FORWARD_POINTER" object type within the
+tagged pointer model.  It essentially just masks a pointer into ~to~
+space.
+
+This forwarding pointer object is stored in the first object slot of
+any given allocation (pair or closure).  So to check if an object has
+already been moved we just need to check the tag on the first object
+of an allocation.
+
+We'll also want functions to return the pointer to the forwarded cell
+(i.e. the copied object) given an object pointer.
+*** BACKLOG Evacuate (move from ~from~ to ~to~)
+Evacuate is a function that drives this entire collection routine.
+Given a pointer ~p~, it works roughly like this:
+- copy contents of ~p~ over to ~to~ space, incrementing ~bump_ptr~.
+  Call the new pointer ~p'~
+- replace first object slot at ~p~ with a forwarding pointer to ~p'~
+
+So, when we look at ~p~ currently (i.e. when looking at stuff that
+references ~p~), checking the first field for a forwarding pointer
+should be enough to say that ~p~ has been migrated.
+*** BACKLOG Core algorithm
+**** BACKLOG The initial sweep
+We start by evacuating all the roots:
+- The stack scan will take care of any in-flight objects in C-stack
+  variables.
+- The frame stack scan will take care of our ~comp~/~env~ pairs
+- State stack and env are obvious.
+
+This should leave us with a few forwarding pointers in ~from~ space,
+and a couple allocations to ~to~ space.
+***** BACKLOG Root maintenance
+Both the stack scan and the frame stack scan need to update, since
+evacuation moves pointers into ~to~ space.
+**** BACKLOG The BFS
+Then, we scan through all objects in ~to~ space (which should be our
+roots) to move all the still accessible memory located in ~from~ space
+into ~to~ space.  We do this by maintaining a ~scan_ptr~ which starts
+at the beginning of ~to~ space.  Certainly ~scan_ptr < bump_ptr~ by
+initial evacuation.
+
+The routine goes as so:
+1) Look at the members of the object at ~scan_ptr~ (there should be
+   exactly 2)
+   - If the cells are currently in ~from~ space, evacuate them,
+     incrementing ~bump_ptr~ accordingly.
+   - If they're already present in ~to~ space, or they're an
+     immediate, we don't need to do anything.
+2) Bump ~scan_ptr~ to the next object in ~to~ space (16 bytes).
+3) Repeat (1) until ~scan_ptr >= bump_ptr~
+
+Once we escape the loop, we must have scanned everything accessible
+from ~to~ space, which by virtue must be everything accessible in the
+program from the roots.
+**** BACKLOG The sweep
+Once we've evacuated everything necessary in ~to~ space, we:
+- Update pointers in the ~compute~ stack for ~comp/env~
+- Cleanup all of ~from~ space
+- Swap ~to~ and ~from~ such that any new allocations will occur in
+  ~to~ instead of ~from~.
+** BACKLOG Make reader iterative :gc:reader:
+2026-07-02: not worth it.  Since we need to form some sort of stack or
+queue to deal with currently building lists, they escape the purview
+of the limited machine stack scan.  So either we need to:
+- Preserve them by forcing ~gc_collect~ to mark the constituent
+  objects of every list builder frame; which is the same as the
+  explicit root stack, but worse.
+- Extend the stack march to cover the read phase, at which point why
+  not just do the complete stack march - which we've confirmed to be
+  working?
+
+This idea is worthless to pursue currently.

@@ -9,7 +9,8 @@
 
 #include <stdbit.h>
 
-static gc_t *gc = &state->gc;
+static gc_t *gc         = &state->gc;
+static vec_t mark_stack = {0};
 
 /******************************************************************************
  * Bitmap Helpers                                                             *
@@ -152,6 +153,7 @@ void gc_init()
 {
   memset(&state->gc, 0, sizeof(state->gc));
   gc->metadata.threshold = GC_THRESHOLD_DEFAULT;
+  vec_init(&mark_stack, 256);
 }
 
 void gc_stop()
@@ -178,6 +180,7 @@ void gc_stop()
     free(gc->pool.chunks[i]);
   }
   free(gc->pool.chunks);
+  vec_stop(&mark_stack);
   memset(&state->gc, 0, sizeof(state->gc));
 }
 
@@ -223,18 +226,16 @@ __attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
 
 void gc_mark_obj(obj_t *obj)
 {
-  constexpr size_t MARK_STACK_SIZE = 256;
   if (!IS_ALLOC(obj))
     return;
 
-  obj_t *mark_stack[MARK_STACK_SIZE];
-  u64 mark_sp = 0;
+  mark_stack.length = 0;
+  vec_push(&mark_stack, obj);
 
-  STACK_PUSH(mark_stack, mark_sp, obj);
-
-  while (mark_sp > 0)
+  while (mark_stack.length > 0)
   {
-    auto item = STACK_POP(mark_stack, mark_sp);
+    --mark_stack.length;
+    obj_t *item = mark_stack.items[mark_stack.length];
 
     auto raw       = TYPED_UNTAG(item, void *);
     size_t slot_id = 0;
@@ -245,25 +246,22 @@ void gc_mark_obj(obj_t *obj)
 
     bitmap_set(c->mark_bits, slot_id);
 
-    // pair_t/clos_t both have two obj_t* fields, so we presume them by default.
-    auto fields      = (obj_t **)raw;
-    u64 fields_count = 2;
     if (bitmap_test(c->vec_bits, slot_id))
     {
-      // vec_t requires marking the constituent members.
-      vec_t *vec   = raw;
-      fields       = vec->items;
-      fields_count = vec->length;
+      vec_t *vec = raw;
+      for (size_t i = 0; i < vec->length; ++i)
+      {
+        if (IS_ALLOC(vec->items[i]))
+          vec_push(&mark_stack, vec->items[i]);
+      }
     }
-
-    for (size_t i = 0; i < fields_count; ++i)
+    else
     {
-      if (!IS_ALLOC(fields[i]))
-        continue;
-      else if (mark_sp == MARK_STACK_SIZE - 1)
-        gc_mark_obj(fields[i]);
-      else
-        STACK_PUSH(mark_stack, mark_sp, fields[i]);
+      auto fields = (obj_t **)raw;
+      if (IS_ALLOC(fields[0]))
+        vec_push(&mark_stack, fields[0]);
+      if (IS_ALLOC(fields[1]))
+        vec_push(&mark_stack, fields[1]);
     }
   }
 }

@@ -139,7 +139,7 @@ Then the threshold adjustment works against ~live_slots *
 growth_multiplier~.
 *** TODO Benchmark
 - Success: ~make examples~.
-** PROJ [#B] Completely iterative marking :marking:
+** COMPLETE [#B] Completely iterative marking :marking:
 ~gc_mark_obj~ uses a mixed approach to its DFS: it starts with an
 iterative-based DFS using a statically sized stack, then spills into
 call based recursion when the stack is filled.
@@ -148,10 +148,10 @@ Investigate switching this to a completely iterative approach using a
 dynamic array.
 
 [[file:src/gc.c::void gc_mark_obj(obj_t *obj)][Location]]
-*** TODO Switch to dynamic array
+*** DONE Switch to dynamic array
 Similar to the ~fstack~, construct a dynamic array implementation that
 resizes to avoid overflow.
-*** TODO Benchmark
+*** DONE Benchmark
 - Success: ~make examples~
 ** PROJ [#B] Better slot pools :gc:
 The current GC manages a single pool of fixed 16-byte slots, used for

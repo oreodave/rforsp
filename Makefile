@@ -50,7 +50,13 @@ tests: $(TESTS)
 
 .PHONY: memperf
 memperf: $(OUT)
-	valgrind -s --show-leak-kinds=all --leak-check=full ./$(OUT) ./examples/forsp.fp &> gc.results;
+	valgrind -s \
+		--show-leak-kinds=all \
+		--leak-check=full \
+		--track-origins=yes \
+		./$(OUT) ./examples/forsp.fp \
+	&> $(DIST)/gc-results.txt;
+	@cat $(DIST)/gc-results.txt;
 
 BENCH_EXAMPLE=./examples/forsp.fp
 

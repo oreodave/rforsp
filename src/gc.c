@@ -354,17 +354,14 @@ static inline void gc_mark_stack_march(void)
   for (void **p = sp; p < end; ++p)
   {
     auto maybe = *(obj_t **)p;
-    if (IS_ALLOC(maybe))
+    void *raw  = (void *)UNTAG(maybe);
+    if (IS_ALLOC(maybe) && gc_find_chunk(raw, &_))
     {
-      void *raw = (void *)UNTAG(maybe);
-      if (gc_find_chunk(raw, &_))
-      {
 #if DEBUG & DEBUG_GC_MARK
       printf("GC:collect:stack_march: Marking allocation %p => %p\n", (void *)p,
              raw);
 #endif
-        gc_mark_obj(maybe);
-      }
+      gc_mark_obj(maybe);
     }
   }
 }

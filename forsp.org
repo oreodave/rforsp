@@ -1,6 +1,6 @@
 #+filetags: forsp
 
-* PROJ Rework examples
+* PROJ Rework examples :examples:
 We've just about reached the point where the examples are a bit out of
 date; syntax has changed, core data structures that make Forsp have
 changed.
@@ -16,7 +16,7 @@ distinguish them from =xorforsp= because:
 
 So it's time to clear out the old, and in with the new!
 * PROJ GC :gc:
-** PROJ [#B] Collection threshold management :threshold:
+** TODO [#B] Collection threshold management :threshold:
 Our threshold automatically adjusts at the end of a sweep so we don't
 collect as often, but the rule is just a constant 2 times multiplier
 on the number of live slots (floored by GC_THRESHOLD_DEFAULT).  We may
@@ -39,7 +39,7 @@ Then the threshold adjustment works against ~live_slots *
 growth_multiplier~.
 *** TODO Benchmark
 - Success: ~make examples~.
-** PROJ [#B] Better slot pools
+** TODO [#B] Better slot pools :bibop:
 The current GC manages a single pool of fixed 16-byte slots, used for
 pairs, closures, and vec metadata (the ~vec_t~ header).  Vec ~items~
 buffers are ~calloc~/~realloc~/~free~'d via libc, which fragments the
@@ -106,7 +106,7 @@ objects to mark will be the same still.
   [[file:examples/bigrange-vec.fp][bigrange-vec]] and
   [[file:examples/forsp.fp][forsp]].
 
-** PROJ [#C] Better ~gc_find_chunk~
+** TODO [#C] Better ~gc_find_chunk~ :chunksearch:
 Currently we just linear search through the chunks.  However, it might
 be worth optimising this further: as #chunks increases, so will the
 cost of this check.  Let's investigate this.
@@ -154,9 +154,9 @@ Cons:
 SBCL allows immediate type promotion upon overflow/underflow from
 machine integers to arbitrary size integers.  We should probably do
 the same.
-* TODO Floating point numbers
+* PROJ Floating point numbers :floats:
 Obvious.
-* TODO Consider compiling to x86_64 directly
+* PROJ Consider compiling to x86_64 directly :compilation:
 * Done/complete tasks
 ** DONE Vectors :vector:
 We want to introduce a Vector type to our object model.  Obviously, as

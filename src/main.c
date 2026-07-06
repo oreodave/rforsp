@@ -51,21 +51,16 @@ int main(int argc, char *argv[])
 #if DEBUG
   printf("read: starting\n");
 #endif
-
   obj_t *obj = read();
-
 #if DEBUG
   printf("read: finished\n");
-#if DEBUG & DEBUG_GC
-  printf("GC:read ");
-  gc_stats(stdout);
 #endif
+
+#if DEBUG
   printf("compute: starting\n");
 #endif
-
   state->gc.enable = true;
   compute(obj, state->env);
-
 #if DEBUG & DEBUG_GC
   BORDER();
   printf("GC:exit ");

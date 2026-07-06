@@ -15,9 +15,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define DEBUG_OFF     (0b00000000)
-#define DEBUG_COMPUTE (0b00000001)
-#define DEBUG_GC      (0b00000010)
+#define DEBUG_OFF      (0b00000000)
+#define DEBUG_COMPUTE  (0b00000001)
+#define DEBUG_GC       (0b00000010)
+#define DEBUG_GC_MARK  (0b00000110)
+#define DEBUG_GC_SWEEP (0b00001010)
 #ifndef DEBUG
 #define DEBUG (0)
 #endif

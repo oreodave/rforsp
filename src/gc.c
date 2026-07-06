@@ -270,7 +270,7 @@ void gc_mark_obj(obj_t *obj)
 
 size_t gc_sweep(void)
 {
-#if DEBUG & DEBUG_GC
+#if DEBUG & DEBUG_GC_SWEEP
   printf("GC:sweep: starting...\n");
 #endif
   // We must iterate through every chunk and look for unmarked live allocations
@@ -285,7 +285,7 @@ size_t gc_sweep(void)
       u64 to_free = c->live_bits[w] & ~c->mark_bits[w];
       size_t base = w * 64;
 
-#if DEBUG & DEBUG_GC
+#if DEBUG & DEBUG_GC_SWEEP
       if (to_free)
       {
         printf("\t%lu@%lu...%lu => %d slots to free.\n", i, w * 64,
@@ -324,7 +324,7 @@ size_t gc_sweep(void)
   gc->metadata.threshold =
       MAX(GC_THRESHOLD_DEFAULT, gc->metadata.slots_live * 2);
 
-#if DEBUG & DEBUG_GC
+#if DEBUG & DEBUG_GC_SWEEP
   printf("GC:sweep: slots_live: %lu\n", gc->metadata.slots_live);
   printf("GC:sweep: threshold: %lu\n", gc->metadata.threshold);
   printf("GC:sweep: freed %lu slots\n", freed);
@@ -345,7 +345,7 @@ static inline void gc_mark_stack_march(void)
   __asm__ volatile("mov %%rsp, %0" : "=r"(sp));
   void **end = (void **)((u8 *)sp + GC_STACK_MARCH_LIMIT);
 
-#if DEBUG & DEBUG_GC
+#if DEBUG & DEBUG_GC_MARK
   printf("GC:collect:stack_march: Iterating from start=%p -> end=%p\n", sp,
          (void *)end);
 #endif
@@ -359,9 +359,9 @@ static inline void gc_mark_stack_march(void)
       void *raw = (void *)UNTAG(maybe);
       if (gc_find_chunk(raw, &_))
       {
-#if DEBUG & DEBUG_GC
-        printf("GC:collect:stack_march: Marking allocation %p => %p\n",
-               (void *)p, raw);
+#if DEBUG & DEBUG_GC_MARK
+      printf("GC:collect:stack_march: Marking allocation %p => %p\n", (void *)p,
+             raw);
 #endif
         gc_mark_obj(maybe);
       }
@@ -381,8 +381,8 @@ size_t gc_collect(void)
   gc_mark_obj(state->stack);
   gc_mark_obj(state->env);
 
-#if DEBUG & DEBUG_GC
-  printf("GC:collect:frames: marking %lu frames.\n", state->cfstack.length);
+#if DEBUG & DEBUG_GC_MARK
+  printf("GC:collect:frames: marking %u frames.\n", state->cfstack.length);
 #endif
   for (u64 i = 0; i < state->cfstack.length; ++i)
   {

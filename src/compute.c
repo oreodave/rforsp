@@ -5,6 +5,7 @@
  */
 
 #include "compute.h"
+#include "primitives.h"
 #include "state.h"
 
 /******************************************************************************
@@ -125,7 +126,10 @@ static inline void eval_call(obj_t *to_call, cframe_t *cframe)
   }
   else if (IS_PRIM(to_call))
   {
-    as_prim(to_call)(&cframe->env);
+    auto callable = TYPED_UNTAG(to_call, prim_t *);
+    if (callable == &prim_pop)
+      cframe->cache.count = 0;
+    callable(&cframe->env);
   }
   else
   {

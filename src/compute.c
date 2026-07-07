@@ -13,10 +13,21 @@
 static inline obj_t *cframe_find(obj_t *key, cframe_t *frame)
 {
   size_t least_used = 0;
+#if DEBUG & DEBUG_COMPUTE
+  printf("compute:cframe_find: Looking for %s\n", as_atom(key));
+#endif
   for (size_t i = 0; i < frame->cache.count; ++i)
   {
+#if DEBUG & DEBUG_COMPUTE
+    printf("\tcomparing to %s {", as_atom(frame->cache.keys[i]));
+    print(frame->cache.values[i]);
+    printf("}\n");
+#endif
     if (frame->cache.keys[i] == key)
     {
+#if DEBUG & DEBUG_COMPUTE
+      printf("compute:cframe_find: found!\n");
+#endif
       // Happy path: we cached the key.
       ++frame->cache.hits[i];
       return frame->cache.values[i];
@@ -27,6 +38,9 @@ static inline obj_t *cframe_find(obj_t *key, cframe_t *frame)
     }
   }
 
+#if DEBUG & DEBUG_COMPUTE
+  printf("compute:cframe_find: not found! caching...\n");
+#endif
   // Bad path: cache did not store the thing we wanted.
   obj_t *value = env_find(frame->env, key);
   size_t index = frame->cache.count == CFCACHE_CAPACITY ? least_used
@@ -180,7 +194,9 @@ void compute(obj_t *comp, obj_t *env)
     }
 
 #if DEBUG & DEBUG_COMPUTE
-    printf("compute[%ld]: ", cfstack->length);
+    printf("compute:sp[%u]:ip[%lu]: {", cfstack->length, cframe->ip);
+    print(cframe->body->items[cframe->ip]);
+    printf("} <- ");
     print(TAG_CANON(cframe->body, TAG_VEC));
     printf("\n");
     printf("stack: ");
@@ -189,10 +205,12 @@ void compute(obj_t *comp, obj_t *env)
     printf("env: ");
     print(cframe->env);
     printf("\n");
-    BORDER();
 #endif
 
     eval(cframe);
+#if DEBUG & DEBUG_COMPUTE
+    BORDER();
+#endif
   }
 }
 

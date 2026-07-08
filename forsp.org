@@ -93,6 +93,62 @@ so we're finally beating the original in terms of being able to
 interpret a program it can't.
 * PROJ Language :lang:
 Language design projects.
+** PROJ Native recursive closures :rec:
+Instead of relying on the Y-combinator to construct recursive
+functions (see [[file:examples/factorial.fp]]), introduce a ~rec~
+keyword that marks a closure as self-referencing.
+
+Syntax:
+#+begin_src forsp
+[$self $n ...] rec $fn
+#+end_src
+(which is essentially the same syntax we have for Y-combinator based
+recursive closures currently).
+
+The ~rec~ primitive pops a closure from the stack and returns it
+wrapped in a new ~TAG_REC~ object.  When a ~TAG_REC~ is called (via
+~eval_call~), the closure itself is pushed onto the value stack as an
+additional first argument, fulfilling the ~$self~ binding that the
+body expects.  That's it!
+
+Benefits:
+- Eliminates the Y-combinator overhead:
+  - extra closure constructions without any optimisation
+  - ~force~ call (~env-find~, ~eval_call~)
+  - deeper cframe stack per recursive invocation - particularly if not
+    already tail call style
+- Tiny syntactical change for all example programs.
+*** TODO Introduce ~TAG_REC~ objects
+A ~TAG_REC~ object simply tags a pre-existing closure - so the
+constructor should permit only ~clos_t*~.  Destructor obviously just
+resolves to a closure.
+*** TODO Runtime: handle calls to ~rec~
+I think the best way to approach this while preserving Forsp semantics
+is to introduce ~rec~ as a primitive ~prim_rec~.  All it needs to do
+is pop an item off the stack, verify it's a closure, then re-tag it as
+a TAG_REC.
+*** TODO Runtime: handle ~TAG_REC~ in ~eval_call~
+Add the ~IS_REC~ branch that pushes self and constructs the cframe.
+Something like this:
+#+begin_src c
+if (IS_REC(to_call))
+{
+  auto clos = as_rec(...);      // extract the underlying closure
+  push(to_call);                // push self onto the value stack
+  cfstack_push(clos->body, clos->env);
+}
+#+end_src
+*** TODO Update examples
+Replace any Y-combinator based recursion with our new ~rec~.  Only
+time this shouldn't be the case is in [[examples/forsp.fp][mc
+evaluator]] as that's emulating a Forsp program unto itself.
+*** TODO Benchmark
+- ~make examples~ must produce identical output.
+- Compare instruction count (callgrind) and wall time on:
+  - [[file:examples/factorial.fp][factorial]]
+  - [[file:examples/bigrange-list.fp][bigrange-list]]
+  - [[file:examples/bigrange-vec.fp][bigrange-vec]]
+  - [[file:examples/forsp.fp][mc eval]]
 ** PROJ Floating point numbers :floats:
 Obvious.
 ** PROJ Big integers :bigint:

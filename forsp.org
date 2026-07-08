@@ -91,7 +91,11 @@ program.
 The original =xorforsp= project cannot run this program by the way -
 so we're finally beating the original in terms of being able to
 interpret a program it can't.
-* PROJ Big integers :bigint:
+* PROJ Language :lang:
+Language design projects.
+** PROJ Floating point numbers :floats:
+Obvious.
+** PROJ Big integers :bigint:
 We can only compute $18!$.  Unacceptable.  It's due to only having 56
 bit integers.  We could get away with bumping this up to 63 bits by
 making ~TAG_INT~ unique, but I think that's a bandaid.
@@ -102,7 +106,7 @@ allow us to store and compute with arbitrarily wide integers.
 2026-07-03: With the introduction of vectors as a main stay object
 data type, I think this might finally be attainable.  However, it's
 best to benchmark the different encodings first.
-** TODO Encoding: wrapper over vectors.
+*** TODO Encoding: wrapper over vectors.
 Essentially we just use a vector to manage a big integer solution.
 Each object within the vector will simply be a tagged integer.  Lower
 index means lower bytes of the integer obviously.
@@ -119,13 +123,10 @@ Cons:
 - All in-member operations require untagging, which is a few cycles
   extra.  Can ramp up with larger and larger integers and more complex
   operations.
-** TODO Implement type promotion and type generic mathematical functions
+*** TODO Implement type promotion and type generic mathematical functions
 SBCL allows immediate type promotion upon overflow/underflow from
 machine integers to arbitrary size integers.  We should probably do
 the same.
-* PROJ Floating point numbers :floats:
-Obvious.
-* PROJ Consider compiling to x86_64 directly :compilation:
 * Complete
 ** COMPLETE Vectors :vector:
 We want to introduce a Vector type to our object model.  Obviously, as

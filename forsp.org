@@ -183,6 +183,50 @@ Cons:
 SBCL allows immediate type promotion upon overflow/underflow from
 machine integers to arbitrary size integers.  We should probably do
 the same.
+* PROJ IR Compiler :ir:
+NOTE: Currently very AI gen'd, still need to refine.
+** TODO [#B] Design bytecode for vec-based closures :bytecode:
+Compile closure body vectors (~vec_t~ of ~obj_t*~) into a flat
+instruction array (~bc_prog_t~) with explicit opcodes, replacing the
+tag-dispatch loop in ~eval~.
+
+Each instruction is a packed triplet: ~{u8 opcode, i8 stack_delta, u64
+operand}~.  The operand indexes into a constant pool (interned atoms,
+pre-compiled sub-closures, numeric literals).
+
+[[file:src/compute.c::static inline void eval(cframe_t
+*cframe)][Current dispatch location]]
+
+Opcodes:
+- ~BC_PUSH_NIL~, ~BC_PUSH_NUM~, ~BC_PUSH_ATOM~, ~BC_PUSH_CLOS~ —
+  push immediates from the constant pool or inline operand
+- ~BC_QUOTE~ — push constant without evaluation (replaces the quote
+  special case)
+- ~BC_RESOLVE~ — ~env_find~ the atom at the given constant index
+- ~BC_CALL~ — pop value from stack → ~eval_call~
+- ~BC_TAIL_CALL~ — same but unconditional frame reuse
+- ~BC_RET~ — pop current cframe
+- ~BC_DROP~, ~BC_DUP~, ~BC_SWAP~ — stack manipulation
+- ~BC_PUSH_SELF~ — push current rec closure (~TAG_REC~ bodies only)
+- ~BC_TAIL_CALL_SELF~ — tail-recurse into self (rec bodies only)
+
+The compiler (~bc_compile~) walks a ~vec_t~ body and emits ~bc_inst_t~
+entries.  An optimisation pass then runs:
+- Pre-resolve non-shadowed atoms to ~BC_PUSH~ (closure
+  pre-computation)
+- Inline known call chains
+- Replace ~BC_RESOLVE~ + ~BC_CALL~ at end-of-body with ~BC_TAIL_CALL~
+- Replace ~self~ resolution inside a ~TAG_REC~ body with
+  ~BC_PUSH_SELF~
+- Basic stack effect analysis via ~stack_delta~
+
+*** TODO Define bytecode types
+*** TODO Write ~bc_compile~ pass
+*** TODO Thread into ~compute~
+*** TODO Optimiser pass: atom pre-resolution
+*** TODO Optimiser pass: ~TAG_REC~ self-resolution and tail-call
+*** TODO Stack effect verification
+*** TODO Benchmark against current eval
 * Complete
 ** COMPLETE Vectors :vector:
 We want to introduce a Vector type to our object model.  Obviously, as

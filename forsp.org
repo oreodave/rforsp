@@ -5,7 +5,7 @@ We've just about reached the point where the examples are a bit out of
 date; syntax has changed, core data structures that make Forsp have
 changed.
 
-It's time for a set of `rForsp` examples.  We need to make sure to
+It's time for a set of ~rForsp~ examples.  We need to make sure to
 distinguish them from =xorforsp= because:
 1) I don't want to confuse other people who start looking for
    resources on Forsp and find this project.
@@ -291,9 +291,9 @@ implementation.
 Issues:
 - Requires a complete stack march; needs to be benchmarked if it's
   more expensive.
-- `-O2` optimisation may not spill all objects onto the stack; certain
+- ~-O2~ optimisation may not spill all objects onto the stack; certain
   objects may still be in registers rather than in the stack, which is
-  a problem for the stack march.  So, we use `__builtin_unwind_init`
+  a problem for the stack march.  So, we use ~__builtin_unwind_init~
   to fix this.  This is even more expensive.
 
 *** DONE Explicit root stack
@@ -413,13 +413,13 @@ virtual addresses.
 ****** BACKLOG GC integration
 [[file:src/gc.c::void gc_mark_obj(obj_t *obj)][Location]]
 At the top of ~gc_mark_obj~, before the ~IS_ALLOC~ check:
-#+BEGIN_SRC c
+#+begin_src c
 if (IS_CALL(obj))
 {
   gc_mark_obj((obj_t *)UNTAG(obj));
   return;
 }
-#+END_SRC
+#+end_src
 
 This unwraps the ~TAG_CALL~ and marks the inner value recursively.
 ~IS_ALLOC~ should NOT include ~IS_CALL~ since it doesn't actually have
@@ -431,9 +431,9 @@ Benchmark both encoding strategies against
 [[file:examples/forsp.fp][mc interpreter]].
 *** BACKLOG Closure body optimiser
 The optimiser function:
-#+BEGIN_SRC c
+#+begin_src c
 obj_t *optimize_closure_body(obj_t *body, obj_t *env);
-#+END_SRC
+#+end_src
 
 Takes a vector body and the closure's captured env.  Returns a new
 vector with resolvable atoms replaced.

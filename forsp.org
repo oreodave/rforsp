@@ -16,7 +16,7 @@ distinguish them from =xorforsp= because:
 
 So it's time to clear out the old, and in with the new!
 * PROJ GC :gc:
-** TODO [#B] Better slot pools :bibop:
+** PROJ [#B] Better slot pools :bibop:
 The current GC manages a single pool of fixed 16-byte slots, used for
 pairs, closures, and vec metadata (the ~vec_t~ header).  Vec ~items~
 buffers are ~calloc~/~realloc~/~free~'d via libc, which fragments the

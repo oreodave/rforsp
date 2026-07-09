@@ -34,6 +34,8 @@ void prim_mul(obj_t **_);
 void prim_div(obj_t **_);
 void prim_lsh(obj_t **_);
 void prim_rsh(obj_t **_);
+void prim_bitwise_and(obj_t **_);
+void prim_bitwise_or(obj_t **_);
 void prim_bitwise_nand(obj_t **_);
 
 // vectors/container helpers

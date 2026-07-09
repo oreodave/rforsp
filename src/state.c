@@ -122,6 +122,8 @@ const struct PrimRecord RECORDS[] = {
     MAKE_PRIM_RECORD("-", &prim_sub),
     MAKE_PRIM_RECORD("*", &prim_mul),
     MAKE_PRIM_RECORD("/", &prim_div),
+    MAKE_PRIM_RECORD("&", &prim_bitwise_and),
+    MAKE_PRIM_RECORD("|", &prim_bitwise_or),
     MAKE_PRIM_RECORD("nand", &prim_bitwise_nand),
     MAKE_PRIM_RECORD("<<", &prim_lsh),
     MAKE_PRIM_RECORD(">>", &prim_rsh),

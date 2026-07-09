@@ -4,7 +4,7 @@ LDFLAGS=
 DEFS=
 
 DIST=bin
-OUT=$(DIST)/forsp
+OUT=$(DIST)/rforsp
 
 LIB=src/obj.c src/gc.c src/primitives.c src/cfstack.c src/state.c \
 		src/compute.c src/reader.c src/print.c
@@ -12,11 +12,11 @@ LIB=src/obj.c src/gc.c src/primitives.c src/cfstack.c src/state.c \
 HEADERS=src/common.h src/obj.h src/gc.h src/primitives.h src/cfstack.h \
 		src/state.h src/compute.h
 
-EXAMPLES=examples/church-numerals.fp examples/currying.fp examples/demo.fp \
-		examples/factorial.fp examples/fibonacci-functional.fp examples/forsp.fp \
-		examples/higher-order-functions.fp examples/tutorial.fp \
-		examples/bigrange-list.fp examples/bigrange-vec.fp \
-		examples/loads-of-cons.fp
+EXAMPLES=examples/church-numerals.rfp examples/currying.rfp examples/demo.rfp \
+		examples/factorial.rfp examples/fibonacci-functional.rfp examples/forsp.rfp \
+		examples/higher-order-functions.rfp examples/tutorial.rfp \
+		examples/bigrange-list.rfp examples/bigrange-vec.rfp \
+		examples/loads-of-cons.rfp
 
 $(OUT): $(DIST) $(HEADERS) $(LIB) src/main.c
 	$(CC) $(CFLAGS) -Isrc -o $@ $(LIB) src/main.c $(LDFLAGS) $(DEFS)

@@ -87,6 +87,14 @@ void prim_env(obj_t **env)
   push(*env);
 }
 
+void prim_add(obj_t **_)
+{
+  (void)_;
+  auto b = pop();
+  auto a = pop();
+  push(make_num(as_num(a) + as_num(b)));
+}
+
 void prim_sub(obj_t **_)
 {
   (void)_;

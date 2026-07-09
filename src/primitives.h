@@ -28,6 +28,7 @@ void prim_print(obj_t **_);
 // helpful
 void prim_stack(obj_t **_);
 void prim_env(obj_t **env);
+void prim_add(obj_t **_);
 void prim_sub(obj_t **_);
 void prim_mul(obj_t **_);
 void prim_nand(obj_t **_);

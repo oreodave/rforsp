@@ -22,11 +22,11 @@
   ;; Recursive range function which is tail call oriented.
   [$self $acc $start $end
     ^if [^start ^end eq]
-      [acc end cons]
-      [end 1 -
-       start
-       acc end cons
-       self]
+    [acc end cons]
+    [end 1 -
+      start
+      acc end cons
+      self]
     endif
   ] rec                         ; (acc start end -- result)
   '() swap partial              ; (start end     -- result)
@@ -35,10 +35,10 @@
   ;; Recursive reduce function
   [$self $fn $init $list
     ^if [list '() eq]
-      [init]
-      [list cdr
-       list car init fn
-       ^fn self]
+    [init]
+    [list cdr
+      list car init fn
+      ^fn self]
     endif
   ] rec $reduce
 

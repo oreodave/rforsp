@@ -26,21 +26,21 @@
   ; Sum 1 -> n (recursively defined)
   [$self $n
     ^if [0 ^n eq]
-      [^n 1 - self ^n +]
+    [^n 1 - self ^n +]
     endif
   ] rec $sum
 
   ; Map fn() over list
   [$self $fn $list
-     ^if ['() ^list eq] '()
-       [^list cdr ^fn self ^list car fn cons]
-     endif
+    ^if ['() ^list eq] '()
+    [^list cdr ^fn self ^list car fn cons]
+    endif
   ] rec $map
 
   ; Range
   [$self $start $end
     ^if [^start ^end eq] '()
-      [^end ^start 1 + self ^start cons]
+    [^end ^start 1 + self ^start cons]
     endif
   ] rec $range
 
@@ -67,8 +67,8 @@
   ; For loop
   [$self $iter $body
     ^if ['() ^iter eq] '()
-      [^iter car body
-       ^body ^iter cdr self]
+    [^iter car body
+      ^body ^iter cdr self]
     endif
   ] rec $for
   [force3] $endfor
@@ -96,7 +96,7 @@
   ; reverse
   [$self $list $new
     ^if ['() ^list eq] ^new
-      [^new ^list car cons ^list cdr self]
+    [^new ^list car cons ^list cdr self]
     endif
   ] rec
   [$helper [$list '() ^list helper]] force
@@ -105,14 +105,14 @@
   ; explode
   [$self $list
     ^if ['() ^list eq] []
-      [^list cdr self ^list car]
+    [^list cdr self ^list car]
     endif
   ] rec $explode
 
   ; implode
   [$self $n
     ^if [0 ^n eq] '()
-      [$tmp ^n 1 - self ^tmp cons]
+    [$tmp ^n 1 - self ^tmp cons]
     endif
   ] rec $implode
 
@@ -130,7 +130,7 @@
   ; factorial
   [$self $n
     ^if [^n 0 eq] 1
-      [^n 1 - self ^n *]
+    [^n 1 - self ^n *]
     endif
   ] rec $factorial
 
@@ -139,14 +139,14 @@
   ; stack-set
   [$self $stack
     ^if [stack length 0 eq]
-      []
-      [stack vpop self]
+    []
+    [stack vpop self]
     endif
   ] rec
   [$helper
-      [$stack
-        stack copy $new-stack
-        dropall ^new-stack helper]]
+    [$stack
+      stack copy $new-stack
+      dropall ^new-stack helper]]
   force $stack-set
 
   dropall

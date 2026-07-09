@@ -22,11 +22,11 @@
   ;; Recursive range function which is tail call oriented.
   [$self $acc $start $end
     ^if [start end eq]
-      [acc end vpush]
-      [end 1 -
-       start
-       acc end vpush
-       self]
+    [acc end vpush]
+    [end 1 -
+      start
+      acc end vpush
+      self]
     endif
   ] rec                         ; (acc start end -- result)
   [0 vmake] swap partial        ; (start end     -- result)
@@ -35,10 +35,10 @@
   ;; Destructive recursive reduce function
   [$self $fn $init $vec
     ^if [vec length 0 eq]
-      [init]
-      [vec vpop ; [value vec]
-       swap init fn
-       ^fn self]
+    [init]
+    [vec vpop ; [value vec]
+      swap init fn
+      ^fn self]
     endif
   ] rec $reduce
 

@@ -7,7 +7,6 @@
   [$x ^x ^x]                $dup
   [$x]                      $drop
   [$x $y ^x ^y]             $swap
-  [0 swap - -]              $+
   [force cswap drop force]  $if
   [force4]                  $endif
   [$cond 't '() ^cond if]   $not

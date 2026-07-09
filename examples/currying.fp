@@ -1,6 +1,5 @@
 [
   ['t cswap]   $swap
-  [0 swap - -] $+
 
   [+] $fn
   

@@ -5,7 +5,6 @@
   [$x]                             $drop
   [$x $y ^x ^y]                    $swap
   [$x $y $z ^x ^z ^y]              $rot
-  [0 swap - -]                     $+
   [force cswap drop force]         $if
   [$a $b $c $d ^a ^b ^c ^d force]  $endif
   [$cond 't '() ^cond if]          $not

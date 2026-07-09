@@ -6,7 +6,6 @@
   [$_]                $drop
   [$x $y ^x ^y]       $swap
   [$a $b $c ^b ^a ^c] $rot
-  [0 swap - -]        $+
   ['()]               $nil
   ['() eq]            $null?
   [$x x]              $force

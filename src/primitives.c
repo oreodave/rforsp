@@ -111,7 +111,14 @@ void prim_mul(obj_t **_)
   push(make_num(as_num(a) * as_num(b)));
 }
 
-void prim_nand(obj_t **_)
+void prim_div(obj_t **_)
+{
+  (void)_;
+  auto b = pop();
+  auto a = pop();
+  push(make_num(as_num(a) / as_num(b)));
+}
+void prim_bitwise_nand(obj_t **_)
 {
   (void)_;
   auto b = pop();

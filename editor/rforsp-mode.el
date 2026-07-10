@@ -148,8 +148,8 @@ Currently unused."
 
 ;;; Electric pairing
 
-(defun rforsp--electric-pair-inhibit (_char)
-  nil)
+(defun rforsp--electric-pair-inhibit (char)
+  (eq char ?'))
 
 (defun rforsp--enable-electric-pair ()
   (setq-local electric-pair-pairs

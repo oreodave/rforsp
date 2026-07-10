@@ -149,7 +149,7 @@ evaluator]] as that's emulating a Forsp program unto itself.
   - [[file:examples/bigrange-list.fp][bigrange-list]]
   - [[file:examples/bigrange-vec.fp][bigrange-vec]]
   - [[file:examples/forsp.fp][mc eval]]
-** PROJ [#A] Better conditionals :cond:
+** IN-PROGRESS [#A] Better conditionals :cond:
 Currently we rely on the user generating their own conditional form
 via user-code.  This bloats the runtime through potentially multiple
 call frames and ~env_find~'s (evaluating ~endif~ and the forcing of
@@ -162,7 +162,7 @@ n 1 & 0 = if
   ['even print]
   ['odd print]
 #+end_src
-*** WIP Design
+*** DONE Design
 ~if~ should be a special operator, like ~quote~ - so it's dealt with
 after resolving an atom.  Based on the syntax design, we'd expect a
 boolean to be on the top of the stack when we're computing ~if~.

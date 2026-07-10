@@ -15,10 +15,9 @@
 
   ; factorial
   [$self $n
-    ^if [^n 0 eq]
-    [1]
-    [^n 1 - self ^n *]
-    endif
+    n 0 eq if
+        [1]
+        [^n 1 - self ^n *]
   ] rec $factorial
 
   18 factorial print

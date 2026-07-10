@@ -157,7 +157,16 @@ static inline void eval(cframe_t *cframe)
     }
     else if (cmd == state->atom_if)
     {
-      FAIL("TODO: Implement");
+      if (cframe->ip > cframe->body->length - 2)
+        FAIL("Expected branches following a if form");
+
+      obj_t *t_branch = cframe_pop(cframe);
+      obj_t *f_branch = cframe_pop(cframe);
+      obj_t *chosen   = pop() == state->atom_true ? t_branch : f_branch;
+
+      if (IS_VEC(chosen))
+        chosen = make_clos(chosen, cframe->env);
+      call(chosen, cframe);
     }
     else
     {

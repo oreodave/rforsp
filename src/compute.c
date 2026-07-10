@@ -109,7 +109,7 @@ static inline cframe_t *cfstack_peek(void)
  * Compute/Eval                                                               *
  ******************************************************************************/
 
-static inline void eval_call(obj_t *to_call, cframe_t *cframe)
+static inline void call(obj_t *to_call, cframe_t *cframe)
 {
   if (IS_CLOS(to_call))
   {
@@ -160,7 +160,7 @@ static inline void eval(cframe_t *cframe)
 
     // Otherwise perform a lookup and "call" the value.
     auto val = cframe_find(cmd, cframe);
-    eval_call(val, cframe);
+    call(val, cframe);
   }
   break;
   case TAG_VEC:

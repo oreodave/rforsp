@@ -175,30 +175,21 @@
 
   [dup *] 8 swap force print ; 64
 
-  ; We can also define control structures such as if-statements
+  ; Some examples using the special `if` operator
 
-  [$cond $true $false cond ^false ^true rot cswap drop force] $if
+  't  if [4] [5] print   ; 4
+  '() if [4] [5] print   ; 5
 
-  ; Some examples
+  ; While the condition that the `if` operator checks has to be on the stack
+  ; (and thus immediately evaluated), the branches have to be closures.
 
-  [5] [4] 't  if print  ; 4
-  [5] [4] '() if print  ; 5
-
-  ; Writing if-statements backwards is tricky, so we can fix it by defining "endif" which will flip the arguments:
-
-  [$false $true $cond $if ^false ^true ^cond if] $endif
-
-  ; Now we can write:
-
-  ^if [1 2 eq]
+  1 2 eq if
   ['true print]
   ['false print]  ; false
-  endif
 
-  ^if [1 1 eq]
+  1 1 eq if
   ['true print]   ; true
   ['false print]
-  endif
 
   ; Finally, we'll finish with recursion. Forsp uses the Y-Combinator for recursion
 
@@ -211,9 +202,9 @@
   ; Now we can implement recursive functions:
 
   [$self $list
-    ^if [^list '() eq] 0
+    ^list '() eq if
+    [0]
     [^list cdr self 1 +]
-    endif
   ] rec $length
 
   '()      length print ; 0

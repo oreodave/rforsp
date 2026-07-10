@@ -5,8 +5,6 @@
   [$a $b $c ^c ^b ^a ^c]         $over2
   [$a $b $c ^b ^a ^c]            $rot
   [$x x]                         $force
-  ; [$c $t $f c ^f ^t rot cswap $_ force] $if
-  ; [$f $t $c $fn ^f ^t ^c fn]     $endif
 
   ; object type predicate functions
   [tag 0 eq] $is-nil  [tag 1 eq] $is-atom [tag 3 eq] $is-pair [tag 4 eq] $is-clos

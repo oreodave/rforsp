@@ -149,18 +149,21 @@ static inline void eval(cframe_t *cframe)
   {
   case TAG_ATOM:
   {
-    // quote is the one special operator.
     if (cmd == state->atom_quote)
     {
       if (cframe_completed(cframe))
         FAIL("Expected data following a quote form");
       push(cframe_pop(cframe));
-      return;
     }
-
-    // Otherwise perform a lookup and "call" the value.
-    auto val = cframe_find(cmd, cframe);
-    call(val, cframe);
+    else if (cmd == state->atom_if)
+    {
+      FAIL("TODO: Implement");
+    }
+    else
+    {
+      auto val = cframe_find(cmd, cframe);
+      call(val, cframe);
+    }
   }
   break;
   case TAG_VEC:

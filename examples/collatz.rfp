@@ -1,0 +1,24 @@
+[
+  [$x x]                                  $force
+  [force cswap $_ force]                  $if
+  [$f $t $c $fn ^f ^t ^c fn]              $endif
+  [$fn $arg [^arg fn]]                    $partial
+  [$f [$x [^x x] f] [$x [^x x] f] force]  $Y
+  [^Y partial]                            $rec
+
+  [$self $n
+    n print
+    ^if n 1 eq
+    ['done print]
+    [
+      ^if n 1 & 0 eq
+      [n 2 / self]
+      [3 n * 1 + self]
+      endif
+    ]
+    endif
+  ] rec $collatz
+
+  'collatz print
+  100 collatz
+]

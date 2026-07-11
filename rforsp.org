@@ -149,103 +149,24 @@ evaluator]] as that's emulating a Forsp program unto itself.
   - [[file:examples/bigrange-list.fp][bigrange-list]]
   - [[file:examples/bigrange-vec.fp][bigrange-vec]]
   - [[file:examples/forsp.fp][mc eval]]
-** IN-PROGRESS [#A] Better conditionals :cond:
-Currently we rely on the user generating their own conditional form
-via user-code.  This bloats the runtime through potentially multiple
-call frames and ~env_find~'s (evaluating ~endif~ and the forcing of
-the original ~if~ closure).
-*** DONE Syntax
-The syntax looks similar to previous conditionals, but without
-~endif~:
-#+begin_src rforsp
-n 1 & 0 = if
-  ['even print]
-  ['odd print]
-#+end_src
-*** DONE Design
-~if~ should be a special operator, like ~quote~ - so it's dealt with
-after resolving an atom.  Based on the syntax design, we'd expect a
-boolean to be on the top of the stack when we're computing ~if~.
+** PROJ [#C] Proper boolean type :bool:
+We're currently using the atom ~t~ and NULL as our boolean sentinels.
+I think it's time to move this towards something better.  I suggest:
+- atom ~t~ for truth
+- atom ~f~ for false
+*** TODO Refactor truthiness
+*** TODO Introduce basic boolean primitives
+**** TODO Boolean and
+**** TODO Boolean or
+**** TODO Boolean not
+*** TODO Benchmark
+Shouldn't be that big a difference between the two variants here, but
+still good to check for implementation issues.
 
-Like ~quote~, we should pop the two branches early to dispatch to the
-correct one.  Then, based on the conditional we pop, we should
-dispatch the correct branch to ~call~.
-#+begin_src c
-obj_t *cond         = pop();
-obj_t *true_branch  = cframe_pop();
-obj_t *false_branch = cframe_pop();
-obj_t *chosen = cond == state->atom_true ? true_branch : false_branch;
-call(make_clos(chosen, cframe->env), cframe);
-#+end_src
-
-~call~ deals with TCO already.  And we only make a closure out of the
-branch we pick.
-
-When [[*Native recursive closures][native rec]] lands this becomes
-really OP as it frees up even more since all recursive function
-examples use conditionals.
-*** DONE Implement
-*** DONE Benchmark
-Make copies of each of the following files with the ~if~/~endif~
-closures removed, and compare running the new interpreter against the
-amended programs against the old interpreter with the old programs.
 - [[file:examples/factorial.fp][factorial]]
 - [[file:examples/bigrange-list.fp][bigrange-list]]
 - [[file:examples/bigrange-vec.fp][bigrange-vec]]
 - [[file:examples/forsp.fp][mc eval]]
-
-2026-07-10:
-https://gist.github.com/oreodave/ffe30d8ddb44c68d89147ccbe9b696ee.
-Holy moly.
-2026-07-11:
-https://gist.github.com/oreodave/7799773bde4cdf5071397722963314bc.
-Even ~loads-of-cons~ benefits from this.
-*** DONE Redesign all examples
-*** NOTE Thinking about a ~cond~ form
-Like Lisp, since we now have ~if~, we can construct a ~cond~ like
-form.
-
-#+begin_src rforsp
-cond [
-  [[n 0 eq]
-    ['zero print]]
-  [[n 1 eq]
-    ['one print]]
-  [[n 2 eq]
-    ['two print]]
-  ['t
-    ['unsupported print]]
-]
-#+end_src
-
-Which would roughly macroexpand to:
-#+begin_src rforsp
-n 0 eq if
-['zero print]
-[
-  n 1 eq if
-  ['one print]
-  [
-    n 2 eq if
-    ['two print]
-    [
-      't if
-      ['unsupported print]
-      []
-    ]
-  ]
-]
-#+end_src
-
-Realistically I'd prefer something like a `switch`:
-#+begin_src rforsp
-switch [n] [
-  [0 ['zero print]]
-  [1 ['one print]]
-  [2 ['two print]]
-  [otherwise ['unsupported print]]
-]
-#+end_src
 ** PROJ [#C] Floating point numbers :floats:
 Obvious.
 ** PROJ [#C] Big integers :bigint:
@@ -325,6 +246,47 @@ entries.  An optimisation pass then runs:
 *** TODO Stack effect verification
 *** TODO Benchmark against current eval
 * Complete
+** Explored but not merged
+*** COMPLETE Make reader iterative :gc:reader:
+2026-07-02: not worth it.  Since we need to form some sort of stack or
+queue to deal with currently building lists, they escape the purview
+of the limited machine stack scan.  So either we need to:
+- Preserve them by forcing ~gc_collect~ to mark the constituent
+  objects of every list builder frame; which is the same as the
+  explicit root stack, but worse.
+- Extend the stack march to cover the read phase, at which point why
+  not just do the complete stack march - which we've confirmed to be
+  working?
+
+This idea is worthless to pursue currently.
+*** COMPLETE [#B] Collection threshold management :threshold:
+2026-07-07: Benchmarking shows NO difference between using a static
+growth multiplier and an adjusted one i.e. all perf stats of the
+dynamic multiplier are within a single standard deviation of the
+static multiplier.  Not worth pursuing further.
+
+Our threshold automatically adjusts at the end of a sweep so we don't
+collect as often, but the rule is just a constant 2 times multiplier
+on the number of live slots (floored by GC_THRESHOLD_DEFAULT).  We may
+want to adjust the multiplier in low-yield situations where we haven't
+swept much.  Investigate this.
+
+[[file:src/gc.c::gc->metadata.threshold = MAX(GC_THRESHOLD_DEFAULT,
+ gc->metadata.slots_live * 2);][Location]]
+**** DONE Adaptive multiplier
+Based on yield from a sweep, we can increase the multiplier to lower
+collection pressure.
+
+if ~freed/pre_live_slots~ < 0.25 (or some other low constant), we can
+go for something like ~live_slots*4~ instead.
+
+We'll need to introduce more state for this i.e. something like a
+~growth_multiplier~ which we adjust based on the above condition.
+
+Then the threshold adjustment works against ~live_slots *
+growth_multiplier~.
+**** DONE Benchmark
+- Success: ~make examples~.
 ** COMPLETE Vectors :vector:
 We want to introduce a Vector type to our object model.  Obviously, as
 per the tagged pointer model, this will be by pointer; which means
@@ -540,47 +502,103 @@ Similar to the ~fstack~, construct a dynamic array implementation that
 resizes to avoid overflow.
 *** DONE Benchmark
 - Success: ~make examples~
-** Explored but not merged
-*** COMPLETE Make reader iterative :gc:reader:
-2026-07-02: not worth it.  Since we need to form some sort of stack or
-queue to deal with currently building lists, they escape the purview
-of the limited machine stack scan.  So either we need to:
-- Preserve them by forcing ~gc_collect~ to mark the constituent
-  objects of every list builder frame; which is the same as the
-  explicit root stack, but worse.
-- Extend the stack march to cover the read phase, at which point why
-  not just do the complete stack march - which we've confirmed to be
-  working?
+** COMPLETE [#A] Better conditionals :cond:
+Currently we rely on the user generating their own conditional form
+via user-code.  This bloats the runtime through potentially multiple
+call frames and ~env_find~'s (evaluating ~endif~ and the forcing of
+the original ~if~ closure).
+*** DONE Syntax
+The syntax looks similar to previous conditionals, but without
+~endif~:
+#+begin_src rforsp
+n 1 & 0 = if
+  ['even print]
+  ['odd print]
+#+end_src
+*** DONE Design
+~if~ should be a special operator, like ~quote~ - so it's dealt with
+after resolving an atom.  Based on the syntax design, we'd expect a
+boolean to be on the top of the stack when we're computing ~if~.
 
-This idea is worthless to pursue currently.
-*** COMPLETE [#B] Collection threshold management :threshold:
-2026-07-07: Benchmarking shows NO difference between using a static
-growth multiplier and an adjusted one i.e. all perf stats of the
-dynamic multiplier are within a single standard deviation of the
-static multiplier.  Not worth pursuing further.
+Like ~quote~, we should pop the two branches early to dispatch to the
+correct one.  Then, based on the conditional we pop, we should
+dispatch the correct branch to ~call~.
+#+begin_src c
+obj_t *cond         = pop();
+obj_t *true_branch  = cframe_pop();
+obj_t *false_branch = cframe_pop();
+obj_t *chosen = cond == state->atom_true ? true_branch : false_branch;
+call(make_clos(chosen, cframe->env), cframe);
+#+end_src
 
-Our threshold automatically adjusts at the end of a sweep so we don't
-collect as often, but the rule is just a constant 2 times multiplier
-on the number of live slots (floored by GC_THRESHOLD_DEFAULT).  We may
-want to adjust the multiplier in low-yield situations where we haven't
-swept much.  Investigate this.
+~call~ deals with TCO already.  And we only make a closure out of the
+branch we pick.
 
-[[file:src/gc.c::gc->metadata.threshold = MAX(GC_THRESHOLD_DEFAULT,
- gc->metadata.slots_live * 2);][Location]]
-**** DONE Adaptive multiplier
-Based on yield from a sweep, we can increase the multiplier to lower
-collection pressure.
+When [[*Native recursive closures][native rec]] lands this becomes
+really OP as it frees up even more since all recursive function
+examples use conditionals.
+*** DONE Implement
+*** DONE Benchmark
+Make copies of each of the following files with the ~if~/~endif~
+closures removed, and compare running the new interpreter against the
+amended programs against the old interpreter with the old programs.
+- [[file:examples/factorial.fp][factorial]]
+- [[file:examples/bigrange-list.fp][bigrange-list]]
+- [[file:examples/bigrange-vec.fp][bigrange-vec]]
+- [[file:examples/forsp.fp][mc eval]]
 
-if ~freed/pre_live_slots~ < 0.25 (or some other low constant), we can
-go for something like ~live_slots*4~ instead.
+2026-07-10:
+https://gist.github.com/oreodave/ffe30d8ddb44c68d89147ccbe9b696ee.
+Holy moly.
+2026-07-11:
+https://gist.github.com/oreodave/7799773bde4cdf5071397722963314bc.
+Even ~loads-of-cons~ benefits from this.
+*** DONE Redesign all examples
+*** NOTE Thinking about a ~cond~ form
+Like Lisp, since we now have ~if~, we can construct a ~cond~ like
+form.
 
-We'll need to introduce more state for this i.e. something like a
-~growth_multiplier~ which we adjust based on the above condition.
+#+begin_src rforsp
+cond [
+  [[n 0 eq]
+    ['zero print]]
+  [[n 1 eq]
+    ['one print]]
+  [[n 2 eq]
+    ['two print]]
+  ['t
+    ['unsupported print]]
+]
+#+end_src
 
-Then the threshold adjustment works against ~live_slots *
-growth_multiplier~.
-**** DONE Benchmark
-- Success: ~make examples~.
+Which would roughly macroexpand to:
+#+begin_src rforsp
+n 0 eq if
+['zero print]
+[
+  n 1 eq if
+  ['one print]
+  [
+    n 2 eq if
+    ['two print]
+    [
+      't if
+      ['unsupported print]
+      []
+    ]
+  ]
+]
+#+end_src
+
+Realistically I'd prefer something like a `switch`:
+#+begin_src rforsp
+switch [n] [
+  [0 ['zero print]]
+  [1 ['one print]]
+  [2 ['two print]]
+  [otherwise ['unsupported print]]
+]
+#+end_src
 * Backlog
 ** BACKLOG Closure optimisation :optimiser:
 2026-07-06: Not worth thinking about right now.  Performance dips from

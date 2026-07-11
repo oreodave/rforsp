@@ -1,11 +1,7 @@
 [
   ;; Core: Helpers
-  [$x ^x ^x]                       $dup
-  [$x x]                           $force
-  [$x]                             $drop
-  [$x $y ^x ^y]                    $swap
-  [$x $y $z ^x ^z ^y]              $rot
-  [$fn $arg [^arg fn]]             $partial
+  [$x $y ^x ^y]         $swap
+  [$fn $arg [^arg fn]]  $partial
 
   ;; Recursive range function which is tail call oriented.
   [$self $acc $start $end

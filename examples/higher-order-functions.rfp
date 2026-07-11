@@ -5,7 +5,6 @@
   [$a $b $c ^b ^a ^c] $rot
   ['()]               $nil
   [nil eq]            $null?
-  [$x x]              $force
 
   ; bit operations
   [dup nand]      $~

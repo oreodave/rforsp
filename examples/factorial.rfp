@@ -1,12 +1,13 @@
 [
-  [$x x]                       $force
+  [$x x] $force
 
-  ; factorial
+  1 18
   [$self $n $acc
     n 0 eq if
     [acc]
     [^acc ^n * ^n 1 - self]
-  ] rec $factorial
+  ] rec
+  force
 
-  1 18 factorial print
+  print
 ]

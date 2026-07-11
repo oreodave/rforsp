@@ -1,7 +1,9 @@
 [
-  [$x x]                                  $force
-  [$fn $arg [^arg fn]]                    $partial
+  [$x x]  $force
 
+  'collatz print
+
+  100
   [$self $n
     n print
     n 1 eq if
@@ -11,8 +13,6 @@
       [n 2 / self]
       [3 n * 1 + self]
     ]
-  ] rec $collatz
-
-  'collatz print
-  100 collatz
+  ] rec
+  force
 ]

@@ -27,24 +27,20 @@
   "Number of spaces per nesting level."
   :type 'integer)
 
-(defcustom rforsp-builtins nil
-  "Builtin words to highlight.
-Currently unused."
+(defcustom rforsp-builtins
+  (list "quote" "if")
+  "Builtin words to highlight."
   :type '(repeat string))
 
 (defcustom rforsp-keywords
-  (list "push" "pop" "cons" "car" "cdr" "eq" "cswap"
-        "tag" "read" "print" "stack" "env"
-        "+" "-" "*" "/" "&" "|" "nand" "<<" ">>"
-        "copy" "length" "vmake" "vpush" "vpop" "vswap" "vget" "vset"
-        "rec")
-  "Keyword list.
-Currently unused."
+  (list
+   "copy" "length" "vmake" "vpush" "vpop" "vswap" "vget" "vset"
+   "push" "pop" "cons" "car" "cdr" "eq" "cswap"
+   "tag" "read" "print" "stack" "env"
+   "+" "-" "*" "/" "&" "|" "nand" "<<" ">>"
+   "rec")
+  "Keyword list."
   :type '(repeat string))
-
-(defcustom rforsp-enable-electric-pair t
-  "Whether to enable `electric-pair-local-mode'."
-  :type 'boolean)
 
 (defcustom rforsp-formatter-command nil
   "Future formatter command."
@@ -75,6 +71,16 @@ Currently unused."
     (modify-syntax-entry ?^ "." st)
     (modify-syntax-entry ?$ "." st)
 
+    ;; Symbol constituents
+    (modify-syntax-entry ?- "_" st)
+    (modify-syntax-entry ?+ "_" st)
+    (modify-syntax-entry ?* "_" st)
+    (modify-syntax-entry ?/ "_" st)
+    (modify-syntax-entry ?& "_" st)
+    (modify-syntax-entry ?| "_" st)
+    (modify-syntax-entry ?< "_" st)
+    (modify-syntax-entry ?> "_" st)
+
     st))
 
 ;;; Font lock
@@ -82,15 +88,8 @@ Currently unused."
 (defconst rforsp--symbol
   "[^][() \t\n;\"'^$]+")
 
-(defface rforsp-reader-macro-face
-  '((t :inherit font-lock-variable-name-face))
-  "Reader macro face, used for `$', `^', and `\'' items."
-  :group 'rforsp)
-
 (defconst rforsp-font-lock-keywords
   `(
-    ,@rforsp-keywords
-
     ;; Reader operators.
     (,(rx (group "$") (group (regexp rforsp--symbol)))
      (1 font-lock-builtin-face)
@@ -101,6 +100,12 @@ Currently unused."
 
     (,(rx (group "'") (regexp rforsp--symbol))
      (1 font-lock-builtin-face))
+
+    (,(concat "\\_<" (regexp-opt rforsp-builtins t) "\\_>")
+     . font-lock-builtin-face)
+
+    (,(concat "\\_<" (regexp-opt rforsp-keywords t) "\\_>")
+     . font-lock-keyword-face)
 
     ;; Future: integers.
     ;; ("\\_<[0-9]+\\_>" . font-lock-constant-face)
@@ -146,20 +151,6 @@ Currently unused."
     (when (> (- (point-max) pos) (point))
       (goto-char (- (point-max) pos)))))
 
-;;; Electric pairing
-
-(defun rforsp--electric-pair-inhibit (char)
-  (eq char ?'))
-
-(defun rforsp--enable-electric-pair ()
-  (setq-local electric-pair-pairs
-              '((?\( . ?\))
-                (?\[ . ?\])
-                (?\" . ?\")))
-  (setq-local electric-pair-inhibit-predicate
-              #'rforsp--electric-pair-inhibit)
-  (electric-pair-local-mode 1))
-
 ;;; Imenu
 
 (defconst rforsp-imenu-generic-expression
@@ -193,11 +184,17 @@ Currently unused."
        "]\\s-*\\$"
        nil t))))
 
-;;; Outline
-
-(setq-default outline-regexp "^\\s-*\\[")
-
-;;;###autoload
+;;; Smart parens integration
+(with-eval-after-load "smartparens"
+  (defun rforsp--smartparens-config ()
+    (setq-local
+     sp-local-pairs
+     '((:open "\\\"" :close "\\\"" :actions (insert wrap autoskip navigate))
+       (:open "\"" :close "\"" :actions (wrap insert autoskip navigate) :unless
+        (sp-point-before-word-p sp-point-after-word-p sp-point-before-same-p)
+        :post-handlers nil)
+       (:open "(" :close ")" :actions (insert wrap autoskip navigate))
+       (:open "[" :close "]" :actions (insert wrap autoskip navigate))))))
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.rfp\\'" . rforsp-mode))
@@ -230,8 +227,8 @@ Currently unused."
 
   (setq-local outline-regexp "^\\s-*\\[")
 
-  (when rforsp-enable-electric-pair
-    (rforsp--enable-electric-pair)))
+  (with-eval-after-load "smartparens"
+    (rforsp--smartparens-config)))
 
 (provide 'rforsp-mode)
 

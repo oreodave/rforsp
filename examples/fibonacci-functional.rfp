@@ -1,7 +1,5 @@
 [
-  ; this version implements with recursion and higher-order functions
-
-  ; core utilities
+  ;; core utilities
   [$x ^x ^x]          $dup
   [$_]                $drop
   [$x $y ^x ^y]       $swap
@@ -10,24 +8,24 @@
   ['() eq]            $null?
   [$x x]              $force
 
-  ; range
+  ;; range
   [$self $start $end
     ^start ^end eq if
     ['()]
     [^end ^start 1 + self ^start cons]
   ] rec $range
 
-  ; map [$fn $list -> $out-list]
+  ;; map [$fn $list -> $out-list]
   [$self $fn $list
     ^list null? if
     ['()]
     [^list car fn ^list cdr ^fn self swap cons]
   ] rec $map
 
-  ; each [$fn $list]
+  ;; each [$fn $list]
   [$fn [fn '()] map drop] $each
 
-  ; implementation
+  ;; implementation
   [0 1
     [$self $a $b $n
       ^n 0 eq if

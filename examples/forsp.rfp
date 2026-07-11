@@ -1,12 +1,12 @@
 [
-  ; core utility functions
+  ;; core utility functions
   [$n ^n ^n]                     $dup
   ['t cswap]                     $swap
   [$a $b $c ^c ^b ^a ^c]         $over2
   [$a $b $c ^b ^a ^c]            $rot
   [$x x]                         $force
 
-  ; object type predicate functions
+  ;; object type predicate functions
   [tag 0 eq] $is-nil
   [tag 1 eq] $is-atom
   [tag 3 eq] $is-pair
@@ -19,7 +19,7 @@
       ['()]]
   ] $is-list
 
-  ; env-find
+  ;; env-find
   [$self $key $env
     ^env is-nil if
     ['NOT_FOUND_IN_ENV ^key cons print FAIL]
@@ -30,14 +30,14 @@
     ]
   ] rec $env-find
 
-  ; stack operations
+  ;; stack operations
   [cons]                                      $stack-push
   [$b stack-push ^b stack-push]               $stack-push2
   [dup cdr swap car]                          $stack-pop
   [stack-pop $b stack-pop ^b]                 $stack-pop2
   [stack-pop $c stack-pop $b stack-pop ^b ^c] $stack-pop3
 
-  ; closure operations
+  ;; closure operations
   [$expr $env '() ^env cons ^expr cons '#closure cons]        $make-closure
   [$x
     ^x is-pair if
@@ -50,7 +50,7 @@
   ] $is-closure
   [dup cdr car swap car]                                      $unpack-closure
 
-  ; compute [$comp $stack $env -> $stack]
+  ;; compute [$comp $stack $env -> $stack]
   [$compute $eval
     dup is-nil if
     [rot $_ $_] ; false case: return $stack
@@ -64,7 +64,7 @@
     ]
   ] rec $compute
 
-  ; eval: [$expr $stack $env -> $stack $env]
+  ;; eval: [$expr $stack $env -> $stack $env]
   [$eval
     dup is-atom if
     [
@@ -84,10 +84,10 @@
     ]
   ] rec $eval
 
-  ; tag function
+  ;; tag function
   [$x [[^x tag] 4 ^x is-closure if] 7 [^x is-clos] if] $new-tag
 
-  ; init-env
+  ;; init-env
   '()
   [stack-pop over2 swap env-find stack-push]  'push   cons cons
   [stack-pop2 cons rot swap cons swap]        'pop    cons cons
@@ -113,17 +113,17 @@
   (force cswap $_ force)       $if
   ($f $t $c $fn ^f ^t ^c fn)   $endif
 
-  ; Y-Combinator
+  ;; Y-Combinator
   ($f
     ($x (^x x) f)
     ($x (^x x) f)
     force
   ) $Y
 
-  ; rec: syntax sugar for applying the Y-Combinator
+  ;; rec: syntax sugar for applying the Y-Combinator
   ($g (^g Y)) $rec
 
-  ; factorial
+  ;; factorial
   ($self $n
     ^if (^n 0 eq)
       (1)

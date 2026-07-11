@@ -1,44 +1,44 @@
 [
-  ; core utilities
+  ;; core utilities
   [$x ^x ^x]          $dup
   [$x $y ^x ^y]       $swap
   [$a $b $c ^b ^a ^c] $rot
   ['()]               $nil
   [nil eq]            $null?
 
-  ; bit operations
+  ;; bit operations
   [dup nand]      $~
   [nand ~]        $&
   [~ swap ~ nand] $|
 
-  ; logical operations
+  ;; logical operations
   [if ['()] ['t]]         $!
   [! !]                   $!!
   [$a $b a if [b] [nil]]  $and
   [$a $b a if ['t] [b]]   $or
 
-  ; comparisons
+  ;; comparisons
   [55 >> 0 eq !] $is-neg
   [- is-neg]     $<
   [< !]          $>=
   [swap <]       $>
   [swap >=]      $<=
 
-  ; range
+  ;; range
   [$self $start $end
     ^start ^end eq if
     [nil]
     [^end ^start 1 + self ^start cons]
   ] rec $range
 
-  ; map [$fn $list -> $out-list]
+  ;; map [$fn $list -> $out-list]
   [$self $fn $list
     ^list null? if
     [nil]
     [^list car fn ^list cdr ^fn self swap cons]
   ] rec $map
 
-  ; filter [$pred $list -> $out-list]
+  ;; filter [$pred $list -> $out-list]
   [$self $pred $list
     ^list null? if
     [nil]
@@ -49,14 +49,14 @@
     ]
   ] rec $filter
 
-  ; reduce [$fn $init $list -> $out]
+  ;; reduce [$fn $init $list -> $out]
   [$self $fn $init $list
     ^list null? if
     [^init]
     [^list cdr ^list car ^init fn ^fn self]
   ] rec $reduce
 
-  ; is-even
+  ;; is-even
   [1 & 0 eq] $even?
 
   10 0 range

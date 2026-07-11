@@ -9,28 +9,28 @@
   [$x $y ^x ^y]             $swap
   [$fn $arg [^arg fn]]      $partial
 
-  ; Sum 1 -> n (recursively defined)
+  ;; Sum 1 -> n (recursively defined)
   [$self $n
     0 ^n eq if
     [0]
     [^n 1 - self ^n +]
   ] rec $sum
 
-  ; Map fn() over list
+  ;; Map fn() over list
   [$self $fn $list
     '() ^list eq if
     ['()]
     [^list cdr ^fn self ^list car fn cons]
   ] rec $map
 
-  ; Range
+  ;; Range
   [$self $start $end
     ^start ^end eq if
     ['()]
     [^end ^start 1 + self ^start cons]
   ] rec $range
 
-  ; Show off some things
+  ;; Show off some things
 
   5 0 range
   'range print dup print
@@ -50,7 +50,7 @@
   12 34 eq print
   34 35 1 - eq print
 
-  ; For loop
+  ;; For loop
   [$self $iter $body
     '() ^iter eq if
     []
@@ -69,13 +69,13 @@
     [$n ^n 10 * print]
   endfor
 
-  ; depth
+  ;; depth
   [stack length] $depth
 
   'length print
   '(1 2 3 4) length print
 
-  ; dropall
+  ;; dropall
   [$self
     depth 1 eq if
     [$_]
@@ -90,7 +90,7 @@
   'depth0 print
   depth print
 
-  ; reverse
+  ;; reverse
   [$self $new $list
     '() ^list eq if
     [^new]
@@ -98,14 +98,14 @@
   ] rec
   '() swap partial $reverse
 
-  ; explode
+  ;; explode
   [$self $list
     '() ^list eq if
     []
     [^list cdr self ^list car]
   ] rec $explode
 
-  ; implode
+  ;; implode
   [$self $n
     0 ^n eq if
     ['()]
@@ -125,7 +125,7 @@
   10 implode
   print
 
-  ; factorial
+  ;; factorial
   [$self $n
     ^n 0 eq if
     [1]
@@ -134,7 +134,7 @@
 
   5 factorial print
 
-  ; stack-set
+  ;; stack-set
   [$self $stack
     stack length 0 eq if
     []

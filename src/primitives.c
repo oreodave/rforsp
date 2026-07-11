@@ -221,10 +221,15 @@ void prim_length(obj_t **_)
 void prim_vmake(obj_t **_)
 {
   (void)_;
-  auto size = pop();
-  if (!IS_NUM(size) || as_num(size) < 0)
-    FAIL("prim_vmake: Expected unsigned number for size, got %p", (void *)size);
-  auto new_vec = make_vec(as_num(size));
+  auto osize = pop();
+  if (!IS_NUM(osize) || as_num(osize) < 0)
+    FAIL("prim_vmake: Expected unsigned number for size, got %p",
+         (void *)osize);
+
+  auto size    = as_num(osize);
+  auto new_vec = make_vec(size);
+  // Set the length of the vector to the requested size.
+  TYPED_UNTAG(new_vec, vec_t *)->length = size;
   push(new_vec);
 }
 

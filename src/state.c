@@ -118,6 +118,7 @@ const struct PrimRecord PRIMITIVES[] = {
     MAKE_PRIM_RECORD("print", &prim_print),
     MAKE_PRIM_RECORD("stack", &prim_stack),
     MAKE_PRIM_RECORD("env", &prim_env),
+    MAKE_PRIM_RECORD("nil", &prim_nil),
     MAKE_PRIM_RECORD("+", &prim_add),
     MAKE_PRIM_RECORD("-", &prim_sub),
     MAKE_PRIM_RECORD("*", &prim_mul),

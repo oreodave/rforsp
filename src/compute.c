@@ -170,6 +170,13 @@ static inline void eval_atom(obj_t *cmd, cframe_t *cframe)
     chosen = make_clos(chosen, cframe->env);
     call(chosen, cframe);
   }
+  else if (cmd == state->atom_rec)
+  {
+    obj_t *closure = pop();
+    assert(IS_CLOS(closure));
+    obj_t *rec_closure = TAG_CANON(UNTAG(closure), TAG_REC);
+    push(rec_closure);
+  }
   else
   {
     auto val = cframe_find(cmd, cframe);
@@ -188,16 +195,11 @@ static inline void eval(cframe_t *cframe)
   switch (get_tag(cmd))
   {
   case TAG_ATOM:
-  {
     eval_atom(cmd, cframe);
-  }
-  break;
+    break;
   case TAG_VEC:
-  {
-    auto new_clos = make_clos(cmd, cframe->env);
-    push(new_clos);
-  }
-  break;
+    push(make_clos(cmd, cframe->env));
+    break;
   case TAG_NIL:
   case TAG_NUM:
   case TAG_CLOS:

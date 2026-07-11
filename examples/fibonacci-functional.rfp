@@ -10,9 +10,6 @@
   ['() eq]            $null?
   [$x x]              $force
 
-  ; recursion via y-combinator
-  [$f [$x [^x x] f] dup force] $Y [$g [^g Y]] $rec
-
   ; range
   [$self $start $end
     ^start ^end eq if

@@ -9,17 +9,6 @@
   [$x $y ^x ^y]             $swap
   [$fn $arg [^arg fn]]      $partial
 
-
-  ;; Y-Combinator
-  [$f
-    [$x [^x x] f]
-    [$x [^x x] f]
-    force
-  ] $Y
-
-  ; Recusive function builder
-  [^Y partial] $rec
-
   ; Sum 1 -> n (recursively defined)
   [$self $n
     0 ^n eq if

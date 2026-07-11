@@ -93,7 +93,7 @@ so we're finally beating the original in terms of being able to
 interpret a program it can't.
 * PROJ Language :lang:
 Language design projects.
-** PROJ [#A] Native recursive closures :rec:
+** IN-PROGRESS [#A] Native recursive closures :rec:
 Instead of relying on the Y-combinator to construct recursive
 functions (see [[file:examples/factorial.fp]]), introduce a ~rec~
 keyword that marks a closure as self-referencing.
@@ -118,16 +118,16 @@ Benefits:
   - deeper cframe stack per recursive invocation - particularly if not
     already tail call style
 - Tiny syntactical change for all example programs.
-*** TODO Introduce ~TAG_REC~ objects
+*** DONE Introduce ~TAG_REC~ objects
 A ~TAG_REC~ object simply tags a pre-existing closure - so the
 constructor should permit only ~clos_t*~.  Destructor obviously just
 resolves to a closure.
-*** TODO Runtime: handle calls to ~rec~
+*** DONE Runtime: handle calls to ~rec~
 I think the best way to approach this while preserving Forsp semantics
 is to introduce ~rec~ as a primitive ~prim_rec~.  All it needs to do
 is pop an item off the stack, verify it's a closure, then re-tag it as
 a TAG_REC.
-*** TODO Runtime: handle ~TAG_REC~ in ~eval_call~
+*** DONE Runtime: handle ~TAG_REC~ in ~eval_call~
 Add the ~IS_REC~ branch that pushes self and constructs the cframe.
 Something like this:
 #+begin_src c
@@ -138,17 +138,20 @@ if (IS_REC(to_call))
   cfstack_push(clos->body, clos->env);
 }
 #+end_src
-*** TODO Update examples
-Replace any Y-combinator based recursion with our new ~rec~.  Only
-time this shouldn't be the case is in [[examples/forsp.fp][mc
-evaluator]] as that's emulating a Forsp program unto itself.
-*** TODO Benchmark
+*** DONE Benchmark
 - ~make examples~ must produce identical output.
 - Compare instruction count (callgrind) and wall time on:
   - [[file:examples/factorial.fp][factorial]]
   - [[file:examples/bigrange-list.fp][bigrange-list]]
   - [[file:examples/bigrange-vec.fp][bigrange-vec]]
   - [[file:examples/forsp.fp][mc eval]]
+
+2026-07-11: Incredible numbers across the board.
+https://gist.github.com/oreodave/5c87b4e077eba995ae44c0338b8516a1
+*** DONE Update examples
+Replace any Y-combinator based recursion with our new ~rec~.  Only
+time this shouldn't be the case is in [[examples/forsp.fp][mc
+evaluator]] as that's emulating a Forsp program unto itself.
 ** PROJ [#C] Proper boolean type :bool:
 We're currently using the atom ~t~ and NULL as our boolean sentinels.
 I think it's time to move this towards something better.  I suggest:

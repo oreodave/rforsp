@@ -44,6 +44,14 @@ void print(obj_t *obj)
     printf(")");
   }
   break;
+  case TAG_REC:
+  {
+    printf("REC-CLOSURE<");
+    clos_t *clos = TYPED_UNTAG(obj, clos_t *);
+    print(clos->body);
+    printf(", %p>", (void *)clos->env);
+  }
+  break;
   case TAG_CLOS:
   {
     printf("CLOSURE<");

@@ -16,8 +16,9 @@ typedef enum Tag
   TAG_NUM  = 2,
   TAG_PAIR = 3,
   TAG_CLOS = 4,
-  TAG_VEC  = 5,
-  TAG_PRIM = 6,
+  TAG_REC  = 5,
+  TAG_VEC  = 6,
+  TAG_PRIM = 7,
 } tag_t;
 
 typedef struct obj obj_t;
@@ -32,11 +33,13 @@ typedef struct obj obj_t;
 #define IS_NUM(obj)  (GET_TAG(obj) == TAG_NUM)
 #define IS_PAIR(obj) (GET_TAG(obj) == TAG_PAIR)
 #define IS_CLOS(obj) (GET_TAG(obj) == TAG_CLOS)
+#define IS_REC(obj)  (GET_TAG(obj) == TAG_REC)
 #define IS_PRIM(obj) (GET_TAG(obj) == TAG_PRIM)
 #define IS_VEC(obj)  (GET_TAG(obj) == TAG_VEC)
 
 #define IS_CONTAINER(OBJ) (IS_PAIR(OBJ) || IS_VEC(OBJ))
-#define IS_ALLOC(OBJ)     (IS_PAIR(OBJ) || IS_CLOS(OBJ) || IS_VEC(OBJ))
+#define IS_ALLOC(OBJ) \
+  (IS_PAIR(OBJ) || IS_CLOS(OBJ) || IS_REC(OBJ) || IS_VEC(OBJ))
 
 #define TYPED_UNTAG(X, T) ((T)UNTAG(X))
 #define DIRECT_CAR(O)     (((pair_t *)(UNTAG(O)))->car)
@@ -68,6 +71,7 @@ obj_t *make_atom(const char *str, size_t len);
 obj_t *make_num(int64_t num);
 obj_t *make_pair(obj_t *car, obj_t *cdr);
 obj_t *make_clos(obj_t *body, obj_t *env);
+obj_t *make_rec(clos_t *clos);
 obj_t *make_vec(u32 capacity);
 obj_t *make_prim(prim_t *func);
 
@@ -100,6 +104,13 @@ static inline pair_t *as_pair(obj_t *obj)
 static inline clos_t *as_clos(obj_t *obj)
 {
   if (!IS_CLOS(obj))
+    return NULL;
+  return TYPED_UNTAG(obj, clos_t *);
+}
+
+static inline clos_t *as_rec(obj_t *obj)
+{
+  if (!IS_REC(obj))
     return NULL;
   return TYPED_UNTAG(obj, clos_t *);
 }

@@ -159,6 +159,17 @@ void prim_rsh(obj_t **_)
   push(make_num(as_num(a) >> as_num(b)));
 }
 
+void prim_rec(obj_t **_)
+{
+  (void)_;
+  auto closure = pop();
+  if (!IS_CLOS(closure))
+  {
+    FAIL("Expected closure on stack for `rec`");
+  }
+  push(TAG_TYPE(UNTAG(closure), REC));
+}
+
 void prim_copy(obj_t **_)
 {
   (void)_;

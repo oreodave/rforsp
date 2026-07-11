@@ -41,6 +41,12 @@ obj_t *make_clos(obj_t *body, obj_t *env)
   return oclos;
 }
 
+obj_t *make_rec(clos_t *closure)
+{
+  // Closure is already compiled, just retag.
+  return TAG_TYPE(closure, REC);
+}
+
 obj_t *make_vec(u32 capacity)
 {
   auto ovec = gc_alloc(TAG_VEC);
@@ -96,6 +102,7 @@ obj_canon_t as_canon(obj_t *obj)
     return (obj_canon_t){.tag = tag, .as_pair = *as_pair(obj)};
     break;
   case TAG_CLOS:
+  case TAG_REC:
     return (obj_canon_t){.tag = tag, .as_clos = *as_clos(obj)};
     break;
   case TAG_VEC:

@@ -109,6 +109,7 @@ const struct PrimRecord RECORDS[] = {
     MAKE_PRIM_RECORD("nand", &prim_bitwise_nand),
     MAKE_PRIM_RECORD("<<", &prim_lsh),
     MAKE_PRIM_RECORD(">>", &prim_rsh),
+    MAKE_PRIM_RECORD("rec", &prim_rec),
     MAKE_PRIM_RECORD("copy", &prim_copy),
     MAKE_PRIM_RECORD("length", &prim_length),
     MAKE_PRIM_RECORD("vmake", &prim_vmake),

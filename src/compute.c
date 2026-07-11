@@ -109,20 +109,32 @@ static inline cframe_t *cfstack_peek(void)
  * Compute/Eval                                                               *
  ******************************************************************************/
 
+static inline void call_clos(clos_t *clos, cframe_t *cframe)
+{
+  if (!cframe_completed(cframe))
+    // There is still work to be done in the current cframe.  Thus, we
+    // establish a new cframe for this closure.
+    cfstack_push(clos->body, clos->env);
+  else
+    // If there's no work to be done, why inflate the call stack?  Just
+    // reuse the current call cframe and continue.
+    *cframe = cframe_from_clos(clos->body, clos->env);
+}
+
 static inline void call(obj_t *to_call, cframe_t *cframe)
 {
   if (IS_CLOS(to_call))
   {
     auto new_clos = as_clos(to_call);
-
-    if (!cframe_completed(cframe))
-      // There is still work to be done in the current cframe.  Thus, we
-      // establish a new cframe for this closure.
-      cfstack_push(new_clos->body, new_clos->env);
-    else
-      // If there's no work to be done, why inflate the call stack?  Just
-      // reuse the current call cframe and continue.
-      *cframe = cframe_from_clos(new_clos->body, new_clos->env);
+    call_clos(new_clos, cframe);
+  }
+  else if (IS_REC(to_call))
+  {
+    auto raw_clos = as_rec(to_call);
+    // Push the recursive function itself onto the stack, to be consumed by
+    // itself during the call.
+    push(to_call);
+    call_clos(raw_clos, cframe);
   }
   else if (IS_PRIM(to_call))
   {
@@ -137,6 +149,34 @@ static inline void call(obj_t *to_call, cframe_t *cframe)
   }
 }
 
+static inline void eval_atom(obj_t *cmd, cframe_t *cframe)
+{
+  if (cmd == state->atom_quote)
+  {
+    if (cframe_completed(cframe))
+      FAIL("Expected data following a quote form");
+    push(cframe_pop(cframe));
+  }
+  else if (cmd == state->atom_if)
+  {
+    if (cframe->ip > cframe->body->length - 2)
+      FAIL("Expected branches following a if form");
+
+    obj_t *t_branch = cframe_pop(cframe);
+    obj_t *f_branch = cframe_pop(cframe);
+    obj_t *chosen   = pop() == state->atom_true ? t_branch : f_branch;
+
+    assert(IS_VEC(chosen));
+    chosen = make_clos(chosen, cframe->env);
+    call(chosen, cframe);
+  }
+  else
+  {
+    auto val = cframe_find(cmd, cframe);
+    call(val, cframe);
+  }
+}
+
 /** eval function: the basic object-by-object evaluation model.
  * This is called by `compute` (which see) on each member of a closure.
  * eval pushes onto the call frame stack only when a closure is called.
@@ -148,43 +188,15 @@ static inline void eval(cframe_t *cframe)
   switch (get_tag(cmd))
   {
   case TAG_ATOM:
-  {
-    if (cmd == state->atom_quote)
-    {
-      if (cframe_completed(cframe))
-        FAIL("Expected data following a quote form");
-      push(cframe_pop(cframe));
-    }
-    else if (cmd == state->atom_if)
-    {
-      if (cframe->ip > cframe->body->length - 2)
-        FAIL("Expected branches following a if form");
-
-      obj_t *t_branch = cframe_pop(cframe);
-      obj_t *f_branch = cframe_pop(cframe);
-      obj_t *chosen   = pop() == state->atom_true ? t_branch : f_branch;
-
-      assert(IS_VEC(chosen));
-      chosen = make_clos(chosen, cframe->env);
-
-      call(chosen, cframe);
-    }
-    else
-    {
-      auto val = cframe_find(cmd, cframe);
-      call(val, cframe);
-    }
-  }
-  break;
+    eval_atom(cmd, cframe);
+    break;
   case TAG_VEC:
-  {
-    auto new_clos = make_clos(cmd, cframe->env);
-    push(new_clos);
-  }
-  break;
+    push(make_clos(cmd, cframe->env));
+    break;
   case TAG_NIL:
   case TAG_NUM:
   case TAG_CLOS:
+  case TAG_REC:
   case TAG_PRIM:
   case TAG_PAIR:
   default:

@@ -32,7 +32,6 @@ typedef struct state
   obj_t *stack;      // top-of-stack (implemented as a vector)
   cfstack_t cfstack; // self-managed dynamic array of call frames for compute.
   gc_t gc;           // allocator for pairs/closures/vectors
-
 } state_t;
 
 extern state_t state[1];

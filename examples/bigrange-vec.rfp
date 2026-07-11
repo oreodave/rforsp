@@ -5,9 +5,6 @@
   [$x]                             $drop
   [$x $y ^x ^y]                    $swap
   [$x $y $z ^x ^z ^y]              $rot
-  [force cswap drop force]         $if
-  [$a $b $c $d ^a ^b ^c ^d force]  $endif
-  [$cond 't '() ^cond if]          $not
   [$fn $arg [^arg fn]]             $partial
 
   ;; Core: Recursion
@@ -21,25 +18,23 @@
 
   ;; Recursive range function which is tail call oriented.
   [$self $acc $start $end
-    ^if [start end eq]
+    start end eq if
     [acc end vpush]
     [end 1 -
       start
       acc end vpush
       self]
-    endif
   ] rec                         ; (acc start end -- result)
   [0 vmake] swap partial        ; (start end     -- result)
   $range
 
   ;; Destructive recursive reduce function
   [$self $fn $init $vec
-    ^if [vec length 0 eq]
+    vec length 0 eq if
     [init]
     [vec vpop ; [value vec]
       swap init fn
       ^fn self]
-    endif
   ] rec $reduce
 
   1 18 << $end

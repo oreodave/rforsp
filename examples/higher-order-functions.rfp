@@ -12,56 +12,52 @@
   [nand ~]        $&
   [~ swap ~ nand] $|
 
-  ; if-stmt
-  [$c $t $f c ^f ^t rot cswap $_ force] $if
-  [$f $t $c $fn ^f ^t ^c fn]     $endif
-
   ; logical operations
-  [$c 't '() ^c if] $!
-  [! !]             $!!
-  [$a $b a $a '() [b $b '() 't b if] a if] $and
-  [$a $b a $a [b $b '() 't b if] 't a if] $or
+  [if ['()] ['t]]         $!
+  [! !]                   $!!
+  [$a $b a if [b] [nil]]  $and
+  [$a $b a if ['t] [b]]   $or
 
   ; comparisons
   [55 >> 0 eq !] $is-neg
-  [- is-neg] $<
-  [< !]      $>=
-  [swap <]   $>
-  [swap >=]  $<=
+  [- is-neg]     $<
+  [< !]          $>=
+  [swap <]       $>
+  [swap >=]      $<=
 
   ; recursion via y-combinator
   [$f [$x [^x x] f] dup force] $Y [$g [^g Y]] $rec
 
   ; range
   [$self $start $end
-    ^if [^start ^end eq] nil
+    ^start ^end eq if
+    [nil]
     [^end ^start 1 + self ^start cons]
-    endif
   ] rec $range
 
   ; map [$fn $list -> $out-list]
   [$self $fn $list
-    ^if [^list null?] nil
+    ^list null? if
+    [nil]
     [^list car fn ^list cdr ^fn self swap cons]
-    endif
   ] rec $map
 
   ; filter [$pred $list -> $out-list]
   [$self $pred $list
-    ^if [^list null?] nil
+    ^list null? if
+    [nil]
     [^list cdr ^pred self
-      ^if [^list car pred]
+      ^list car pred if
       [^list car cons]
       []
-      endif]
-    endif
+    ]
   ] rec $filter
 
   ; reduce [$fn $init $list -> $out]
   [$self $fn $init $list
-    ^if [^list null?] ^init
+    ^list null? if
+    [^init]
     [^list cdr ^list car ^init fn ^fn self]
-    endif
   ] rec $reduce
 
   ; is-even

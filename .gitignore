@@ -2,6 +2,6 @@
 \#*#
 *.dSYM/
 TAGS
-scratch.fp
+scratch.rfp
 bin/
 compile_commands.json

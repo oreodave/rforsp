@@ -7,9 +7,6 @@
   [$x ^x ^x]                $dup
   [$x]                      $drop
   [$x $y ^x ^y]             $swap
-  [force cswap drop force]  $if
-  [force4]                  $endif
-  [$cond 't '() ^cond if]   $not
   [$fn $arg [^arg fn]]      $partial
 
 
@@ -25,23 +22,23 @@
 
   ; Sum 1 -> n (recursively defined)
   [$self $n
-    ^if [0 ^n eq]
+    0 ^n eq if
+    [0]
     [^n 1 - self ^n +]
-    endif
   ] rec $sum
 
   ; Map fn() over list
   [$self $fn $list
-    ^if ['() ^list eq] '()
+    '() ^list eq if
+    ['()]
     [^list cdr ^fn self ^list car fn cons]
-    endif
   ] rec $map
 
   ; Range
   [$self $start $end
-    ^if [^start ^end eq] '()
+    ^start ^end eq if
+    ['()]
     [^end ^start 1 + self ^start cons]
-    endif
   ] rec $range
 
   ; Show off some things
@@ -66,15 +63,22 @@
 
   ; For loop
   [$self $iter $body
-    ^if ['() ^iter eq] '()
-    [^iter car body
-      ^body ^iter cdr self]
-    endif
+    '() ^iter eq if
+    []
+    [
+      ^iter car body
+      ^body ^iter cdr self
+    ]
   ] rec $for
   [force3] $endfor
 
-  ^for ^range 0 10 force3 [print] endfor
-  ^for ^range 0 10 force3 [$n ^n 10 * print] endfor
+  ^for 10 0 range
+    [print]
+  endfor
+
+  ^for 10 0 range
+    [$n ^n 10 * print]
+  endfor
 
   ; depth
   [stack length] $depth
@@ -83,10 +87,14 @@
   '(1 2 3 4) length print
 
   ; dropall
-  [$self ^if depth 1 eq [] [$_ self] endif]
-  rec $dropall
+  [$self
+    depth 1 eq if
+    [$_]
+    [$_ self]
+  ] rec $dropall
 
   dropall
+  stack print
   'depth2 print
   3 4 depth print
   dropall
@@ -94,26 +102,25 @@
   depth print
 
   ; reverse
-  [$self $list $new
-    ^if ['() ^list eq] ^new
-    [^new ^list car cons ^list cdr self]
-    endif
+  [$self $new $list
+    '() ^list eq if
+    [^new]
+    [^list cdr ^new ^list car cons self]
   ] rec
-  [$helper [$list '() ^list helper]] force
-  $reverse
+  '() swap partial $reverse
 
   ; explode
   [$self $list
-    ^if ['() ^list eq] []
+    '() ^list eq if
+    []
     [^list cdr self ^list car]
-    endif
   ] rec $explode
 
   ; implode
   [$self $n
-    ^if [0 ^n eq] '()
+    0 ^n eq if
+    ['()]
     [$tmp ^n 1 - self ^tmp cons]
-    endif
   ] rec $implode
 
 
@@ -125,23 +132,24 @@
   depth print
   3 implode print
 
-  10 0 range explode 10 + 10 implode print
+  10 0 range explode
+  10 implode
+  print
 
   ; factorial
   [$self $n
-    ^if [^n 0 eq] 1
+    ^n 0 eq if
+    [1]
     [^n 1 - self ^n *]
-    endif
   ] rec $factorial
 
   5 factorial print
 
   ; stack-set
   [$self $stack
-    ^if [stack length 0 eq]
+    stack length 0 eq if
     []
     [stack vpop self]
-    endif
   ] rec
   [$helper
     [$stack

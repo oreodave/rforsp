@@ -149,7 +149,7 @@ evaluator]] as that's emulating a Forsp program unto itself.
   - [[file:examples/bigrange-list.fp][bigrange-list]]
   - [[file:examples/bigrange-vec.fp][bigrange-vec]]
   - [[file:examples/forsp.fp][mc eval]]
-** PROJ [#A] Better conditionals :cond:
+** IN-PROGRESS [#A] Better conditionals :cond:
 Currently we rely on the user generating their own conditional form
 via user-code.  This bloats the runtime through potentially multiple
 call frames and ~env_find~'s (evaluating ~endif~ and the forcing of
@@ -162,7 +162,7 @@ n 1 & 0 = if
   ['even print]
   ['odd print]
 #+end_src
-*** WIP Design
+*** DONE Design
 ~if~ should be a special operator, like ~quote~ - so it's dealt with
 after resolving an atom.  Based on the syntax design, we'd expect a
 boolean to be on the top of the stack when we're computing ~if~.
@@ -184,8 +184,8 @@ branch we pick.
 When [[*Native recursive closures][native rec]] lands this becomes
 really OP as it frees up even more since all recursive function
 examples use conditionals.
-*** TODO Implement
-*** TODO Benchmark
+*** DONE Implement
+*** DONE Benchmark
 Make copies of each of the following files with the ~if~/~endif~
 closures removed, and compare running the new interpreter against the
 amended programs against the old interpreter with the old programs.
@@ -193,6 +193,14 @@ amended programs against the old interpreter with the old programs.
 - [[file:examples/bigrange-list.fp][bigrange-list]]
 - [[file:examples/bigrange-vec.fp][bigrange-vec]]
 - [[file:examples/forsp.fp][mc eval]]
+
+2026-07-10:
+https://gist.github.com/oreodave/ffe30d8ddb44c68d89147ccbe9b696ee.
+Holy moly.
+2026-07-11:
+https://gist.github.com/oreodave/7799773bde4cdf5071397722963314bc.
+Even ~loads-of-cons~ benefits from this.
+*** DONE Redesign all examples
 *** NOTE Thinking about a ~cond~ form
 Like Lisp, since we now have ~if~, we can construct a ~cond~ like
 form.

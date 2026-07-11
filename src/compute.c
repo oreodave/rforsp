@@ -149,18 +149,31 @@ static inline void eval(cframe_t *cframe)
   {
   case TAG_ATOM:
   {
-    // quote is the one special operator.
     if (cmd == state->atom_quote)
     {
       if (cframe_completed(cframe))
         FAIL("Expected data following a quote form");
       push(cframe_pop(cframe));
-      return;
     }
+    else if (cmd == state->atom_if)
+    {
+      if (cframe->ip > cframe->body->length - 2)
+        FAIL("Expected branches following a if form");
 
-    // Otherwise perform a lookup and "call" the value.
-    auto val = cframe_find(cmd, cframe);
-    call(val, cframe);
+      obj_t *t_branch = cframe_pop(cframe);
+      obj_t *f_branch = cframe_pop(cframe);
+      obj_t *chosen   = pop() == state->atom_true ? t_branch : f_branch;
+
+      assert(IS_VEC(chosen));
+      chosen = make_clos(chosen, cframe->env);
+
+      call(chosen, cframe);
+    }
+    else
+    {
+      auto val = cframe_find(cmd, cframe);
+      call(val, cframe);
+    }
   }
   break;
   case TAG_VEC:

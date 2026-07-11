@@ -5,21 +5,29 @@
   [$a $b $c ^c ^b ^a ^c]         $over2
   [$a $b $c ^b ^a ^c]            $rot
   [$x x]                         $force
-  [$c $t $f c ^f ^t rot cswap $_ force] $if
-  [$f $t $c $fn ^f ^t ^c fn]     $endif
 
   ; object type predicate functions
   [tag 0 eq] $is-nil  [tag 1 eq] $is-atom [tag 3 eq] $is-pair [tag 4 eq] $is-clos
-  [$x ['() 't [^x is-pair] if] 't [^x is-nil] if] $is-list
+  [$x
+    ^x is-nil if
+    ['t]
+    [^x is-pair if
+      ['t]
+      ['()]]
+  ] $is-list
 
   ; recursion via y-combinator
   [$f [$x [^x x] f] dup force] $Y [$g [^g Y]] $rec
 
   ; env-find
   [$self $key $env
-    ^if [^env is-nil] ['NOT_FOUND_IN_ENV ^key cons print FAIL] [
-      ^if [^env car car ^key eq] [^env car cdr] [^env cdr ^key self] endif
-    ] endif
+    ^env is-nil if
+    ['NOT_FOUND_IN_ENV ^key cons print FAIL]
+    [
+      ^env car car ^key eq if
+      [^env car cdr]
+      [^env cdr ^key self]
+    ]
   ] rec $env-find
 
   ; stack operations
@@ -31,39 +39,49 @@
 
   ; closure operations
   [$expr $env '() ^env cons ^expr cons '#closure cons]        $make-closure
-  [$x '() ['() 't [^x car '#closure eq] if] [^x is-pair] if]  $is-closure
+  [$x
+    ^x is-pair if
+    [
+      ^x car '#closure eq if
+      ['t]
+      ['()]
+    ]
+    ['()]
+  ] $is-closure
   [dup cdr car swap car]                                      $unpack-closure
 
   ; compute [$comp $stack $env -> $stack]
   [$compute $eval
-    ^if [dup is-nil]
+    dup is-nil if
     [rot $_ $_] ; false case: return $stack
-    [stack-pop
-      ^if [dup 'quote eq]
+    [
+      stack-pop
+      dup 'quote eq if
       [$_ stack-pop rot swap
         stack-push swap
         ^eval compute]
       [swap $comp eval ^comp ^eval compute]
-      endif]
-    endif
+    ]
   ] rec $compute
 
   ; eval: [$expr $stack $env -> $stack $env]
   [$eval
-    ^if [dup is-atom]
-    [over2 swap env-find dup $callable
-      ^if [dup is-closure]
+    dup is-atom if
+    [
+      over2 swap env-find dup $callable
+      dup is-closure if
       [swap $stack cdr unpack-closure ^stack swap ^eval compute]
-      [^if [dup is-clos]
+      [
+        dup is-clos if
         [force]
         [stack-push]
-        endif]
-      endif]
-    [^if [dup is-list]
+      ]
+    ]
+    [
+      dup is-list if
       [over2 swap make-closure stack-push]
       [stack-push]
-      endif]
-    endif
+    ]
   ] rec $eval
 
   ; tag function

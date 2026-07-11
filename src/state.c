@@ -15,6 +15,7 @@ void state_init()
 {
   memset(state, 0, sizeof(state));
   state->atom_true  = intern("t", 1);
+  state->atom_if    = intern("if", 2);
   state->atom_quote = intern("quote", 5);
   state->atom_push  = intern("push", 4);
   state->atom_pop   = intern("pop", 3);

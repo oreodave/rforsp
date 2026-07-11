@@ -200,7 +200,7 @@ Holy moly.
 2026-07-11:
 https://gist.github.com/oreodave/7799773bde4cdf5071397722963314bc.
 Even ~loads-of-cons~ benefits from this.
-*** WIP Redesign all examples
+*** DONE Redesign all examples
 *** NOTE Thinking about a ~cond~ form
 Like Lisp, since we now have ~if~, we can construct a ~cond~ like
 form.

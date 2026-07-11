@@ -4,8 +4,10 @@
  * License: See end of file
  */
 
-#include "obj.h"
+#include <stdbit.h>
+
 #include "gc.h"
+#include "obj.h"
 #include "state.h"
 
 obj_t *make_atom(const char *str, size_t len)
@@ -53,7 +55,7 @@ obj_t *make_vec(u32 capacity)
   auto vec  = TYPED_UNTAG(ovec, vec_t *);
   if (capacity)
   {
-    vec->capacity = capacity;
+    vec->capacity = stdc_bit_ceil(capacity);
     vec->items    = calloc(vec->capacity, sizeof(*vec->items));
   }
   return ovec;

@@ -109,20 +109,24 @@ static inline cframe_t *cfstack_peek(void)
  * Compute/Eval                                                               *
  ******************************************************************************/
 
+static inline void call_clos(clos_t *clos, cframe_t *cframe)
+{
+  if (!cframe_completed(cframe))
+    // There is still work to be done in the current cframe.  Thus, we
+    // establish a new cframe for this closure.
+    cfstack_push(clos->body, clos->env);
+  else
+    // If there's no work to be done, why inflate the call stack?  Just
+    // reuse the current call cframe and continue.
+    *cframe = cframe_from_clos(clos->body, clos->env);
+}
+
 static inline void call(obj_t *to_call, cframe_t *cframe)
 {
   if (IS_CLOS(to_call))
   {
     auto new_clos = as_clos(to_call);
-
-    if (!cframe_completed(cframe))
-      // There is still work to be done in the current cframe.  Thus, we
-      // establish a new cframe for this closure.
-      cfstack_push(new_clos->body, new_clos->env);
-    else
-      // If there's no work to be done, why inflate the call stack?  Just
-      // reuse the current call cframe and continue.
-      *cframe = cframe_from_clos(new_clos->body, new_clos->env);
+    call_clos(new_clos, cframe);
   }
   else if (IS_PRIM(to_call))
   {

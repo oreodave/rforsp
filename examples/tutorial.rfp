@@ -238,9 +238,8 @@
   ;; actually need to supply `$n`:
   10 sum print
 
-  ;; But how does it work?  You can actually get a taste for some of the magic
-  ;; the rForsp interpreter does.  We'll do this by expressing the Y-combinator
-  ;; ourselves:
+  ;; But how does it work?  We can actually get a taste for some of the magic
+  ;; the rForsp interpreter does, by expressing the Y-combinator ourselves:
 
   [$f
     [$x [^x x] f]
@@ -251,6 +250,7 @@
   ;; This fixed pointer operator is all we need to allow recursion.  However,
   ;; it's not exactly pretty to use.  So let's make our own `rec` helper
   ;; binding:
+
   [$g [^g Y]] $rec
 
   ;; The syntax using our own defined `rec` is extremely similar to the

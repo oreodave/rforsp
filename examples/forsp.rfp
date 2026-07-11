@@ -7,7 +7,10 @@
   [$x x]                         $force
 
   ; object type predicate functions
-  [tag 0 eq] $is-nil  [tag 1 eq] $is-atom [tag 3 eq] $is-pair [tag 4 eq] $is-clos
+  [tag 0 eq] $is-nil
+  [tag 1 eq] $is-atom
+  [tag 3 eq] $is-pair
+  [tag 4 eq] $is-clos
   [$x
     ^x is-nil if
     ['t]

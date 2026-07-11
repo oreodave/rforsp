@@ -12,11 +12,11 @@
   [$g [^g Y]] $rec
 
   ; factorial
-  [$self $n
+  [$self $n $acc
     n 0 eq if
-        [1]
-        [^n 1 - self ^n *]
+    [acc]
+    [^acc ^n * ^n 1 - self]
   ] rec $factorial
 
-  18 factorial print
+  1 18 factorial print
 ]

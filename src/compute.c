@@ -185,6 +185,7 @@ static inline void eval(cframe_t *cframe)
   case TAG_NIL:
   case TAG_NUM:
   case TAG_CLOS:
+  case TAG_REC:
   case TAG_PRIM:
   case TAG_PAIR:
   default:

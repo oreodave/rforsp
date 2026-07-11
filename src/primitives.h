@@ -28,6 +28,8 @@ void prim_print(obj_t **_);
 // helpful
 void prim_stack(obj_t **_);
 void prim_env(obj_t **env);
+
+// numerics
 void prim_add(obj_t **_);
 void prim_sub(obj_t **_);
 void prim_mul(obj_t **_);
@@ -38,7 +40,7 @@ void prim_bitwise_and(obj_t **_);
 void prim_bitwise_or(obj_t **_);
 void prim_bitwise_nand(obj_t **_);
 
-// native recursion
+// recursion
 void prim_rec(obj_t **_);
 
 // vectors/container helpers

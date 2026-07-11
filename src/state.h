@@ -23,10 +23,10 @@ typedef struct state
 
   vec_t interned_atoms; // interned atoms list
   obj_t *atom_true;     // atom: t
-  obj_t *atom_if;       // atom: if
   obj_t *atom_quote;    // atom: quote
   obj_t *atom_push;     // atom: push
   obj_t *atom_pop;      // atom: pop
+  obj_t *atom_if;       // atom: if
 
   obj_t *env;        // top-level / initial environment
   obj_t *stack;      // top-of-stack (implemented as a vector)

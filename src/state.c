@@ -84,10 +84,28 @@ struct PrimRecord
   prim_t *func;
 };
 
+struct CachedAtom
+{
+  const char *name;
+  size_t name_size;
+  obj_t **place;
+};
+
+#define MAKE_CACHED_ATOM(NAME, PLACE) \
+  {.name = (NAME), .name_size = sizeof(NAME) - 1, .place = (PLACE)}
+
+const struct CachedAtom CACHED_ATOMS[] = {
+    MAKE_CACHED_ATOM("t", &state->atom_true),
+    MAKE_CACHED_ATOM("if", &state->atom_if),
+    MAKE_CACHED_ATOM("quote", &state->atom_quote),
+    MAKE_CACHED_ATOM("push", &state->atom_push),
+    MAKE_CACHED_ATOM("pop", &state->atom_pop),
+};
+
 #define MAKE_PRIM_RECORD(NAME, FUNC) \
   {.name = (NAME), .name_size = sizeof(NAME) - 1, .func = (FUNC)}
 
-const struct PrimRecord RECORDS[] = {
+const struct PrimRecord PRIMITIVES[] = {
     MAKE_PRIM_RECORD("push", &prim_push),
     MAKE_PRIM_RECORD("pop", &prim_pop),
     MAKE_PRIM_RECORD("cons", &prim_cons),
@@ -120,30 +138,28 @@ const struct PrimRecord RECORDS[] = {
     MAKE_PRIM_RECORD("vset", &prim_vset),
 };
 
-#define STATE_INTERN_INIT_CAPACITY (1 << 5)
-
 void state_init()
 {
   memset(state, 0, sizeof(state));
-  size_t total_required_atoms = stdc_bit_ceil(5 + ARRSIZE(RECORDS));
+  vec_init(&state->read_stack, 3);
+  cfstack_init();
 
+  size_t total_required_atoms =
+      stdc_bit_ceil(ARRSIZE(CACHED_ATOMS) + ARRSIZE(PRIMITIVES));
   vec_init(&state->interned_atoms, total_required_atoms);
 
-  state->atom_true  = intern("t", 1);
-  state->atom_if    = intern("if", 2);
-  state->atom_quote = intern("quote", 5);
-  state->atom_push  = intern("push", 4);
-  state->atom_pop   = intern("pop", 3);
-
-  vec_init(&state->read_stack, 3);
-
-  cfstack_init();
-  gc_init();
-
-  state->stack = make_vec(256);
-  for (size_t i = 0; i < ARRSIZE(RECORDS); ++i)
+  for (size_t i = 0; i < ARRSIZE(CACHED_ATOMS); ++i)
   {
-    const struct PrimRecord *const record = RECORDS + i;
+    const struct CachedAtom *const catom = CACHED_ATOMS + i;
+    auto atom     = intern(catom->name, catom->name_size);
+    *catom->place = atom;
+  }
+
+  gc_init();
+  state->stack = make_vec(256);
+  for (size_t i = 0; i < ARRSIZE(PRIMITIVES); ++i)
+  {
+    const struct PrimRecord *const record = PRIMITIVES + i;
     auto key   = intern(record->name, record->name_size);
     auto value = make_prim(record->func);
     state->env = env_define(state->env, key, value);

@@ -1,3 +1,5 @@
+;;; currying.rfp: Basic function currying/uncurrying in rForsp.
+
 [
   ['t cswap]   $swap
 
@@ -11,6 +13,11 @@
   ^fn-curried uncurry2 $fn-uncurried
 
   5 4 fn print
-  ^fn-curried 4 swap apply 5 swap apply print
+
+  ^fn-curried                   ; [$x [$y ^y ^x fn]]
+    4 swap apply                ; [$y ^y 4 fn]
+    5 swap apply                ; 5 4 fn
+  print
+
   5 4 fn-uncurried print
 ]

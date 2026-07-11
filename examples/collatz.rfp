@@ -1,3 +1,8 @@
+;;; collatz.rfp: Computing the collatz chain in rForsp.
+;; This is an extremely simple program, similar to `factorial.rfp` (which see).
+;; In that vein we avoid naming the core recursive function for this program by
+;; directly applying it against an argument (100) - we won't need to re-use it.
+
 [
   [$x x]  $force
 

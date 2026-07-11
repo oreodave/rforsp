@@ -1,3 +1,8 @@
+;;; fibonacci-functional.rfp: A functional-style fibonacci computation.
+;; This program computes the first 10 fibonacci numbers, and is a variant of the
+;; `fibonacci-imperative` program (which see).  It exploits the lambda calculus
+;; computation model possible through rForsp.
+
 [
   ;; core utilities
   [$x ^x ^x]          $dup

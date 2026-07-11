@@ -12,7 +12,7 @@ LIB=src/obj.c src/gc.c src/primitives.c src/cfstack.c src/state.c \
 HEADERS=src/common.h src/obj.h src/gc.h src/primitives.h src/cfstack.h \
 		src/state.h src/compute.h
 
-EXAMPLES=examples/church-numerals.rfp examples/currying.rfp examples/demo.rfp \
+EXAMPLES=examples/church-numerals.rfp examples/currying.rfp \
 		examples/factorial.rfp examples/fibonacci-functional.rfp examples/forsp.rfp \
 		examples/higher-order-functions.rfp examples/tutorial.rfp \
 		examples/bigrange-list.rfp examples/bigrange-vec.rfp \

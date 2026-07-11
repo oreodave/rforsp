@@ -1,3 +1,6 @@
+;;; higher-order-functions.rfp: Demonstrating functional programming in rForsp.
+;; A demonstration of `map` + `reduce` in rForsp.
+
 [
   ;; core utilities
   [$x ^x ^x]          $dup

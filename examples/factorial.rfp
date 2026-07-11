@@ -1,13 +1,22 @@
-[
-  [$x x] $force
+;;; factorial.rfp: Computing the factorial of a number in rForsp.
+;; This is an extremely simple program, similar to `collatz.rfp` (which see).
 
-  1 18
-  [$self $n $acc
+;; This implementation in particular is _tail recursive_ in nature, to exploit
+;; the fact that `rForsp` performs tail call optimisation during evaluation.  To
+;; make this possible, the initial recursive function is in Accumulator-Passing
+;; Style (the $acc parameter).
+
+[
+  [$x x]                $force
+  [$x $y ^x ^y]         $swap
+  [$fn $arg [^arg fn]]  $partial
+
+  [$self $acc $n
     n 0 eq if
     [acc]
-    [^acc ^n * ^n 1 - self]
-  ] rec
-  force
-
+    [^n 1 - ^acc ^n * self]
+  ] rec                         ; (acc n -- result)
+  1 swap partial                ; (n     -- result)
+  18 swap force                 ; result
   print
 ]

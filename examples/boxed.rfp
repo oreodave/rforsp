@@ -12,7 +12,7 @@
   [$x $y $z ^x ^z ^y]  $rot
 
   ;; The first thing we need for our boxed type is a constructor.  Since all we
-  ;; have are closures, we must use a closure.
+  ;; have are closures, we must use a closure!
   [
     ;; The constructor takes some parameter off the stack, which we will then
     ;; box.
@@ -20,7 +20,7 @@
 
     ;; Since vectors exist by reference, operations done on them will affect
     ;; subsequent callers that can access that same reference.  This is how we
-    ;; can "box" values without direct memory access.
+    ;; can "box" values without direct memory access primitives.
     0 vmake value vpush $value
 
     ;; To construct the "methods" for this value, we simply construct a vector
@@ -32,7 +32,9 @@
     old-stack vswap
 
     ;; The return value of the constructor is simply a vector representing the
-    ;; various methods on the new boxed object we've just made.
+    ;; various methods on the new boxed object we've just made.  Since the
+    ;; closures _independently_ have access to the underlying data, this vector
+    ;; is tantamount to the object as a whole.
   ] $make-boxed
 
   ;; Now that we have a basic constructor, let's test it out by boxing the value

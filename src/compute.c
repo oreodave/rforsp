@@ -137,6 +137,34 @@ static inline void call(obj_t *to_call, cframe_t *cframe)
   }
 }
 
+static inline void eval_atom(obj_t *cmd, cframe_t *cframe)
+{
+  if (cmd == state->atom_quote)
+  {
+    if (cframe_completed(cframe))
+      FAIL("Expected data following a quote form");
+    push(cframe_pop(cframe));
+  }
+  else if (cmd == state->atom_if)
+  {
+    if (cframe->ip > cframe->body->length - 2)
+      FAIL("Expected branches following a if form");
+
+    obj_t *t_branch = cframe_pop(cframe);
+    obj_t *f_branch = cframe_pop(cframe);
+    obj_t *chosen   = pop() == state->atom_true ? t_branch : f_branch;
+
+    assert(IS_VEC(chosen));
+    chosen = make_clos(chosen, cframe->env);
+    call(chosen, cframe);
+  }
+  else
+  {
+    auto val = cframe_find(cmd, cframe);
+    call(val, cframe);
+  }
+}
+
 /** eval function: the basic object-by-object evaluation model.
  * This is called by `compute` (which see) on each member of a closure.
  * eval pushes onto the call frame stack only when a closure is called.
@@ -149,31 +177,7 @@ static inline void eval(cframe_t *cframe)
   {
   case TAG_ATOM:
   {
-    if (cmd == state->atom_quote)
-    {
-      if (cframe_completed(cframe))
-        FAIL("Expected data following a quote form");
-      push(cframe_pop(cframe));
-    }
-    else if (cmd == state->atom_if)
-    {
-      if (cframe->ip > cframe->body->length - 2)
-        FAIL("Expected branches following a if form");
-
-      obj_t *t_branch = cframe_pop(cframe);
-      obj_t *f_branch = cframe_pop(cframe);
-      obj_t *chosen   = pop() == state->atom_true ? t_branch : f_branch;
-
-      assert(IS_VEC(chosen));
-      chosen = make_clos(chosen, cframe->env);
-
-      call(chosen, cframe);
-    }
-    else
-    {
-      auto val = cframe_find(cmd, cframe);
-      call(val, cframe);
-    }
+    eval_atom(cmd, cframe);
   }
   break;
   case TAG_VEC:

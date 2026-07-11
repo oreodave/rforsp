@@ -148,7 +148,7 @@ if (IS_REC(to_call))
 
 2026-07-11: Incredible numbers across the board.
 https://gist.github.com/oreodave/5c87b4e077eba995ae44c0338b8516a1
-*** TODO Update examples
+*** DONE Update examples
 Replace any Y-combinator based recursion with our new ~rec~.  Only
 time this shouldn't be the case is in [[examples/forsp.fp][mc
 evaluator]] as that's emulating a Forsp program unto itself.

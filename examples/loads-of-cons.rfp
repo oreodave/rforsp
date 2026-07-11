@@ -2,16 +2,6 @@
   [$x x] $force
   [if ['()] ['t]] $not
 
-  ; Y-Combinator
-  [$f
-    [$x [^x x] f]
-    [$x [^x x] f]
-    force
-  ] $Y
-
-  ; rec: syntax sugar for applying the Y-Combinator
-  [$g [^g Y]] $rec
-
   [stack length 0 eq] $stack-empty
 
   [$self

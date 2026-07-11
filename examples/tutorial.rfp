@@ -191,16 +191,38 @@
   ['true print]   ; true
   ['false print]
 
-  ; Finally, we'll finish with recursion. Forsp uses the Y-Combinator for recursion
+  ; Finally, we'll finish with recursion.  rForsp natively supports recursion
+  ; through the use of the `rec` primitive.
+  [$self $n
+    n 0 eq if
+    [0]
+    [
+      n 1 - self
+      n +
+    ]
+  ] rec $sum
 
-  [$f [$x [^x x] f] dup force] $Y
+  ;; There's nothing special we need to do when calling it; same as any other
+  ;; function.
+  10 sum print
 
-  ; We'll also implement a wrapper called "rec" that performs the application Y
+  ;; Notice how the recursive function body binds something called `self`?
+  ;; That's the function itself!  We use that to call it recursively.
 
+  ;; But how does it work?  Well we can actually express the necessary mechanism
+  ;; for recursion within rForsp itself through the Y-combinator!
+
+  [$f ;; recursive function body
+    [$x [^x x] f]
+    [$x [^x x] f]
+    force
+  ] $Y
+
+  ;; We can wrap the Y-combinator in a helper to make constructing recursive
+  ;; functions easy:
   [$g [^g Y]] $rec
 
-  ; Now we can implement recursive functions:
-
+  ;; Now implementing recursive functions via the Y-combinator is trivial:
   [$self $list
     ^list '() eq if
     [0]

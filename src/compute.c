@@ -128,6 +128,14 @@ static inline void call(obj_t *to_call, cframe_t *cframe)
     auto new_clos = as_clos(to_call);
     call_clos(new_clos, cframe);
   }
+  else if (IS_REC(to_call))
+  {
+    auto raw_clos = as_rec(to_call);
+    // Push the recursive function itself onto the stack, to be consumed by
+    // itself during the call.
+    push(to_call);
+    call_clos(raw_clos, cframe);
+  }
   else if (IS_PRIM(to_call))
   {
     auto callable = TYPED_UNTAG(to_call, prim_t *);

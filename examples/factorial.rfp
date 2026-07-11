@@ -4,7 +4,8 @@
 ;; This implementation in particular is _tail recursive_ in nature, to exploit
 ;; the fact that `rForsp` performs tail call optimisation during evaluation.  To
 ;; make this possible, the initial recursive function is in Accumulator-Passing
-;; Style (the $acc parameter).
+;; Style (the $acc parameter) which we then perform partial application on to
+;; produce a unary function.
 
 [
   [$x x]                $force

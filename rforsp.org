@@ -197,6 +197,9 @@ amended programs against the old interpreter with the old programs.
 2026-07-10:
 https://gist.github.com/oreodave/ffe30d8ddb44c68d89147ccbe9b696ee.
 Holy moly.
+2026-07-11:
+https://gist.github.com/oreodave/7799773bde4cdf5071397722963314bc.
+Even ~loads-of-cons~ benefits from this.
 *** WIP Redesign all examples
 *** NOTE Thinking about a ~cond~ form
 Like Lisp, since we now have ~if~, we can construct a ~cond~ like

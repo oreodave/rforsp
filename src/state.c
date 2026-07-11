@@ -4,43 +4,10 @@
  * License: See end of file
  */
 
-#include "state.h"
+#include <stdbit.h>
+
 #include "primitives.h"
-
-/******************************************************************************
- * State Constructor/Destructor                                               *
- ******************************************************************************/
-
-void state_init()
-{
-  memset(state, 0, sizeof(state));
-  state->atom_true  = intern("t", 1);
-  state->atom_if    = intern("if", 2);
-  state->atom_quote = intern("quote", 5);
-  state->atom_push  = intern("push", 4);
-  state->atom_pop   = intern("pop", 3);
-  vec_init(&state->read_stack, 3);
-
-  cfstack_init();
-  gc_init();
-  state->stack = make_vec(256);
-
-  state_env_setup();
-}
-
-void state_stop()
-{
-  vec_stop(&state->read_stack);
-  for (size_t i = 0; i < state->interned_atoms.length; ++i)
-  {
-    auto oatom = state->interned_atoms.items[i];
-    auto atom  = as_atom(oatom);
-    free(atom);
-  }
-  cfstack_stop();
-  vec_stop(&state->interned_atoms);
-  gc_stop();
-}
+#include "state.h"
 
 /******************************************************************************
  * Stack                                                                      *
@@ -93,8 +60,22 @@ obj_t *env_define(obj_t *env, obj_t *key, obj_t *val)
 }
 
 /******************************************************************************
- * Default environment setup                                                  *
+ * State Constructor/Destructor                                               *
  ******************************************************************************/
+
+void state_stop()
+{
+  vec_stop(&state->read_stack);
+  for (size_t i = 0; i < state->interned_atoms.length; ++i)
+  {
+    auto oatom = state->interned_atoms.items[i];
+    auto atom  = as_atom(oatom);
+    free(atom);
+  }
+  cfstack_stop();
+  vec_stop(&state->interned_atoms);
+  gc_stop();
+}
 
 struct PrimRecord
 {
@@ -138,18 +119,34 @@ const struct PrimRecord RECORDS[] = {
     MAKE_PRIM_RECORD("vset", &prim_vset),
 };
 
-void state_env_setup()
+#define STATE_INTERN_INIT_CAPACITY (1 << 5)
+
+void state_init()
 {
-  obj_t *env = NULL;
+  memset(state, 0, sizeof(state));
+  size_t total_required_atoms = stdc_bit_ceil(5 + ARRSIZE(RECORDS));
+
+  vec_init(&state->interned_atoms, total_required_atoms);
+
+  state->atom_true  = intern("t", 1);
+  state->atom_if    = intern("if", 2);
+  state->atom_quote = intern("quote", 5);
+  state->atom_push  = intern("push", 4);
+  state->atom_pop   = intern("pop", 3);
+
+  vec_init(&state->read_stack, 3);
+
+  cfstack_init();
+  gc_init();
+
+  state->stack = make_vec(256);
   for (size_t i = 0; i < ARRSIZE(RECORDS); ++i)
   {
     const struct PrimRecord *const record = RECORDS + i;
     auto key   = intern(record->name, record->name_size);
     auto value = make_prim(record->func);
-    env        = env_define(env, key, value);
+    state->env = env_define(state->env, key, value);
   }
-
-  state->env = env;
 }
 
 /* Copyright (c) 2024 Anthony Bonkoski

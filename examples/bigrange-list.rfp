@@ -7,15 +7,6 @@
   [$x $y $z ^x ^z ^y]              $rot
   [$fn $arg [^arg fn]]             $partial
 
-  ;; Core: Recursion
-  [$f
-    [$x [^x x] f]
-    [$x [^x x] f]
-    force
-  ] $Y
-
-  [^Y partial] $rec
-
   ;; Recursive range function which is tail call oriented.
   [$self $acc $start $end
     ^start ^end eq if

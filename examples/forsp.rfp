@@ -19,9 +19,6 @@
       ['()]]
   ] $is-list
 
-  ; recursion via y-combinator
-  [$f [$x [^x x] f] dup force] $Y [$g [^g Y]] $rec
-
   ; env-find
   [$self $key $env
     ^env is-nil if

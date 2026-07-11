@@ -1,16 +1,6 @@
 [
   [$x x]                       $force
 
-  ; Y-Combinator
-  [$f
-    [$x [^x x] f]
-    [$x [^x x] f]
-    force
-  ] $Y
-
-  ; rec: syntax sugar for applying the Y-Combinator
-  [$g [^g Y]] $rec
-
   ; factorial
   [$self $n $acc
     n 0 eq if

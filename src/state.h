@@ -27,7 +27,6 @@ typedef struct state
   obj_t *atom_quote;    // atom: quote
   obj_t *atom_push;     // atom: push
   obj_t *atom_pop;      // atom: pop
-  obj_t *atom_rec;      // atom: rec
 
   obj_t *env;        // top-level / initial environment
   obj_t *stack;      // top-of-stack (implemented as a vector)

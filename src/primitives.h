@@ -38,6 +38,9 @@ void prim_bitwise_and(obj_t **_);
 void prim_bitwise_or(obj_t **_);
 void prim_bitwise_nand(obj_t **_);
 
+// native recursion
+void prim_rec(obj_t **_);
+
 // vectors/container helpers
 void prim_copy(obj_t **_);
 void prim_length(obj_t **_);

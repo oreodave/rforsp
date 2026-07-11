@@ -109,6 +109,7 @@ const struct PrimRecord RECORDS[] = {
     MAKE_PRIM_RECORD("nand", &prim_bitwise_nand),
     MAKE_PRIM_RECORD("<<", &prim_lsh),
     MAKE_PRIM_RECORD(">>", &prim_rsh),
+    MAKE_PRIM_RECORD("rec", &prim_rec),
     MAKE_PRIM_RECORD("copy", &prim_copy),
     MAKE_PRIM_RECORD("length", &prim_length),
     MAKE_PRIM_RECORD("vmake", &prim_vmake),
@@ -124,7 +125,7 @@ const struct PrimRecord RECORDS[] = {
 void state_init()
 {
   memset(state, 0, sizeof(state));
-  size_t total_required_atoms = stdc_bit_ceil(6 + ARRSIZE(RECORDS));
+  size_t total_required_atoms = stdc_bit_ceil(5 + ARRSIZE(RECORDS));
 
   vec_init(&state->interned_atoms, total_required_atoms);
 
@@ -133,7 +134,6 @@ void state_init()
   state->atom_quote = intern("quote", 5);
   state->atom_push  = intern("push", 4);
   state->atom_pop   = intern("pop", 3);
-  state->atom_rec   = intern("rec", 3);
 
   vec_init(&state->read_stack, 3);
 

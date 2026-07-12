@@ -1,6 +1,6 @@
 #+filetags: forsp
 
-* PROJ [#C] Rework examples :examples:
+* COMPLETE [#C] Rework examples :examples:
 We've just about reached the point where the examples are a bit out of
 date; syntax has changed, core data structures that make Forsp have
 changed.

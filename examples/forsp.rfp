@@ -91,7 +91,13 @@
   ] rec $eval
 
   ;; tag function
-  [$x [[^x tag] 4 ^x is-closure if] 7 [^x is-clos] if] $new-tag
+  [$x
+    ^x is-clos if
+    [255]
+    [^x is-closure if
+      [4]
+      [^x tag]]
+  ] $new-tag
 
   ;; init-env
   '()

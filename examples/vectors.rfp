@@ -10,7 +10,8 @@
   [+] $add
   1 2 add print                 ; 3
 
-  ;; You also know we can treat vectors as data instead by quoting them:
+  ;; Groupings in square brackets are "vectors".  We can treat such "vectors" as
+  ;; data instead of closures by quoting them:
   '[1 2 3] $vec
   vec print
 
@@ -23,18 +24,18 @@
   vec 0 vpush print ; [1 2 3 0]
 
   ;; And you can pop from them:
-  vec vpop drop print ; 0
+  vec vpop swap print ; 0
 
-  ;; Note how we've had to drop an element when printing out the popped element?
-  ;; This is because `vpop` pushes the item popped, and then the vector itself.
-  ;; This allows us to do this:
-  vec vpop vpop vpop
+  ;; Note how we've had to swap elements on the stack when printing out the
+  ;; popped element?  This is because `vpop` pushes the item popped, and then
+  ;; the vector itself - so the top of the stack is the initial vector that we
+  ;; popped from.  This allows us to call `vpop` repeatedly:
+  vpop vpop vpop
   stack print ; [3 2 1 []]
   drop drop drop drop
 
   ;; So we can empty a vector out entirely by repeatedly calling `vpop` on it.
-  ;; You may notice another thing - the variable vec now points to an empty
-  ;; vector:
+  ;; When we print `vec` now, it's seemingly empty:
   vec print ; []
 
   ;; This is because vectors exist by _reference_.  When we perform a push or a

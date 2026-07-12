@@ -15,9 +15,9 @@ HEADERS=src/common.h src/obj.h src/gc.h src/primitives.h src/cfstack.h \
 EXAMPLES=examples/church-numerals.rfp examples/currying.rfp \
 		examples/factorial.rfp examples/fibonacci-functional.rfp examples/forsp.rfp \
 		examples/higher-order-functions.rfp examples/tutorial.rfp \
+		examples/boxed.rfp examples/vectors.rfp \
 		examples/bigrange-list.rfp examples/bigrange-vec.rfp \
-		examples/loads-of-cons.rfp \
-		examples/collatz.rfp \
+		examples/loads-of-cons.rfp \ examples/collatz.rfp \
 
 $(OUT): $(DIST) $(HEADERS) $(LIB) src/main.c
 	$(CC) $(CFLAGS) -Isrc -o $@ $(LIB) src/main.c $(LDFLAGS) $(DEFS)

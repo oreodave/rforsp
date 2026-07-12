@@ -87,12 +87,6 @@ void prim_env(obj_t **env)
   push(*env);
 }
 
-void prim_nil(obj_t **_)
-{
-  (void)_;
-  push(NULL);
-}
-
 void prim_add(obj_t **_)
 {
   (void)_;

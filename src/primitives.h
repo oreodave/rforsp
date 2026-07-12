@@ -28,7 +28,6 @@ void prim_print(obj_t **_);
 // helpful
 void prim_stack(obj_t **_);
 void prim_env(obj_t **env);
-void prim_nil(obj_t **_);
 
 // numerics
 void prim_add(obj_t **_);

@@ -281,7 +281,10 @@ void prim_vget(obj_t **_)
 
   auto ind = as_num(index);
   auto v   = as_vec(vec);
-  if (ind >= v->length)
+
+  if (ind < 0)
+    ind = v->length + ind;
+  if (ind < 0 || ind >= v->length)
     FAIL("prim_vget: Index (%ld) out of bounds for vec (%u)", ind, v->length);
 
   push(v->items[ind]);
@@ -300,7 +303,10 @@ void prim_vset(obj_t **_)
 
   auto ind = as_num(index);
   auto v   = as_vec(vec);
-  if (ind >= v->length)
+
+  if (ind < 0)
+    ind = v->length + ind;
+  if (ind < 0 || ind >= v->length)
     FAIL("prim_vget: Index (%ld) out of bounds for vec (%u)", ind, v->length);
 
   v->items[ind] = item;

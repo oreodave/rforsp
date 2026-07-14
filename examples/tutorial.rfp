@@ -199,8 +199,8 @@
   ['true print]   ; true
   ['false print]
 
-  ;; By the way, just like Forsp, we can define our own conditionals without the
-  ;; use of the special operator `if`; we can just use `cswap`:
+  ;; By the way we can define our own conditionals without the use of the
+  ;; special operator `if`; we can just use `cswap`:
   [$cond $true $false
     cond ^false ^true rot
     cswap drop force]
@@ -233,14 +233,13 @@
   ] rec $sum
 
   ;; The `rec` primitive takes a closure off the stack, then does some magic to
-  ;; make it necessarily recursive.  While you may be a bit confused about the
-  ;; fact that there's a `$self` parameter in the function body, we only
-  ;; actually need to supply `$n`:
+  ;; make it recursive.  While you may be a bit confused about the fact that
+  ;; there's a `$self` parameter in the function body, we only actually need to
+  ;; supply `$n` when calling it:
   10 sum print
 
   ;; But how does it work?  We can actually get a taste for some of the magic
-  ;; the rForsp interpreter does, by expressing the Y-combinator ourselves:
-
+  ;; the rForsp interpreter does by writing out the Y-combinator:
   [$f
     [$x [^x x] f]
     [$x [^x x] f]
@@ -250,7 +249,6 @@
   ;; This fixed pointer operator is all we need to allow recursion.  However,
   ;; it's not exactly pretty to use.  So let's make our own `rec` helper
   ;; binding:
-
   [$g [^g Y]] $rec
 
   ;; The syntax using our own defined `rec` is extremely similar to the
@@ -266,5 +264,6 @@
   '(8 9)   length print ; 2
   '(1 2 3) length print ; 3
 
-  ;; This concludes the tutorial. You're encouraged to explore the examples to learn more!
+  ;; This concludes the tutorial. You're encouraged to explore the examples to
+  ;; learn more!
 ]

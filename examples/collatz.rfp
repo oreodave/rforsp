@@ -1,23 +1,21 @@
 ;;; collatz.rfp: Computing the collatz chain in rForsp.
 ;; This is an extremely simple program, similar to `factorial.rfp` (which see).
-;; In that vein we avoid naming the core recursive function for this program by
-;; directly applying it against an argument (100) - we won't need to re-use it.
 
 [
-  [$x x]  $force
-
-  'collatz print
-
-  100
   [$self $n
     n print
     n 1 eq if
     ['done print]
     [
       n 1 & 0 eq if
-      [n 2 / self]
-      [3 n * 1 + self]
+      [n 2 /]
+      [3 n * 1 +]
+      self
     ]
-  ] rec
-  force
+  ] rec $collatz
+
+  'collatz print
+  1 34 <<
+  1 -
+  collatz
 ]

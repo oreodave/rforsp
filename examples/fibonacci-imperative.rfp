@@ -20,7 +20,7 @@
   [$b $e $s $f ^b ^e ^s f]  $endfor
 
   ;; Memoised container
-  10                             $n
+  9                              $n
   n vmake                        $container
   [container swap vget]          $fib
   [container rot rot vset]       $fib-set

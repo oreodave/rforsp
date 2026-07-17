@@ -35,7 +35,7 @@
   [eight succ] $nine
 
   ;; show: helper to print out as conventional number
-  [$n 0 [0 1 - -] n print] $show
+  [$n 0 [1 +] n print] $show
 
   ;; demo
   zero show

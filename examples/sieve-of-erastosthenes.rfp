@@ -1,0 +1,102 @@
+;;; sieve-of-erastosthenes.rfp: Computing primes via the method of Erastosthenes.
+;;
+
+[
+  [$x x]                        $force
+  [$_]                          $drop
+  [$x ^x ^x]                    $dup
+  [$x $y ^x ^y]                 $swap
+  [$x $y $z ^y ^x ^z]           $rot
+  ['() eq]                      $null?
+  [- 55 >> 0 eq if ['()] ['t]]  $<
+
+  ;; for loop
+  [$self $start $end $body
+    ^start ^end eq if []
+    [^start body ^body ^end ^start 1 + self]
+  ] rec                     $for
+  [$b $e $s $f ^b ^e ^s f]  $endfor
+
+  ;; range: (start end -- result)
+  [$start $end
+    end start - 1 + $delta
+    delta vmake
+    ^for 0 delta
+      [dup start + vset]
+    endfor
+  ] $range
+
+  ;; sqrt: computes ceil(sqrt(n))
+  [$n
+    ;; Recursive binary search
+    [$self $lo $hi
+      lo hi + 2 /  $mid
+      mid mid *    $mid_sq
+
+      mid_sq n eq if [mid]
+      [mid lo eq if [hi]
+        [n mid_sq < if
+          [mid lo self]
+          [hi mid self]]]
+    ] rec
+    n 0 rot
+    force
+  ] $sqrt
+
+  1 18 <<     $n
+  n sqrt 1 +  $n_sqrt
+  n 2 range   $sieve
+
+  ;; Basic helpers for the sieve
+  sieve length               $sieve-length
+  [sieve swap vget]          $sieve-get
+  [sieve rot rot vset drop]  $sieve-set
+
+  ;; Set every multiple of the prime at p-index to NULL, excluding self.
+  [$p-index
+    sieve-length $end
+    p-index 2 + $p
+
+    p p * 2 -
+    [$self
+      dup end < if
+      [dup '() sieve-set
+        p + self]
+      [drop]
+    ] rec
+    force
+  ] $sieve-p-filter
+
+  ;; Filter all nulls in the sieve, generating a new vector.
+  [
+    0 vmake
+    vswap $old-stack
+      ^for 0 sieve-length
+        [
+          sieve-get
+          dup null? if
+          [drop]
+          []
+        ]
+      endfor
+    old-stack vswap
+  ] $sieve-shake
+
+  ;; Perform the complete sieve, filtering out composites, then shake out the
+  ;; NILs.
+  [
+    ^for 0 n_sqrt 2 -
+      [
+        dup
+        sieve-get null? if
+        [drop]
+        [sieve-p-filter]
+      ]
+    endfor
+    sieve-shake
+  ] $sieve-proc
+
+  sieve-proc $primes
+  'primes-length print
+  primes length print
+]

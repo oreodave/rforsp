@@ -12,12 +12,23 @@ LIB=src/obj.c src/gc.c src/primitives.c src/cfstack.c src/state.c \
 HEADERS=src/common.h src/obj.h src/gc.h src/primitives.h src/cfstack.h \
 		src/state.h src/compute.h
 
-EXAMPLES=examples/church-numerals.rfp examples/currying.rfp examples/demo.rfp \
-		examples/factorial.rfp examples/fibonacci-functional.rfp examples/forsp.rfp \
-		examples/higher-order-functions.rfp examples/tutorial.rfp \
-		examples/bigrange-list.rfp examples/bigrange-vec.rfp \
-		examples/loads-of-cons.rfp \
+EXAMPLES=\
+		examples/tutorial.rfp \
+		examples/vectors.rfp \
+		examples/factorial.rfp \
 		examples/collatz.rfp \
+		examples/currying.rfp \
+		examples/church-numerals.rfp \
+		examples/higher-order-functions.rfp \
+		examples/combinators.rfp \
+		examples/boxed.rfp \
+		examples/fibonacci-functional.rfp \
+		examples/fibonacci-imperative.rfp \
+		examples/bigrange-list.rfp \
+		examples/bigrange-vec.rfp \
+		examples/loads-of-cons.rfp \
+		examples/sieve-of-erastosthenes.rfp \
+		examples/forsp.rfp \
 
 $(OUT): $(DIST) $(HEADERS) $(LIB) src/main.c
 	$(CC) $(CFLAGS) -Isrc -o $@ $(LIB) src/main.c $(LDFLAGS) $(DEFS)

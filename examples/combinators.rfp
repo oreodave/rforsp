@@ -1,0 +1,89 @@
+;;; combinators.rfp: An exercise in implementing stack combinators from Factor.
+
+[
+  ;; Core: Helpers
+  [$x ^x ^x]     $dup
+  [$x $y ^x ^y]  $swap
+  [$_]           $drop
+  [$x x]         $force
+
+  [$self $n
+    n 0 eq if
+    []
+    [drop n 1 - self]
+  ] rec $drop-n
+
+  [
+    $body
+    0 vmake vswap $old-stack
+    body
+    old-stack vswap
+  ] $scope
+  [swap force] $endscope
+
+  ;; `dip`: takes a closure and a value, applies the closure against that value,
+  ;; then restores the value to the top of the stack.
+  [$c $v v c v] $dip
+
+  ;; `bi`: takes two closures and a value, then applies the closures in order
+  ;; against that value.
+  [
+    $c2 $c1
+    ^c1 dip
+    c2
+  ] $bi
+
+  ;; `bi@`: takes two values and a closure, then applies the closure against
+  ;; those values in order.
+  [
+    $c $v2 $v1
+    v1 c
+    v2 c
+  ] $bi@
+
+  ^scope [
+    5 [2 *] [3 +] bi
+    stack print
+    [5 +] bi@
+    stack print
+  ] endscope
+
+  ;; `tri`: takes three closures and a value, then applies the closures in order
+  ;; against that value.
+  [$c3 $c2 $c1
+    ^c1 dip
+    ^c2 dip
+    c3
+  ] $tri
+
+  ^scope [
+    10 [2 /] [5 /] [3 *] tri
+    stack print
+  ] endscope
+
+  ;; `cleave`: takes an array of closures and a value, then applies the closures
+  ;; in order against that value.
+  [$cs $v
+    0
+    [$self $i
+      cs length i eq if
+      []
+      [v cs i vget force
+        i 1 + self]
+    ] rec
+    force
+  ] $cleave
+
+  ^scope [
+    0 vmake vswap $old-stack
+      [1 <<]
+      [2 >>]
+      [10 +]
+      [5 -]
+    old-stack vswap
+
+    8 swap
+    cleave
+    stack print
+  ] endscope
+]

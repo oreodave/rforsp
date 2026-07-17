@@ -1,3 +1,12 @@
+;;; bigrange-list.rfp: Sum a big range in a functional manner using Vectors.
+;; This is a program which computes the sum over [0..N], where N is a relatively
+;; large number, in a functional style.
+;; This variant uses vectors as the container for the sequence [0..N].
+
+;; One may note that current primitives for vectors are necessarily mutating -
+;; through the use of the `copy` primitive this may be alleviated.  However, for
+;; the sake of simplicity this has been elided.
+
 [
   ;; Core: Helpers
   [$x $y ^x ^y]         $swap

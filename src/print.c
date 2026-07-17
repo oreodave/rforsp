@@ -11,7 +11,7 @@ void print(obj_t *obj)
   switch (get_tag(obj))
   {
   case TAG_NIL:
-    printf("()");
+    printf("NIL");
     break;
   case TAG_ATOM:
     printf("%s", as_atom(obj));

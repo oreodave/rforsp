@@ -1,0 +1,72 @@
+;;; boxed.rfp: Creating boxed values in rForsp.
+;; An issue one may experience with rForsp is the lack of real mutable data that
+;; exists outside of both the stack and the environment.  This tutorial serves
+;; as an introduction to making custom data structures through just closures as
+;; well as creating boxed values.
+
+[
+  ;; Core: helpers
+  [$x x]               $force
+  [$_]                 $drop
+  [$x $y ^x ^y]        $swap
+  [$x $y $z ^x ^z ^y]  $rot
+
+  ;; The first thing we need for our boxed type is a constructor.  Since all we
+  ;; have are closures, we must use a closure!
+  [
+    ;; The constructor takes some parameter off the stack, which we will then
+    ;; box.
+    $value
+
+    ;; Since vectors exist by reference, operations done on them will affect
+    ;; subsequent callers that can access that same reference.  This is how we
+    ;; can "box" values without direct memory access primitives.
+    0 vmake value vpush $value
+
+    ;; To construct the "methods" for this value, we simply construct a vector
+    ;; to hold them.  We can use `vswap` to make constructing this vector a
+    ;; little easier.
+    0 vmake vswap $old-stack
+      [value 0 vget]              ; get
+      [value 0 rot rot vset]      ; set
+    old-stack vswap
+
+    ;; The return value of the constructor is simply a vector representing the
+    ;; various methods on the new boxed object we've just made.  Since the
+    ;; closures _independently_ have access to the underlying data, this vector
+    ;; is tantamount to the object as a whole.
+  ] $make-boxed
+
+  ;; Now that we have a basic constructor, let's test it out by boxing the value
+  ;; 0:
+  0 make-boxed $b1
+
+  b1 0 vget force print         ; 0
+  b1 1 vget 2 swap force
+  b1 0 vget force print         ; 2
+
+  ;; That's disgusting, but we can at least see that our getter/setters are
+  ;; working correctly.  To make life easier, let's write a little function on
+  ;; the outside scope which hides this vector access rigmarole.
+
+  [0 vget force] $get
+  [1 vget force] $set
+  b1 get print                  ; 2
+  35 b1 set
+  b1 get print                  ; 35
+
+  ;; Now that we have some nicer accessor functions, let's write a function to
+  ;; add two boxed values (presumably holding integers) together and get a new
+  ;; one:
+  [$x $y x get y get + make-boxed] $boxed+
+
+  34 make-boxed $b2
+  b1 b2 boxed+ get print        ; 69
+
+  ;; Nice.  Let's also make another function to do +=
+  [$x $y x get y get + y set] $boxed+=
+  b1 get print                  ; 35
+  b1 b2 boxed+= get print       ; 69
+  b1 get print                  ; 69
+  b2 get print                  ; 34
+]

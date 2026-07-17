@@ -1,3 +1,8 @@
+;;; bigrange-list.rfp: Sum a big range in a functional manner using Linked Lists.
+;; This is a program which computes the sum over [0..N], where N is a relatively
+;; large number, in a functional style.
+;; This variant uses linked lists as the container for the sequence [0..N].
+
 [
   ;; Core: Helpers
   [$x $y ^x ^y]         $swap

@@ -1,3 +1,5 @@
+;;; church-numerals.rfp: Numeric computation through the Lambda Calculus.
+
 [
   ;; utilities
   [$x x]                   $force

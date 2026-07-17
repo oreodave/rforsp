@@ -1,3 +1,9 @@
+;;; forsp.rfp: An interpreter for Forsp programs.
+;; This program emulates standard Forsp as prescribed by Xorvoid in the original
+;; Forsp article, within rForsp.  It's an exercise to present the fact that both
+;; the original Forsp interpreter as well as the new rForsp interpreter are
+;; capable of self-hosting the compute/eval loop of Forsp.
+
 [
   ;; core utility functions
   [$n ^n ^n]                     $dup
@@ -38,7 +44,7 @@
   [stack-pop $c stack-pop $b stack-pop ^b ^c] $stack-pop3
 
   ;; closure operations
-  [$expr $env '() ^env cons ^expr cons '#closure cons]        $make-closure
+  [$expr $env '() ^env cons ^expr cons '#closure cons]  $make-closure
   [$x
     ^x is-pair if
     [
@@ -48,7 +54,7 @@
     ]
     ['()]
   ] $is-closure
-  [dup cdr car swap car]                                      $unpack-closure
+  [dup cdr car swap car]                                $unpack-closure
 
   ;; compute [$comp $stack $env -> $stack]
   [$compute $eval
@@ -85,7 +91,13 @@
   ] rec $eval
 
   ;; tag function
-  [$x [[^x tag] 4 ^x is-closure if] 7 [^x is-clos] if] $new-tag
+  [$x
+    ^x is-clos if
+    [255]
+    [^x is-closure if
+      [4]
+      [^x tag]]
+  ] $new-tag
 
   ;; init-env
   '()

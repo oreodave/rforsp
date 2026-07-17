@@ -145,6 +145,25 @@ Cons:
 SBCL allows immediate type promotion upon overflow/underflow from
 machine integers to arbitrary size integers.  We should probably do
 the same.
+** PROJ Iteration
+We need better primitives for iteration.  Lifting, say, ~for~ from
+user code would be useful - same way we did [[*Better
+conditionals][if]].
+
+To be fair, the current implementation of ~for~/~endfor~ is really
+just reminiscent of ~do~/~loop~ in Forth.  A genuine ~for~ should
+really iterate over a container.
+** PROJ Design module system
+We need a module system within the interpreter - non-negotiable.  This
+way, we can store a bunch of those basic primitives that we keep
+re-defining in every example in one place: a standard library.
+
+Open questions:
+- Syntax for importing?  Syntax for creating a module?
+- How do we export symbols from a module for use in others?
+- How do we resolve symbols from a package import when computing?
+  Namespacing is a concern here.
+- How are modules searched for?
 * PROJ IR Compiler :ir:
 NOTE: Currently very AI gen'd, still need to refine.
 ** TODO [#B] Design bytecode for vec-based closures :bytecode:
@@ -159,7 +178,7 @@ pre-compiled sub-closures, numeric literals).
 [[file:src/compute.c::static inline void eval(cframe_t
 *cframe)][Current dispatch location]]
 
-Opcodes:
+Potential opcodes:
 - ~BC_PUSH_NIL~, ~BC_PUSH_NUM~, ~BC_PUSH_ATOM~, ~BC_PUSH_CLOS~ —
   push immediates from the constant pool or inline operand
 - ~BC_QUOTE~ — push constant without evaluation (replaces the quote
@@ -180,15 +199,39 @@ entries.  An optimisation pass then runs:
 - Replace ~BC_RESOLVE~ + ~BC_CALL~ at end-of-body with ~BC_TAIL_CALL~
 - Replace ~self~ resolution inside a ~TAG_REC~ body with
   ~BC_PUSH_SELF~
-- Basic stack effect analysis via ~stack_delta~
+- Basic stack effect analysis.
 
 *** TODO Define bytecode types
 *** TODO Write ~bc_compile~ pass
 *** TODO Thread into ~compute~
-*** TODO Optimiser pass: atom pre-resolution
+*** TODO Optimiser pass: safe atom pre-resolution
 *** TODO Optimiser pass: ~TAG_REC~ self-resolution and tail-call
-*** TODO Stack effect verification
+*** TODO Stack effect and type verification
+This is a bit of hard one.  The essential idea is that we need to
+generate a signature for the closure we're compiling:
+- Stack signature:
+  - how many items are expected on the stack when this closure is
+    called?
+  - how many items are present on the stack following a successful
+    call?
+- What are the types of inputs/types of the outputs?
+
+To make this work, we'll need to have a signature for every operation
+in rForsp:
+- Literals (i.e. numbers, quoted objects, etc) push an item of the
+  given type on the stack (~-- <t>~)
+- Given some kind of "call" (i.e. a bare atom), we need to verify what
+  the stack effect of that call may be:
+  - If the atom resolves to a callable, then we need to use the
+    metadata attached to the primitive/pre-compiled closure to figure
+    out the type/stack effect
+  - If the atom resolves to a literal we already know its type/stack
+    effect
+
+This analysis should be in-running while we optimise the closure, so
+we can assert invariants as we compile.
 *** TODO Benchmark against current eval
+** TODO Implement imports
 * Complete
 ** Explored but not merged
 *** COMPLETE Make reader iterative :gc:reader:

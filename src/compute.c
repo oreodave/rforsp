@@ -8,28 +8,30 @@
 #include "primitives.h"
 #include "state.h"
 
+#if DEBUG & DEBUG_COMPUTE
+#define DEBUG_LOG(...)   printf(__VA_ARGS__)
+#define DEBUG_PRINT(OBJ) print(OBJ)
+#else
+#define DEBUG_LOG(...)
+#define DEBUG_PRINT(OBJ)
+#endif
+
 /******************************************************************************
  * Call Frame Cache Helpers                                                   *
  ******************************************************************************/
 static inline obj_t *cframe_find(obj_t *key, cframe_t *frame)
 {
   size_t least_used = 0;
-#if DEBUG & DEBUG_COMPUTE
-  printf("compute:cframe_find: Looking for %s\n", as_atom(key));
-#endif
+  DEBUG_LOG("compute:cframe_find: Looking for %s\n", as_atom(key));
   for (size_t i = 0; i < frame->cache.count; ++i)
   {
-#if DEBUG & DEBUG_COMPUTE
-    printf("\tcomparing to %s {", as_atom(frame->cache.keys[i]));
-    print(frame->cache.values[i]);
-    printf("}\n");
-#endif
+    DEBUG_LOG("\tcomparing to %s {", as_atom(frame->cache.keys[i]));
+    DEBUG_PRINT(frame->cache.values[i]);
+    DEBUG_LOG("}\n");
     if (frame->cache.keys[i] == key)
     {
-#if DEBUG & DEBUG_COMPUTE
-      printf("compute:cframe_find: found!\n");
-#endif
       // Happy path: we cached the key.
+      DEBUG_LOG("compute:cframe_find: found!\n");
       ++frame->cache.hits[i];
       return frame->cache.values[i];
     }
@@ -39,9 +41,7 @@ static inline obj_t *cframe_find(obj_t *key, cframe_t *frame)
     }
   }
 
-#if DEBUG & DEBUG_COMPUTE
-  printf("compute:cframe_find: not found! caching...\n");
-#endif
+  DEBUG_LOG("compute:cframe_find: not found! caching...\n");
   // Bad path: cache did not store the thing we wanted.
   obj_t *value = env_find(frame->env, key);
   size_t index = frame->cache.count == CFCACHE_CAPACITY ? least_used
@@ -222,19 +222,17 @@ void compute(obj_t *comp, obj_t *env)
       continue;
     }
 
-#if DEBUG & DEBUG_COMPUTE
-    printf("compute:sp[%u]:ip[%lu]: {", cfstack->length, cframe->ip);
-    print(cframe->body->items[cframe->ip]);
-    printf("} <- ");
-    print(TAG_CANON(cframe->body, TAG_VEC));
-    printf("\n");
-    printf("stack: ");
-    print(state->stack);
-    printf("\n");
-    printf("env: ");
-    print(cframe->env);
-    printf("\n");
-#endif
+    DEBUG_LOG("compute:sp[%u]:ip[%lu]: {", cfstack->length, cframe->ip);
+    DEBUG_PRINT(cframe->body->items[cframe->ip]);
+    DEBUG_LOG("} <- ");
+    DEBUG_PRINT(TAG_CANON(cframe->body, TAG_VEC));
+    DEBUG_LOG("\n");
+    DEBUG_LOG("stack: ");
+    DEBUG_PRINT(state->stack);
+    DEBUG_LOG("\n");
+    DEBUG_LOG("env: ");
+    DEBUG_PRINT(cframe->env);
+    DEBUG_LOG("\n");
 
     eval(cframe);
 #if DEBUG & DEBUG_COMPUTE

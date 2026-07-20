@@ -13,6 +13,30 @@ static gc_t *gc         = &state->gc;
 static vec_t mark_stack = {0};
 
 /******************************************************************************
+ * Debug Log Macros                                                           *
+ ******************************************************************************/
+
+#if DEBUG & DEBUG_GC_SWEEP
+#define DEBUG_SWEEP_LOG(...) printf(__VA_ARGS__)
+#else
+#define DEBUG_SWEEP_LOG(...)
+#endif
+
+#if DEBUG & DEBUG_GC_MARK
+#define DEBUG_MARK_LOG(...) printf(__VA_ARGS__)
+#else
+#define DEBUG_MARK_LOG(...)
+#endif
+
+#if DEBUG & DEBUG_GC
+#define DEBUG_LOG(...)   printf(__VA_ARGS__)
+#define DEBUG_PRINT(OBJ) print(OBJ)
+#else
+#define DEBUG_LOG(...)
+#define DEBUG_PRINT(OBJ)
+#endif
+
+/******************************************************************************
  * Bitmap Helpers                                                             *
  ******************************************************************************/
 
@@ -198,9 +222,7 @@ __attribute__((noinline)) obj_t *gc_alloc(tag_t tag)
   }
   if (!gc->free_list)
   {
-#if DEBUG & DEBUG_GC
-    printf("GC:alloc: New chunk - no freelist\n");
-#endif
+    DEBUG_LOG("GC:alloc: New chunk - no freelist\n");
     gc_new_chunk();
   }
 
@@ -268,9 +290,7 @@ void gc_mark_obj(obj_t *obj)
 
 size_t gc_sweep(void)
 {
-#if DEBUG & DEBUG_GC_SWEEP
-  printf("GC:sweep: starting...\n");
-#endif
+  DEBUG_SWEEP_LOG("GC:sweep: starting...\n");
   // We must iterate through every chunk and look for unmarked live allocations
   // to eat up into our free list.
   size_t freed = 0;
@@ -283,13 +303,11 @@ size_t gc_sweep(void)
       u64 to_free = c->live_bits[w] & ~c->mark_bits[w];
       size_t base = w * 64;
 
-#if DEBUG & DEBUG_GC_SWEEP
       if (to_free)
       {
-        printf("\t%lu@%lu...%lu => %d slots to free.\n", i, w * 64,
-               (w + 1) * 64, stdc_count_ones(to_free));
+        DEBUG_SWEEP_LOG("\t%lu@%lu...%lu => %d slots to free.\n", i, w * 64,
+                        (w + 1) * 64, stdc_count_ones(to_free))
       }
-#endif
 
       for (u64 todo = to_free; todo; todo &= todo - 1)
       {
@@ -322,11 +340,11 @@ size_t gc_sweep(void)
   gc->metadata.threshold =
       MAX(GC_THRESHOLD_DEFAULT, gc->metadata.slots_live * 2);
 
-#if DEBUG & DEBUG_GC_SWEEP
-  printf("GC:sweep: slots_live: %lu\n", gc->metadata.slots_live);
-  printf("GC:sweep: threshold: %lu\n", gc->metadata.threshold);
-  printf("GC:sweep: freed %lu slots\n", freed);
-#endif
+  DEBUG_SWEEP_LOG("GC:sweep: slots_live: %lu\n"
+                  "GC:sweep: threshold: %lu\n"
+                  "GC:sweep: freed %lu slots\n",
+                  gc->metadata.slots_live, gc->metadata.threshold, freed);
+
   return freed;
 }
 
@@ -343,10 +361,8 @@ static inline void gc_mark_stack_march(void)
   __asm__ volatile("mov %%rsp, %0" : "=r"(sp));
   void **end = (void **)((u8 *)sp + GC_STACK_MARCH_LIMIT);
 
-#if DEBUG & DEBUG_GC_MARK
-  printf("GC:collect:stack_march: Iterating from start=%p -> end=%p\n", sp,
-         (void *)end);
-#endif
+  DEBUG_MARK_LOG("GC:collect:stack_march: Iterating from start=%p -> end=%p\n",
+                 sp, (void *)end)
 
   size_t _ = 0;
   for (void **p = sp; p < end; ++p)
@@ -355,10 +371,8 @@ static inline void gc_mark_stack_march(void)
     void *raw  = (void *)UNTAG(maybe);
     if (IS_ALLOC(maybe) && gc_find_chunk(raw, &_))
     {
-#if DEBUG & DEBUG_GC_MARK
-      printf("GC:collect:stack_march: Marking allocation %p => %p\n", (void *)p,
-             raw);
-#endif
+      DEBUG_MARK_LOG("GC:collect:stack_march: Marking allocation %p => %p\n",
+                     (void *)p, raw);
       gc_mark_obj(maybe);
     }
   }
@@ -368,17 +382,16 @@ size_t gc_collect(void)
 {
 #if DEBUG & DEBUG_GC
   ++gc->metadata.num_collections;
-  printf("GC:collect: Triggered as %lu live slots vs %lu threshold.\n",
-         gc->metadata.slots_live, gc->metadata.threshold);
 #endif
+  DEBUG_LOG("GC:collect: Triggered as %lu live slots vs %lu threshold.\n",
+            gc->metadata.slots_live, gc->metadata.threshold);
 
   gc_mark_stack_march();
   gc_mark_obj(state->stack);
   gc_mark_obj(state->env);
 
-#if DEBUG & DEBUG_GC_MARK
-  printf("GC:collect:frames: marking %u frames.\n", state->cfstack.length);
-#endif
+  DEBUG_MARK_LOG("GC:collect:frames: marking %u frames.\n",
+                 state->cfstack.length);
   for (u64 i = 0; i < state->cfstack.length; ++i)
   {
     cframe_t frame = state->cfstack.frames[i];

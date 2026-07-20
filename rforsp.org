@@ -1,20 +1,5 @@
 #+filetags: forsp
 
-* COMPLETE [#C] Rework examples :examples:
-We've just about reached the point where the examples are a bit out of
-date; syntax has changed, core data structures that make Forsp have
-changed.
-
-It's time for a set of ~rForsp~ examples.  We need to make sure to
-distinguish them from =xorforsp= because:
-1) I don't want to confuse other people who start looking for
-   resources on Forsp and find this project.
-2) The language is different, somewhat.  We can interpret the original
-   language within our new interpreter (see
-   [[file:examples/forsp.fp]]), but the other way around would be
-   tricky.
-
-So it's time to clear out the old, and in with the new!
 * PROJ GC :gc:
 ** PROJ [#B] Better slot pools :bibop:
 The current GC manages a single pool of fixed 16-byte slots, used for
@@ -657,6 +642,21 @@ https://gist.github.com/oreodave/5c87b4e077eba995ae44c0338b8516a1
 Replace any Y-combinator based recursion with our new ~rec~.  Only
 time this shouldn't be the case is in [[examples/forsp.fp][mc
 evaluator]] as that's emulating a Forsp program unto itself.
+** COMPLETE [#C] Rework examples :examples:
+We've just about reached the point where the examples are a bit out of
+date; syntax has changed, core data structures that make Forsp have
+changed.
+
+It's time for a set of ~rForsp~ examples.  We need to make sure to
+distinguish them from =xorforsp= because:
+1) I don't want to confuse other people who start looking for
+   resources on Forsp and find this project.
+2) The language is different, somewhat.  We can interpret the original
+   language within our new interpreter (see
+   [[file:examples/forsp.fp]]), but the other way around would be
+   tricky.
+
+So it's time to clear out the old, and in with the new!
 * Backlog
 ** BACKLOG Closure optimisation :optimiser:
 2026-07-06: Not worth thinking about right now.  Performance dips from

@@ -125,7 +125,7 @@ const struct PrimRecord PRIMITIVES[] = {
     MAKE_PRIM_RECORD("/", &prim_div),
     MAKE_PRIM_RECORD("&", &prim_bitwise_and),
     MAKE_PRIM_RECORD("|", &prim_bitwise_or),
-    MAKE_PRIM_RECORD("nand", &prim_bitwise_nand),
+    MAKE_PRIM_RECORD("~&", &prim_bitwise_nand),
     MAKE_PRIM_RECORD("<<", &prim_lsh),
     MAKE_PRIM_RECORD(">>", &prim_rsh),
     MAKE_PRIM_RECORD("rec", &prim_rec),

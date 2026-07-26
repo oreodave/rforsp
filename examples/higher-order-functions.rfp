@@ -10,9 +10,9 @@
   [nil eq]            $null?
 
   ;; bit operations
-  [dup nand]      $~
-  [nand ~]        $&
-  [~ swap ~ nand] $|
+  [dup ~&]      $~
+  [~& ~]        $&
+  [~ swap ~ ~&] $|
 
   ;; logical operations
   [if ['f] ['t]]          $!

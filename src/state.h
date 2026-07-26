@@ -22,6 +22,7 @@ typedef struct state
   vec_t read_stack; // defered obj to emit from read
 
   vec_t interned_atoms; // interned atoms list
+  obj_t *atom_false;    // atom: f
   obj_t *atom_true;     // atom: t
   obj_t *atom_quote;    // atom: quote
   obj_t *atom_push;     // atom: push

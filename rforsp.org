@@ -81,25 +81,25 @@ Language design projects.
 ** PROJ [#C] Proper booleans :bool:
 We're currently using the atom ~t~ and NULL as our boolean sentinels.
 I think it's time to move this towards something better.  I suggest:
-- atom ~#t~ for truth
-- atom ~#f~ for false
+- atom ~t~ for truth
+- atom ~f~ for false
 
 In particular, I want to refactor truthiness as a whole:
-- "#f" is the only indication of something being "false"
-- anything else, including "#t", is considered truthy
+- "f" is the only indication of something being "false"
+- anything else, including "t", is considered truthy
 
-*** TODO Refactor truthiness
+*** DONE Refactor truthiness
 This requires refactors in these places:
 - [[file:src/compute.c::else if (cmd == state->atom_if)][special operator if]]
 - [[file:src/compute.c::static inline void eval_atom(obj_t *cmd, cframe_t *cframe)][eval_atom self resolving truthy atoms]]
 - [[file:src/primitives.c::void prim_cswap(obj_t **_)][cswap]]
-*** TODO Introduce basic boolean primitives
+*** BACKLOG Introduce basic boolean primitives
 Remember, since we want essentially everything _but_ "#f" to be
 truthy, these operators better resolve to the original object - we
 want permissive booleans, not strict booleans.
-**** TODO Boolean and
-**** TODO Boolean or
-**** TODO Boolean not
+
+2026-07-26: No need to complete this - we can write our own helper
+functions pretty easily.
 *** TODO Benchmark
 Shouldn't be that big a difference between the two variants here, but
 still good to check for implementation issues.

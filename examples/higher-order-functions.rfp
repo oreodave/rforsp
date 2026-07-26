@@ -15,7 +15,7 @@
   [~ swap ~ nand] $|
 
   ;; logical operations
-  [if ['()] ['t]]         $!
+  [if ['f] ['t]]          $!
   [! !]                   $!!
   [$a $b a if [b] [nil]]  $and
   [$a $b a if ['t] [b]]   $or

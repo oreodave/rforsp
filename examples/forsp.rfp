@@ -22,7 +22,7 @@
     ['t]
     [^x is-pair if
       ['t]
-      ['()]]
+      ['f]]
   ] $is-list
 
   ;; env-find
@@ -50,9 +50,9 @@
     [
       ^x car '#closure eq if
       ['t]
-      ['()]
+      ['f]
     ]
-    ['()]
+    ['f]
   ] $is-closure
   [dup cdr car swap car]                                $unpack-closure
 

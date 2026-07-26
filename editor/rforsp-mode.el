@@ -37,7 +37,7 @@
    "copy" "length" "vmake" "vpush" "vpop" "vswap" "vget" "vset"
    "push" "pop" "cons" "car" "cdr" "eq" "cswap"
    "tag" "read" "print" "stack" "env"
-   "+" "-" "*" "/" "&" "|" "nand" "<<" ">>"
+   "+" "-" "*" "/" "&" "|" "!&" "<<" ">>"
    "rec")
   "Keyword list."
   :type '(repeat string))
@@ -77,6 +77,7 @@
     (modify-syntax-entry ?* "_" st)
     (modify-syntax-entry ?/ "_" st)
     (modify-syntax-entry ?& "_" st)
+    (modify-syntax-entry ?~ "_" st)
     (modify-syntax-entry ?| "_" st)
     (modify-syntax-entry ?< "_" st)
     (modify-syntax-entry ?> "_" st)

@@ -78,17 +78,17 @@ so we're finally beating the original in terms of being able to
 interpret a program it can't.
 * PROJ Language :lang:
 Language design projects.
-** PROJ [#C] Proper boolean type :bool:
+** PROJ [#C] Proper booleans :bool:
 We're currently using the atom ~t~ and NULL as our boolean sentinels.
 I think it's time to move this towards something better.  I suggest:
 - atom ~#t~ for truth
 - atom ~#f~ for false
 
-*** TODO Refactor truthiness
 In particular, I want to refactor truthiness as a whole:
 - "#f" is the only indication of something being "false"
 - anything else, including "#t", is considered truthy
 
+*** TODO Refactor truthiness
 This requires refactors in these places:
 - [[file:src/compute.c::else if (cmd == state->atom_if)][special operator if]]
 - [[file:src/compute.c::static inline void eval_atom(obj_t *cmd, cframe_t *cframe)][eval_atom self resolving truthy atoms]]

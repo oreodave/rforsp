@@ -60,7 +60,7 @@ tests: $(TESTS)
 		./$$test; \
 	done
 
-BENCH_EXAMPLE=./examples/forsp.fp
+BENCH_EXAMPLE=./examples/forsp.rfp
 
 MEMPERF_OUT=$(DIST)/memperf.txt
 .PHONY: memperf

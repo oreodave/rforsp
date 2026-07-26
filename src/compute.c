@@ -164,7 +164,7 @@ static inline void eval_atom(obj_t *cmd, cframe_t *cframe)
 
     obj_t *t_branch = cframe_pop(cframe);
     obj_t *f_branch = cframe_pop(cframe);
-    obj_t *chosen   = pop() == state->atom_true ? t_branch : f_branch;
+    obj_t *chosen   = pop() == state->atom_false ? f_branch : t_branch;
 
     assert(IS_VEC(chosen));
     chosen = make_clos(chosen, cframe->env);

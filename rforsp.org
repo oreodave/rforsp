@@ -1,5 +1,207 @@
 #+filetags: forsp
 
+* PROJ IR compiler :compiler:
+** Preamble
+We now want to make the program a compiler for the `rForsp` language.
+Currently the program is a very simple interpreter: read -> compute ->
+stop.  The AST that we read is basically 1-1 with what we evaluate,
+which is nice for simplicity's sake, but isn't so nice for a genuine
+compiler - the amount of nesting works directly counter to our ability
+to optimise.
+
+rForsp is, with the exclusion of environments, quite a flat language
+itself:
+- Bodies of code are implemented as flat buffers (vectors).
+- nested function calls are simply adjacent words in the same vector
+  i.e. ~f(g(h(x)))~ is ~[x h g f]~
+- Operator precedence is a non-issue.
+
+The pain points with compiling rForsp, which weren't painful when we
+just concerned ourselves with interpreting, is that a lot of stuff is
+implicit in its construction:
+- ~1~ really represents "Push the integer 1 onto the value stack".
+- ~$x~ means bind the symbol "x" in the current environment with
+  whatever value is on the stack.
+- ~f~ means lookup the symbol "f" in the current environment, then
+  compute the result of it.
+
+A flatter representation that makes these more explicit, in trade of
+being more verbose, would allow us to reason about rForsp code more
+effectively:
+- Easier to evaluate since:
+  - Each operation is explicit; we don't need to wait for the
+    evaluator to figure it out when iterating but already have
+    dedicated handles for each operation.
+  - We're not jumping between different chunks of memory, but the same
+    overall block.
+- Easier to optimise, since we can perform static analysis on the code
+  ahead of time.
+** TODO Model the IR
+*** Baked in primitives
+Instead of relying on the environment based mechanism for primitive
+look ups, I'm going to elevate primitives to opcodes within the IR
+itself.
+
+So instead of something like:
+#+begin_src asm
+  lookup "+"
+  call
+#+end_src
+
+... we just have:
+#+begin_src asm
+  iadd
+#+end_src
+
+This doesn't mean we have to restrict the user from redefining the
+names of primitives as they wish; if we notice the name for a
+primitive has been shadowed, we can always switch back to the lookup
+based setup.
+*** Closure conversion by lambda lifting
+I'd really like to remove the linked list based environment.
+[[file:src/cfstack.h::} cfcache_t;][The symbol cache]] on call frames
+is a band-aid for the fact that environment resolution takes over 30%
+of all the call time during evaluation.
+
+But this form of environment is precisely necessary for how lexical
+closures work; they bind their environment at point of creation, and
+expect later mutations on the environment to not effect them.  How do
+we resolve this?
+**** Closure slots
+Before we consider the environment problem, let's consider a simple
+case where the environment is used just locally:
+#+begin_src rforsp
+[$x $y $z x y + z *]
+#+end_src
+
+Analysing this function, each word that's referenced is a word that's
+already bound within the function itself (presuming primitives are
+baked in).  If we converted this to the Lambda Calculus, we'd get
+something like:
+#+begin_example
+λ x . (λ y . (λ z . ((x + y) * z)))
+#+end_example
+
+DeBrujin numbering allows us to convert this using a numeral to
+represent the capture at a certain depth:
+#+begin_example
+λ . (λ . (λ . ((2 + 1) * 0)))
+#+end_example
+
+We can use this idea in our IR.  Instead of thinking about "names" and
+calling "names", we instead index into "local storage" to store and
+get values.  In practice, it would look something like this:
+#+begin_src asm
+  pop_local 0                     ; x
+  pop_local 1                     ; y
+  pop_local 2                     ; z
+  call 0
+  call 1
+  iadd                            ; x y +
+  call 2
+  imul                            ; z *
+#+end_src
+When we perform ~pop_local~, we pop a value from the value stack and
+push it into the local storage of the closure.  Indexing should match
+between ~pop_local~ and ~push_local~.  This favours using a single
+buffer of memory for our local storage instead of a linked list, which
+is great.
+
+NOTE: technically, rForsp can represent this function point-free
+already:
+#+begin_src rforsp
+[+ *]
+#+end_src
+Read Brent Kerby's work on Kitten; this is bracket abstraction
+(converting lambdas to combinators).  Generally, we want to move
+operands into the right position for operation through the use of
+combinators like ~swap~, ~rot~, ~dip~, ~dup~, etc.
+**** Free variable analysis
+What about the case where we use a name that isn't bound within the
+closure itself?
+#+begin_src rforsp
+[2 *] $f
+[10 + f] $g
+#+end_src
+
+This requires "free variable analysis" along with a way for us to push
+state from outside of the closure _permanently_ into the slot storage.
+It looks something like this:
+#+begin_src asm
+main:
+  closure f 0
+  pop_local 0
+  push_local 0
+  closure g 1
+f:
+  push_val 2
+  imul
+g:
+  push_val 10
+  iadd
+  call_capture 0
+#+end_src
+
+The idea is that when we _construct_ a closure, we put a number that
+indicates how many items from the stack are put (in order) into a
+separate "capture" store of that closure.  This "capture" store can be
+accessed through "_capture" opcodes.
+
+The "capture" store is necessarily immutable and constructed _once_ at
+runtime - once we've put something into the capture store at
+construction-time, it's stuck there.  No "POP_CAPTURE".
+** TODO Model stack effect/type inference
+This is a two parter really:
+- Define a basic algebra that describes the stack effects and type
+  judgement rules for the primitives of the IR
+- Implement data types to represent stack effects and types, and an
+  algorithm that allows us to unify and infer stack effects from
+  closures.
+
+Why do we want this?  Because it:
+- Allows us to report and avoid a whole class of bugs at "compile
+  time" rather than runtime, and report them with greater meaning than
+  what would be possible at runtime currently.
+- Permits even greater possible optimisations since we have a much
+  clearer picture of how operations affect the value stack.
+*** TODO Design ST algebra
+*** TODO Model ST algebra results in C
+*** TODO Implement inference algorithm
+** TODO Refactor reader to generate IR
+The reader will generate IR immediately instead of the initial
+homoiconic AST.  During closure compilation particularly, we'll
+also do stack effect/type verification and attach that to the closure
+once it's compiled - which will feed into inference for future uses of
+the closure.
+
+The initial IR we generate will also have the metadata regarding its
+origin, which means error reporting for stuff like:
+- Syntactical errors
+- Bad definitions that overwrite intrinsics
+- Bad stack effects
+... will be more informative than before.  This is a great thing
+actually!
+
+BTW the reader simply generates two things:
+- main body of code with _references_ to other blocks
+- a collection of blocks of code, representing the bodies of closures
+  defined during the main program.
+
+While ~rForsp~ has a very natural recursive descent parser, it's not
+like we can't collect the results of these in a container rather than
+forcing C-returns to handle the results.
+** TODO Optimisation
+This should really be a STUB for now - optimisations are wholly
+unnecessary.
+** TODO Unification
+The reader gives us:
+- Main blob of IR code with references
+- Blocks of code, potentially with references to other stuff as well.
+
+Our job now is to compose all these pieces together to get one
+contiguous flat program.  Our first layer is just all the blocks of
+code in their natural order:
+-
 * PROJ GC :gc:
 ** PROJ [#B] Better slot pools :bibop:
 The current GC manages a single pool of fixed 16-byte slots, used for
@@ -131,130 +333,6 @@ Open questions:
 - How do we resolve symbols from a package import when computing?
   Namespacing is a concern here.
 - How are modules searched for?
-* PROJ IR compiler :compiler:
-We now want to make the program a compiler for the `rForsp` language.
-Currently ~rForsp~ is a very simple interpreter: read -> compute ->
-stop.  The AST that we read is basically 1-1 with what we evaluate,
-which is nice for simplicity's sake, but isn't so nice for a genuine
-compiler - the amount of nesting works directly counter to our ability
-to optimise.  Crucially, `rForsp` is a flat language almost by design.
-
-What I'd like to do is introduce an Intermediate Representation that
-translates the higher level Forsp code into a flatter representation.
-There are a couple reasons this would be a good idea:
-- Flatter representations means way less pointer chasing to compute a
-  program, particularly when we're computing closures.
-  - Computing a closure requires pushing a new call frame onto the
-    call frame stack; in particular it needs to load and store the
-    attached environment as well as the body of the closure - which is
-    a DISTINCT memory location to the caller's body.
-  - With a flatter representation, the call frame only needs to hold
-    the Instruction Pointer (an index into the program code) and the
-    environment it's executing in; popping the call frame throws us
-    straight back.
-- Flatter representations make optimisations easier to spot
-  - Inlining is a breeze when we can figure out there's only one call
-    site for a particular closure; before execution we have just a
-    flat space to look at.
-  - Dead code elimination (which plays into inlining) will help since
-    we'll inevitably need to generate separate IR pieces for every
-    closure; even if they're bound to similar names, we know how the
-    environment will mutate as we build our IR.
-- Flattening can get us closer to native
-  - Assembly is not nested; it's flat!  So generating native code from
-    the IR will be an easier task than generating it from our initial
-    homoiconic AST
-** TODO Model the IR
-*** Closure lifting and construction
-The linked list based environment is brutal - I hate having to do O(n)
-lookups to get my precious data.  Thankfully for local function
-parameters this is basically near constant time (excluding the fact we
-may have to do a couple pointer chases) because they're usually near
-the top of the environment.  But we've had to engineer things like
-[[file:src/cfstack.h::} cfcache_t;][the symbol cache]] on call frames
-in order to try and mitigate this a bit - which is a band-aid.
-
-Lexical closures are the main reason we need such a structure - a
-closure binds its environment on point of creation.  This means that
-the current structure of the environment as a linked list works
-perfectly since closure construction just requires taking the current
-environment pointer; later definitions won't affect the pointer that
-the closure uses.  This is why we can't use a more efficient lookup
-structure, and we're relegated to short-caching the results of
-lookups.
-
-But the idea of lexical closures actually has an upshot - since the
-environment is bound at the point of creation, a closure is _invalid_
-if all the stuff it uses isn't already defined somewhere.  We can't do
-something like this:
-#+begin_src rforsp
-[10 f] $g
-[2 *] $f
-#+end_src
-
-... as ~f~ isn't defined when we construct the closure for ~g~.
-*** Baked in primitives
-Instead of relying on the slot based
-
-NOTE: I want to make later tasks easier, so I'm going to pick a
-collection of basic primitives which I believe should be part of the
-IR opcode list i.e. they're intrinsics to the IR language itself.
-This does have a knock on effect that those primitives are now
-essentially "special operators" which cannot be redefined by the user
-through generating closures.  Painful, but it is what it is.  Should
-be reported as an error if we see it happen.
-** TODO Model stack effect/type inference
-This is a two parter really:
-- Define a basic algebra that describes the stack effects and type
-  judgement rules for the primitives of the IR
-- Implement data types to represent stack effects and types, and an
-  algorithm that allows us to unify and infer stack effects from
-  closures.
-
-Why do we want this?  Because it:
-- Allows us to report and avoid a whole class of bugs at "compile
-  time" rather than runtime, and report them with greater meaning than
-  what would be possible at runtime currently.
-- Permits even greater possible optimisations since we have a much
-  clearer picture of how operations affect the value stack.
-*** TODO Design ST algebra
-*** TODO Model ST algebra results in C
-*** TODO Implement inference algorithm
-** TODO Refactor reader to generate IR
-The reader will generate IR immediately instead of the initial
-homoiconic AST.  During closure compilation particularly, we'll
-also do stack effect/type verification and attach that to the closure
-once it's compiled - which will feed into inference for future uses of
-the closure.
-
-The initial IR we generate will also have the metadata regarding its
-origin, which means error reporting for stuff like:
-- Syntactical errors
-- Bad definitions that overwrite intrinsics
-- Bad stack effects
-... will be more informative than before.  This is a great thing
-actually!
-
-BTW the reader simply generates two things:
-- main body of code with _references_ to other blocks
-- a collection of blocks of code, representing the bodies of closures
-  defined during the main program.
-
-While ~rForsp~ has a very natural recursive descent parser, it's not
-like we can't collect the results of these in a container rather than
-forcing C-returns to handle the results.
-** TODO Optimisation
-This should really be a STUB for now - optimisations are wholly
-unnecessary.
-** TODO Unification
-The reader gives us:
-- Main blob of IR code with references
-- Blocks of code, potentially with references to other stuff as well.
-
-Our job now is to compose all these pieces together to get one
-contiguous flat program.  Our first layer is just all the blocks of
-code in their natural order:
--
 * Complete
 ** Explored but not merged
 *** COMPLETE Make reader iterative :gc:reader:

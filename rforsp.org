@@ -78,42 +78,6 @@ so we're finally beating the original in terms of being able to
 interpret a program it can't.
 * PROJ Language :lang:
 Language design projects.
-** IN-PROGRESS [#C] Proper booleans :bool:
-We're currently using the atom ~t~ and NULL as our boolean sentinels.
-I think it's time to move this towards something better.  I suggest:
-- atom ~t~ for truth
-- atom ~f~ for false
-
-In particular, I want to refactor truthiness as a whole:
-- "f" is the only indication of something being "false"
-- anything else, including "t", is considered truthy
-
-*** DONE Refactor truthiness
-This requires refactors in these places:
-- [[file:src/compute.c::else if (cmd == state->atom_if)][special operator if]]
-- [[file:src/compute.c::static inline void eval_atom(obj_t *cmd, cframe_t *cframe)][eval_atom self resolving truthy atoms]]
-- [[file:src/primitives.c::void prim_cswap(obj_t **_)][cswap]]
-*** BACKLOG Introduce basic boolean primitives
-2026-07-26: No need to complete this - we can write our own helper
-functions pretty easily.
-
-Remember, since we want essentially everything _but_ "#f" to be
-truthy, these operators better resolve to the original object - we
-want permissive booleans, not strict booleans.
-*** DONE Benchmark
-2026-07-27: Not super bad but not great either - because of the use of
-atoms for the boolean sentinels, comparisons are against a pointer
-stored in ~state_t~ rather than against direct values we can just use.
-But we nevertheless _do_ want our language to have distinct boolean
-typed values over re-using an old holdover from the linked list days.
-
-Shouldn't be that big a difference between the two variants here, but
-still good to check for implementation issues.
-
-- [[file:examples/factorial.fp][factorial]]
-- [[file:examples/bigrange-list.fp][bigrange-list]]
-- [[file:examples/bigrange-vec.fp][bigrange-vec]]
-- [[file:examples/forsp.fp][mc eval]]
 ** PROJ [#C] Floating point numbers :floats:
 Obvious.
 ** PROJ [#C] Big integers :bigint:
@@ -719,6 +683,42 @@ distinguish them from =xorforsp= because:
    tricky.
 
 So it's time to clear out the old, and in with the new!
+** COMPLETE [#C] Proper booleans :bool:
+We're currently using the atom ~t~ and NULL as our boolean sentinels.
+I think it's time to move this towards something better.  I suggest:
+- atom ~t~ for truth
+- atom ~f~ for false
+
+In particular, I want to refactor truthiness as a whole:
+- "f" is the only indication of something being "false"
+- anything else, including "t", is considered truthy
+
+*** DONE Refactor truthiness
+This requires refactors in these places:
+- [[file:src/compute.c::else if (cmd == state->atom_if)][special operator if]]
+- [[file:src/compute.c::static inline void eval_atom(obj_t *cmd, cframe_t *cframe)][eval_atom self resolving truthy atoms]]
+- [[file:src/primitives.c::void prim_cswap(obj_t **_)][cswap]]
+*** BACKLOG Introduce basic boolean primitives
+2026-07-26: No need to complete this - we can write our own helper
+functions pretty easily.
+
+Remember, since we want essentially everything _but_ "#f" to be
+truthy, these operators better resolve to the original object - we
+want permissive booleans, not strict booleans.
+*** DONE Benchmark
+2026-07-27: Not super bad but not great either - because of the use of
+atoms for the boolean sentinels, comparisons are against a pointer
+stored in ~state_t~ rather than against direct values we can just use.
+But we nevertheless _do_ want our language to have distinct boolean
+typed values over re-using an old holdover from the linked list days.
+
+Shouldn't be that big a difference between the two variants here, but
+still good to check for implementation issues.
+
+- [[file:examples/factorial.fp][factorial]]
+- [[file:examples/bigrange-list.fp][bigrange-list]]
+- [[file:examples/bigrange-vec.fp][bigrange-vec]]
+- [[file:examples/forsp.fp][mc eval]]
 * Backlog
 ** BACKLOG Closure optimisation :optimiser:
 2026-07-06: Not worth thinking about right now.  Performance dips from

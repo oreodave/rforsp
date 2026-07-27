@@ -10,12 +10,12 @@
   [nil eq]            $null?
 
   ;; bit operations
-  [dup nand]      $~
-  [nand ~]        $&
-  [~ swap ~ nand] $|
+  [dup ~&]      $~
+  [~& ~]        $&
+  [~ swap ~ ~&] $|
 
   ;; logical operations
-  [if ['()] ['t]]         $!
+  [if ['f] ['t]]          $!
   [! !]                   $!!
   [$a $b a if [b] [nil]]  $and
   [$a $b a if ['t] [b]]   $or

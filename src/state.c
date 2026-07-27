@@ -95,11 +95,12 @@ struct CachedAtom
   {.name = (NAME), .name_size = sizeof(NAME) - 1, .place = (PLACE)}
 
 const struct CachedAtom CACHED_ATOMS[] = {
+    MAKE_CACHED_ATOM("f", &state->atom_false),
     MAKE_CACHED_ATOM("t", &state->atom_true),
-    MAKE_CACHED_ATOM("if", &state->atom_if),
     MAKE_CACHED_ATOM("quote", &state->atom_quote),
     MAKE_CACHED_ATOM("push", &state->atom_push),
     MAKE_CACHED_ATOM("pop", &state->atom_pop),
+    MAKE_CACHED_ATOM("if", &state->atom_if),
 };
 
 #define MAKE_PRIM_RECORD(NAME, FUNC) \
@@ -124,7 +125,7 @@ const struct PrimRecord PRIMITIVES[] = {
     MAKE_PRIM_RECORD("/", &prim_div),
     MAKE_PRIM_RECORD("&", &prim_bitwise_and),
     MAKE_PRIM_RECORD("|", &prim_bitwise_or),
-    MAKE_PRIM_RECORD("nand", &prim_bitwise_nand),
+    MAKE_PRIM_RECORD("~&", &prim_bitwise_nand),
     MAKE_PRIM_RECORD("<<", &prim_lsh),
     MAKE_PRIM_RECORD(">>", &prim_rsh),
     MAKE_PRIM_RECORD("rec", &prim_rec),

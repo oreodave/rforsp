@@ -185,7 +185,7 @@
   ;; operator within rForsp, similar to `quote`:
 
   't  if [4] [5] print   ; 4
-  '() if [4] [5] print   ; 5
+  'f  if [4] [5] print   ; 5
 
   ;; While the condition that the `if` operator checks has to be on the value
   ;; stack when it's being evaluated, the branches must be after it.  Note how

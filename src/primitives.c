@@ -22,7 +22,7 @@ void prim_pop(obj_t **env)
 void prim_eq(obj_t **_)
 {
   (void)_;
-  push(obj_equal(pop(), pop()) ? state->atom_true : NULL);
+  push(obj_equal(pop(), pop()) ? state->atom_true : state->atom_false);
 }
 
 void prim_cons(obj_t **_)
@@ -48,7 +48,7 @@ void prim_cdr(obj_t **_)
 void prim_cswap(obj_t **_)
 {
   (void)_;
-  if (pop() == state->atom_true)
+  if (pop() != state->atom_false)
   {
     auto a = pop();
     auto b = pop();

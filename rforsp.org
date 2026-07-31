@@ -57,99 +57,64 @@ This doesn't mean we have to restrict the user from redefining the
 names of primitives as they wish; if we notice the name for a
 primitive has been shadowed, we can always switch back to the lookup
 based setup.
-*** Closure conversion by lambda lifting
-I'd really like to remove the linked list based environment.
-[[file:src/cfstack.h::} cfcache_t;][The symbol cache]] on call frames
-is a band-aid for the fact that environment resolution takes over 30%
-of all the call time during evaluation.
+*** Closure representation
+Closures need to be lexical in ~rForsp~.  This is why the interpreter
+still currently represents environments as a linked list; it's fast
+and cheap to construct closures that bind the environment just by
+taking the current global environment pointer.
 
-But this form of environment is precisely necessary for how lexical
-closures work; they bind their environment at point of creation, and
-expect later mutations on the environment to not effect them.  How do
-we resolve this?
-**** Closure slots
-Before we consider the environment problem, let's consider a simple
-case where the environment is used just locally:
+To replace the linked list based environment pointer of the closure,
+I'd like to introduce two stores of data:
+- locals
+- captured
+
+~locals~ are used to represent local bindings within the closure
+i.e. in:
 #+begin_src rforsp
 [$x $y $z x y + z *]
 #+end_src
+... x, y, z would be in the _local_ storage of the closure.
 
-Analysing this function, each word that's referenced is a word that's
-already bound within the function itself (presuming primitives are
-baked in).  If we converted this to the Lambda Calculus, we'd get
-something like:
-#+begin_example
-λ x . (λ y . (λ z . ((x + y) * z)))
-#+end_example
-
-DeBrujin numbering allows us to convert this using a numeral to
-represent the capture at a certain depth:
-#+begin_example
-λ . (λ . (λ . ((2 + 1) * 0)))
-#+end_example
-
-We can use this idea in our IR.  Instead of thinking about "names" and
-calling "names", we instead index into "local storage" to store and
-get values.  In practice, it would look something like this:
-#+begin_src asm
-  pop_local 0                     ; x
-  pop_local 1                     ; y
-  pop_local 2                     ; z
-  call 0
-  call 1
-  iadd                            ; x y +
-  call 2
-  imul                            ; z *
-#+end_src
-When we perform ~pop_local~, we pop a value from the value stack and
-push it into the local storage of the closure.  Indexing should match
-between ~pop_local~ and ~push_local~.  This favours using a single
-buffer of memory for our local storage instead of a linked list, which
-is great.
-
-NOTE: technically, rForsp can represent this function point-free
-already:
-#+begin_src rforsp
-[+ *]
-#+end_src
-Read Brent Kerby's work on Kitten; this is bracket abstraction
-(converting lambdas to combinators).  Generally, we want to move
-operands into the right position for operation through the use of
-combinators like ~swap~, ~rot~, ~dip~, ~dup~, etc.
-**** Free variable analysis
-What about the case where we use a name that isn't bound within the
-closure itself?
+In comparison, ~captured~ is for the use of non-local bindings within
+a closure.  For example, in:
 #+begin_src rforsp
 [2 *] $f
 [10 + f] $g
 #+end_src
+... ~f~ would in the _captured_ storage of the closure ~g~ as ~g~
+references it in its body.  This requires /free variable analysis/.
+*** Opcodes
+**** Stack / literal
+| Opcode       | Operand(s)     | Stack effect | Notes                       |
+|--------------+----------------+--------------+-----------------------------|
+| ~PUSH_VAL~   | ~obj_t*~       | +1           | Push a literal value        |
 
-This requires "free variable analysis" along with a way for us to push
-state from outside of the closure _permanently_ into the slot storage.
-It looks something like this:
-#+begin_src asm
-main:
-  closure f 0
-  pop_local 0
-  push_local 0
-  closure g 1
-f:
-  push_val 2
-  imul
-g:
-  push_val 10
-  iadd
-  call_capture 0
-#+end_src
+**** Closure record access
+| Opcode         | Operand(s)   | Stack effect | Notes                         |
+|----------------+--------------+--------------+-------------------------------|
+| ~PUSH_LOCAL~   | slot index N |           +1 | Push locals[N]                |
+| ~POP_LOCAL~    | slot index N |           -1 | Pop data stack into locals[N] |
+| ~PUSH_CAPTURE~ | slot index N |           +1 | Push captured[N]              |
 
-The idea is that when we _construct_ a closure, we put a number that
-indicates how many items from the stack are put (in order) into a
-separate "capture" store of that closure.  This "capture" store can be
-accessed through "_capture" opcodes.
-
-The "capture" store is necessarily immutable and constructed _once_ at
-runtime - once we've put something into the capture store at
-construction-time, it's stuck there.  No "POP_CAPTURE".
+**** Control flow
+| Opcode         | Operand(s)   | Stack effect | Notes                                                                     |
+|----------------+--------------+--------------+---------------------------------------------------------------------------|
+| ~CLOSURE~      | label, N     | -N, +1       | Create closure: pop N values into captured record, push closure           |
+| ~IF~           |              | -3           | Pop value and two closures; if #f call the first closure, else the second |
+| ~CALL_LOCAL~   | slot index N | dynamic      | "call" locals[n]: if callable call it; else push it onto the stack        |
+| ~CALL_CAPTURE~ | slot index N | dynamic      | "call" captured[n]: if callable call it; else push it onto the stack      |
+| ~RET~          | —            | 0            | Return from current call frame                                            |
+| ~HALT~         | —            | 0            | End program                                                               |
+**** Baked-in primitives (direct opcodes, no env lookup)
+| Opcode                    | Stack effect            | Notes                                |
+|---------------------------+-------------------------+--------------------------------------|
+| ~IADD, ISUB, IMUL, IDIV~  | -2, +1                  | Integer arithmetic                   |
+| ~EQ~                      | -2, +1                  | Equality comparison                  |
+| ~CONS, CAR, CDR~          | cons: -2,+1; car/cdr: 0 | Pair operations                      |
+| ~REC~                     | -1,+1                   | Convert closure to recursive closure |
+| ~PRINT~                   | -1                      | Print top of stack                   |
+| ~AND, OR, NAND, LSH, RSH~ | -2, +1                  | Bitwise operations                   |
+| ~VMAKE, VGET, VSET, VLEN~ | various                 | Vector operations                    |
 ** TODO Model stack effect/type inference
 This is a two parter really:
 - Define a basic algebra that describes the stack effects and type
@@ -203,7 +168,7 @@ contiguous flat program.  Our first layer is just all the blocks of
 code in their natural order:
 -
 * PROJ GC :gc:
-** PROJ [#B] Better slot pools :bibop:
+** PROJ Better slot pools :bibop:
 The current GC manages a single pool of fixed 16-byte slots, used for
 pairs, closures, and vec metadata (the ~vec_t~ header).  Vec ~items~
 buffers are ~calloc~/~realloc~/~free~'d via libc, which fragments the
@@ -280,9 +245,9 @@ so we're finally beating the original in terms of being able to
 interpret a program it can't.
 * PROJ Language :lang:
 Language design projects.
-** PROJ [#C] Floating point numbers :floats:
+** PROJ Floating point numbers :floats:
 Obvious.
-** PROJ [#C] Big integers :bigint:
+** PROJ Big integers :bigint:
 We can only compute $18!$.  Unacceptable.  It's due to only having 56
 bit integers.  We could get away with bumping this up to 63 bits by
 making ~TAG_INT~ unique, but I think that's a bandaid.
@@ -322,7 +287,7 @@ conditionals][if]].
 To be fair, the current implementation of ~for~/~endfor~ is really
 just reminiscent of ~do~/~loop~ in Forth.  A genuine ~for~ should
 really iterate over a container.
-** PROJ Design module system
+** PROJ Module system
 We need a module system within the interpreter - non-negotiable.  This
 way, we can store a bunch of those basic primitives that we keep
 re-defining in every example in one place: a standard library.

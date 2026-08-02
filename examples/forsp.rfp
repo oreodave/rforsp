@@ -18,22 +18,26 @@
   [tag 3 eq] $is-pair
   [tag 4 eq] $is-clos
   [$x
-    ^x is-nil if
+    ^x is-nil
     ['t]
-    [^x is-pair if
+    [^x is-pair
       ['t]
-      ['f]]
+      ['f]
+      if]
+    if
   ] $is-list
 
   ;; env-find
   [$self $key $env
-    ^env is-nil if
+    ^env is-nil
     ['NOT_FOUND_IN_ENV ^key cons print FAIL]
     [
-      ^env car car ^key eq if
+      ^env car car ^key eq
       [^env car cdr]
       [^env cdr ^key self]
+      if
     ]
+    if
   ] rec $env-find
 
   ;; stack operations
@@ -46,57 +50,67 @@
   ;; closure operations
   [$expr $env '() ^env cons ^expr cons '#closure cons]  $make-closure
   [$x
-    ^x is-pair if
+    ^x is-pair
     [
-      ^x car '#closure eq if
+      ^x car '#closure eq
       ['t]
       ['f]
+      if
     ]
     ['f]
+    if
   ] $is-closure
   [dup cdr car swap car]                                $unpack-closure
 
   ;; compute [$comp $stack $env -> $stack]
   [$compute $eval
-    dup is-nil if
-    [rot $_ $_] ; false case: return $stack
+    dup is-nil
+    [rot $_ $_]
     [
       stack-pop
-      dup 'quote eq if
+      dup 'quote eq
       [$_ stack-pop rot swap
         stack-push swap
         ^eval compute]
       [swap $comp eval ^comp ^eval compute]
-    ]
+      if
+    ] ; false case: return $stack
+    if
   ] rec $compute
 
   ;; eval: [$expr $stack $env -> $stack $env]
   [$eval
-    dup is-atom if
+    dup is-atom
     [
       over2 swap env-find dup $callable
-      dup is-closure if
+      dup is-closure
       [swap $stack cdr unpack-closure ^stack swap ^eval compute]
       [
-        dup is-clos if
+        dup is-clos
         [force]
         [stack-push]
+        if
       ]
+      if
     ]
     [
-      dup is-list if
+      dup is-list
       [over2 swap make-closure stack-push]
       [stack-push]
+      if
     ]
+    if
   ] rec $eval
 
   ;; tag function
   [$x
-    ^x is-clos if
+    ^x is-clos
     [255]
-    [^x is-closure if
+    [^x is-closure
       [4]
-      [^x tag]]
+      [^x tag]
+      if]
+    if
   ] $new-tag
 
   ;; init-env

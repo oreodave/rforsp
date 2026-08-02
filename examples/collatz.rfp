@@ -4,14 +4,16 @@
 [
   [$self $n
     n print
-    n 1 eq if
+    n 1 eq
     ['done print]
     [
-      n 1 & 0 eq if
+      n 1 & 0 eq
       [n 2 /]
       [3 n * 1 +]
+      if
       self
     ]
+    if
   ] rec $collatz
 
   'collatz print

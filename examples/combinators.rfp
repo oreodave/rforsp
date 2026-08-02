@@ -8,9 +8,10 @@
   [$x x]         $force
 
   [$self $n
-    n 0 eq if
+    n 0 eq
     []
     [drop n 1 - self]
+    if
   ] rec $drop-n
 
   ;; `dip`: takes a closure and a value, applies the closure against that value,
@@ -54,10 +55,11 @@
   [$cs $v
     0
     [$self $i
-      cs length i eq if
+      cs length i eq
       []
       [v cs i vget force
         i 1 + self]
+      if
     ] rec
     force
   ] $cleave

@@ -14,16 +14,18 @@
 
   ;; range
   [$self $start $end
-    ^start ^end eq if
+    ^start ^end eq
     ['()]
     [^end ^start 1 + self ^start cons]
+    if
   ] rec $range
 
   ;; map [$fn $list -> $out-list]
   [$self $fn $list
-    ^list null? if
+    ^list null?
     ['()]
     [^list car fn ^list cdr ^fn self swap cons]
+    if
   ] rec $map
 
   ;; each [$fn $list]
@@ -32,9 +34,10 @@
   ;; implementation
   [0 1
     [$self $a $b $n
-      ^n 0 eq if
+      ^n 0 eq
       [^b]
-      [^n 1 - ^a ^b + ^b self]]
+      [^n 1 - ^a ^b + ^b self]
+      if]
     rec force] $fibonacci
 
   10 1 range

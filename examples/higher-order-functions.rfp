@@ -15,10 +15,10 @@
   [~ swap ~ ~&] $|
 
   ;; logical operations
-  [if ['f] ['t]]          $!
+  [['f] ['t] if]          $!
   [! !]                   $!!
-  [$a $b a if [b] [nil]]  $and
-  [$a $b a if ['t] [b]]   $or
+  [$a $b a [b] [nil] if]  $and
+  [$a $b a ['t] [b] if]   $or
 
   ;; comparisons
   [55 >> 0 eq !] $is-neg
@@ -29,34 +29,39 @@
 
   ;; range
   [$self $start $end
-    ^start ^end eq if
+    ^start ^end eq
     [nil]
     [^end ^start 1 + self ^start cons]
+    if
   ] rec $range
 
   ;; map [$fn $list -> $out-list]
   [$self $fn $list
-    ^list null? if
+    ^list null?
     [nil]
     [^list car fn ^list cdr ^fn self swap cons]
+    if
   ] rec $map
 
   ;; filter [$pred $list -> $out-list]
   [$self $pred $list
-    ^list null? if
+    ^list null?
     [nil]
     [^list cdr ^pred self
-      ^list car pred if
+      ^list car pred
       [^list car cons]
       []
+      if
     ]
+    if
   ] rec $filter
 
   ;; reduce [$fn $init $list -> $out]
   [$self $fn $init $list
-    ^list null? if
+    ^list null?
     [^init]
     [^list cdr ^list car ^init fn ^fn self]
+    if
   ] rec $reduce
 
   ;; is-even

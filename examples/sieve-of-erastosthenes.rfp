@@ -8,12 +8,14 @@
   [$x $y ^x ^y]                 $swap
   [$x $y $z ^y ^x ^z]           $rot
   ['() eq]                      $null?
-  [- 55 >> 0 eq if ['f] ['t]]   $<
+  [- 55 >> 0 eq ['f] ['t] if]   $<
 
   ;; for loop
   [$self $start $end $body
-    ^start ^end eq if []
+    ^start ^end eq
+    []
     [^start body ^body ^end ^start 1 + self]
+    if
   ] rec                     $for
   [$b $e $s $f ^b ^e ^s f]  $endfor
 
@@ -33,11 +35,16 @@
       lo hi + 2 /  $mid
       mid mid *    $mid_sq
 
-      mid_sq n eq if [mid]
-      [mid lo eq if [hi]
-        [n mid_sq < if
+      mid_sq n eq
+      [mid]
+      [mid lo eq
+        [hi]
+        [n mid_sq <
           [mid lo self]
-          [hi mid self]]]
+          [hi mid self]
+          if]
+        if]
+      if
     ] rec
     n 0 rot
     force
@@ -59,10 +66,11 @@
 
     p p * 2 -
     [$self
-      dup end < if
+      dup end <
       [dup '() sieve-set
         p + self]
       [drop]
+      if
     ] rec
     force
   ] $sieve-p-filter
@@ -73,9 +81,10 @@
     ^for 0 sieve-length
       [
         sieve-get
-        dup null? if
+        dup null?
         [drop]
         [new-vec swap vpush drop]
+        if
       ]
     endfor
     new-vec
@@ -87,9 +96,10 @@
     ^for 0 n_sqrt 2 -
       [
         dup
-        sieve-get null? if
+        sieve-get null?
         [drop]
         [sieve-p-filter]
+        if
       ]
     endfor
     sieve-shake

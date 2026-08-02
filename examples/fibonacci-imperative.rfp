@@ -13,9 +13,10 @@
 
   ;; For loop
   [$self $start $end $body
-    ^start ^end eq if
+    ^start ^end eq
     []
     [^start body ^body ^end ^start 1 + self]
+    if
   ] rec                     $for
   [$b $e $s $f ^b ^e ^s f]  $endfor
 

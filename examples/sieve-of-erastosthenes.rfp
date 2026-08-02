@@ -69,17 +69,16 @@
 
   ;; Filter all nulls in the sieve, generating a new vector.
   [
-    0 vmake
-    vswap $old-stack
-      ^for 0 sieve-length
-        [
-          sieve-get
-          dup null? if
-          [drop]
-          []
-        ]
-      endfor
-    old-stack vswap
+    0 vmake $new-vec
+    ^for 0 sieve-length
+      [
+        sieve-get
+        dup null? if
+        [drop]
+        [new-vec swap vpush drop]
+      ]
+    endfor
+    new-vec
   ] $sieve-shake
 
   ;; Perform the complete sieve, filtering out composites, then shake out the

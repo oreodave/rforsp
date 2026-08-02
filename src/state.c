@@ -117,8 +117,6 @@ const struct PrimRecord PRIMITIVES[] = {
     MAKE_PRIM_RECORD("tag", &prim_tag),
     MAKE_PRIM_RECORD("read", &prim_read),
     MAKE_PRIM_RECORD("print", &prim_print),
-    MAKE_PRIM_RECORD("stack", &prim_stack),
-    MAKE_PRIM_RECORD("env", &prim_env),
     MAKE_PRIM_RECORD("+", &prim_add),
     MAKE_PRIM_RECORD("-", &prim_sub),
     MAKE_PRIM_RECORD("*", &prim_mul),
@@ -134,7 +132,6 @@ const struct PrimRecord PRIMITIVES[] = {
     MAKE_PRIM_RECORD("vmake", &prim_vmake),
     MAKE_PRIM_RECORD("vpush", &prim_vpush),
     MAKE_PRIM_RECORD("vpop", &prim_vpop),
-    MAKE_PRIM_RECORD("vswap", &prim_vswap),
     MAKE_PRIM_RECORD("vget", &prim_vget),
     MAKE_PRIM_RECORD("vset", &prim_vset),
 };

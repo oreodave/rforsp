@@ -24,12 +24,10 @@
     0 vmake value vpush $value
 
     ;; To construct the "methods" for this value, we simply construct a vector
-    ;; to hold them.  We can use `vswap` to make constructing this vector a
-    ;; little easier.
-    0 vmake vswap $old-stack
-      [value 0 vget]              ; get
-      [value 0 rot rot vset]      ; set
-    old-stack vswap
+    ;; to hold them.
+    0 vmake
+    [value 0 vget]         vpush
+    [value 0 rot rot vset] vpush
 
     ;; The return value of the constructor is simply a vector representing the
     ;; various methods on the new boxed object we've just made.  Since the

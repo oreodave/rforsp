@@ -76,17 +76,6 @@ void prim_print(obj_t **_)
   printf("\n");
 }
 
-void prim_stack(obj_t **_)
-{
-  (void)_;
-  push(state->stack);
-}
-
-void prim_env(obj_t **env)
-{
-  push(*env);
-}
-
 void prim_add(obj_t **_)
 {
   (void)_;
@@ -256,17 +245,6 @@ void prim_vpop(obj_t **_)
 
   push(ret);
   push(vec);
-}
-
-void prim_vswap(obj_t **_)
-{
-  (void)_;
-  auto vec = pop();
-  if (!IS_VEC(vec))
-    FAIL("prim_vswap: Expected vector, got %p", (void *)vec);
-  auto old_stack = state->stack;
-  state->stack   = vec;
-  push(old_stack);
 }
 
 void prim_vget(obj_t **_)

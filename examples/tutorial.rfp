@@ -9,36 +9,24 @@
   ;; character.  Also, all code is inside [] brackets. Actually, all code is a
   ;; vector, but if you don't understand what that means, it's okay.
 
-  ;; In rForsp, we have a value stack. We can print it out as follows:
-
-  stack print  ; []
-
-  ;; This should print empty square braces which means that the stack is empty.
-  ;; Let's put something on the stack
-
+  ;; In rForsp, we have a value stack.  Let's put something on the stack
   5
 
-  ;; And now let's print the stack again
+  ;; Using the operator print, we can print out the top of the stack.
+  print                         ; 5
 
-  stack print ; [5]
-
-  ;; Now we have something! Let's put on a few more numbers
-
+  ;; Print consumes the top of the stack.  Let's put on a few more numbers.
   4 3
 
-  stack print ; [5 4 3]
+  print                         ; 3
+  print                         ; 4
 
-  ;; A stack is LIFO order, or Last-In-First-Off. This means that the next value
-  ;; to be removed from the stack will be 3. Let's "print" and find out.
+  ;; A stack is LIFO order, or Last-In-First-Off - which is why you see the
+  ;; prints coming out in seemingly reverse order.
 
-  print        ; 3
-  stack print  ; [5 4]
-
-  ;; Checks out!
   ;; Let's try arithmetic!
 
-  * print     ; 20
-  stack print ; []
+  4 5 * print                   ; 20
 
   ;; The * operation multiplies the top-two values on the stack and then pushes
   ;; it back to stack.  Then "print" prints the value, leaving the stack empty.
@@ -48,17 +36,13 @@
   ;; follows:
 
   5 $my-variable
-  stack print ; []
 
   ;; Now "my-variable" is bound to 5. To push a value onto the stack from a
   ;; variable we can do the following:
 
-  ^my-variable
-  stack print ; [5]
-  $_
+  ^my-variable print            ; 5
 
-  ;; Coolio. Notice that we bound the variable "_" to remove the value from the
-  ;; stack.  Now, say we wanted to square "my-variable". we could to the
+  ;; Coolio. Now, say we wanted to square "my-variable". we could to the
   ;; following:
 
   ^my-variable ^my-variable * print ; 25
@@ -67,23 +51,22 @@
   ;; inside of some square brackets.
 
   [$x ^x ^x *]
-  stack print  ; [CLOSURE<[quote x pop quote x push quote x push *], 0x...>]
+  print                         ; CLOSURE<...>
 
   ;; What's this scary value on the stack now? When we build a function with [],
   ;; it forms a lexical closure around the current environment. If you prefer,
   ;; you can just think of "CLOSURE" as a "callable function value".
 
-  ;; But how do we call it? As it turns out "print" and "stack" are both
-  ;; functions.  To call a function in Forsp, you simply write the function's
-  ;; name.  But, our function has no name yet. So, let's give it one by popping
-  ;; it and binding to a variable name!
+  ;; But how do we call it? As it turns out "print" and "*" are both functions.
+  ;; To call a function in Forsp, you simply write the function's name.  But,
+  ;; our function has no name yet. So, let's give it one by popping it and
+  ;; binding to a variable name!
 
-  $square
+  [$x ^x ^x *] $square
 
   ;; And lets call it on an argument:
 
-  6 square
-  stack print ; 36
+  6 square print                ; 36
 
   ;; How cool! It should be easy enough to understand the function definition:
   ;; [$x ^x ^x *]. Pop and bind "x".  Push "x". Push "x" again. Call the "*"
@@ -93,20 +76,18 @@
   ;; For this, you can simply quote the value:
 
   'something
+  print                         ; something
   '[1 2 3]
+  print                         ; [1 2 3]
   '[abc [1 foo] []]
-  stack print  ; [36 something [1 2 3] [abc [1 foo] []]]
+  print                         ; [abc [1 foo] []]
 
   ;; You can also write "quote" verbosely:
+  quote other print             ; other
 
-  quote other
-  stack print  ; [36 something [1 2 3] [abc [1 foo] []] other]
-
-  ;; Let's define another function to remove values for the stack, and use it to
-  ;; cleanup the stack
-
+  ;; Let's define another function to remove values for the stack.
   [$_] $drop
-  drop drop drop drop drop
+  20 10 drop print              ; 20
 
   ;; Now so far you may be wondering how rForsp is different to Forsp.  One of
   ;; the main differences is the use of square brackets [] over parentheses ().
@@ -151,12 +132,14 @@
 
   ;; Let's demonstrate them by example:
 
-  9 8 7 stack print  ; [9 8 7]
-  swap stack print   ; [9 7 8]
-  over stack print   ; [9 7 8 7]
-  drop stack print   ; [9 7 8]
-  rot stack print    ; [7 8 9]
-  drop drop drop
+  [print print print] $print3
+
+  1 2 3 print3                  ; 3, 2, 1
+  1 2 3 swap print3             ; 2, 3, 1
+  1 2 3 over print3             ; 2, 3, 2
+             print              ; 1
+
+  1 2 3 rot print3              ; 1, 3, 2
 
   ;; `+` is the addition primitive in rForsp:
   3 4 + print

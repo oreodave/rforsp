@@ -33,8 +33,10 @@
   ;; just popped?  This is because `vpop` and `vpush` are built for repeated
   ;; application:
   vpop vpop vpop
-  stack print ; [3 2 1 []]
-  drop drop drop drop
+  print ; []
+  print ; 1
+  print ; 2
+  print ; 3
 
   ;; So we can empty a vector out entirely by repeatedly calling `vpop` on it.
   ;; When we print `vec` now, it's empty:
@@ -53,10 +55,9 @@
   ;; the original vector before we did a push/pop?  Lucky for you, there's the
   ;; `copy` primitive, which performs a shallow copy of a vector on the stack:
   '[1 2 3] $first
-  first stack print             ; [[1 2 3]]
-  copy $second
-  second stack print            ; [[1 2 3]]
-  drop
+  first print                   ; [[1 2 3]]
+  first copy $second
+  second print                  ; [[1 2 3]]
 
   ;; These don't look that different, but we can check that these aren't
   ;; equivalent:
@@ -102,131 +103,4 @@
   2 'banana vset
   -1 'mango vset            ; like `vget`, `vset` also can use negative indices.
   print                     ; [apple pear banana mango]
-
-  ;; As you may have noticed during the tutorial, the stack looks a lot like a
-  ;; vector when printing:
-  stack print                   ; []
-  1 2 3
-  stack print                   ; [1 2 3]
-  drop drop drop
-
-  ;; This is correct - the stack _is_ a vector!
-
-  ;; Now the following function:
-  [$self $n
-    n 0 eq if
-    [0]
-    [n n 1 - self]
-  ] rec $push-range
-
-  ;; as you can guess, it'll push [0..n] onto the value stack as is.
-  2 push-range
-  stack print                   ; [2 1 0]
-  print print print             ; 0, then 1, then 2.
-
-  ;; That's cool, but what if I wanted to do something with the output of this
-  ;; function?  Since it just pushes onto the value stack willy-nilly, we've got
-  ;; to do some work to try and collect it into a container.
-
-  ;; We could define a helper function which pops n elements off the stack and
-  ;; pushes them onto a vector:
-  [$self $acc $n $value
-    acc value vpush
-    n 0 eq if
-    []
-    [n 1 - swap self]
-  ] rec $vec-from-stack
-
-  3 push-range
-  stack print                   ; [3 2 1 0]
-  3 0 vmake vec-from-stack
-  print                         ; [0 1 2 3]
-
-  ;; But this is reversing the output of the function due to how pushing/popping
-  ;; work!  We _could_ also write our own reversing algorithm, or come up with
-  ;; an indexing routine to build the vector by hand, but this seems overly
-  ;; painful.
-
-  ;; Wouldn't it be nice if we could just capture the output of the function
-  ;; from the stack vector directly?  Like redirecting the output of a command
-  ;; to a file in your usual *NIX shell!
-
-  ;; The primitive `vswap` does exactly that - it swaps the current value stack
-  ;; with a vector from the top of the stack.  Its inner workings are a bit
-  ;; specific so bare with me:
-  ;; - Say the current value stack is `C` and the vector on top of it is `V`.
-  ;; - `vswap` pops `V` off `C`, then sets the interpreter value stack to `V`.
-  ;; - As a final step `C` is pushed onto `V`.
-
-  ;; It's best that we demonstrate this directly.  First let's construct a fresh
-  ;; vector:
-  0 vmake
-
-  ;; Now let's swap the current value stack (C) with this new vector (V)
-  vswap
-
-  ;; As per the instructions, V is now our value stack, and C has been pushed
-  ;; onto it.  Let's bind it to a name for book-keeping.
-  $old-stack
-
-  ;; We can still do all our usual operations:
-  1 2 + print                   ; 3
-
-  ;; Now let's call push-range again
-  5 push-range
-  stack print                   ; [5 4 3 2 1 0]
-
-  ;; The behaviour of `push-range` is exactly the same.  However, if we now call
-  ;; `vswap` with the `old-stack`:
-  old-stack vswap
-
-  stack print                   ; [[5 4 3 2 1 0]]
-
-  ;; Now the vector which acted as the value stack previously, capturing the
-  ;; output of `push-range`, is accessible for us to play with as a container.
-  ;; This means we can arbitrarily vget, vset, vpop, vpush on it.  Pretty cool,
-  ;; huh?
-  drop
-
-  ;; We can, of course, use this as just another way to make vectors:
-  0 vmake
-  vswap $old-stack
-    1 2 3 4 5
-  old-stack vswap
-  print                         ; [1 2 3 4 5]
-
-  ;; But the real power of it comes from allowing us to do arbitrary read/writes
-  ;; to the current value stack.  Now, technically speaking we can do this right
-  ;; now without `vswap`:
-  10 push-range
-  stack print                   ; [10 9 8 7 6 5 4 3 2 1 0]
-  stack 0 'apple vset
-  print                         ; [apple 9 8 7 6 5 4 3 2 1 0]
-
-  ;; This requires absolute indices.  However, most real applications of this
-  ;; kind of arbitrary mutation will be using end-relative indices.  This is
-  ;; fine since negative indices allow us to refer to "top-relative" elements.
-  ;; But!  Any operation we do (like adding numbers together) will use the value
-  ;; stack!  We can run into all sorts of off-by-1 errors if we're not careful
-  ;; with the current state of the stack as we're writing our routines.
-
-  ;; The real reason this is so tricky is because we're actively mutating the
-  ;; very data store we're trying to read from through tangential operations.
-  ;; We need to _freeze_ the value stack itself.
-
-  ;; By `vswap`ing with a dummy empty vector we can do exactly that, making the
-  ;; value stack as just a normal vector.  Any of our usual operations that
-  ;; would affect the value stack will work on the dummy vector, which means we
-  ;; can do length generic stuff just fine:
-  '[] vswap
-  dup print                     ; [apple 9 8 7 6 5 4 3 2 1 0]
-  dup -1 'pear vset
-  ;; remember, `vset` returns back the vector we just mutated, so we can feed
-  ;; that directly into `vswap`.
-  vswap
-
-  ;; We do need to drop the empty temporary vector we used to `vswap`.
-  drop
-
-  stack print                         ; [apple 9 8 7 6 5 4 3 pear 1 0]
 ]

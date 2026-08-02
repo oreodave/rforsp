@@ -25,10 +25,6 @@ void prim_tag(obj_t **_);
 void prim_read(obj_t **_);
 void prim_print(obj_t **_);
 
-// helpful
-void prim_stack(obj_t **_);
-void prim_env(obj_t **env);
-
 // numerics
 void prim_add(obj_t **_);
 void prim_sub(obj_t **_);
@@ -49,7 +45,6 @@ void prim_length(obj_t **_);
 void prim_vmake(obj_t **_);
 void prim_vpush(obj_t **_);
 void prim_vpop(obj_t **_);
-void prim_vswap(obj_t **_);
 void prim_vget(obj_t **_);
 void prim_vset(obj_t **_);
 

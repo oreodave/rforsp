@@ -13,14 +13,6 @@
     [drop n 1 - self]
   ] rec $drop-n
 
-  [
-    $body
-    0 vmake vswap $old-stack
-    body
-    old-stack vswap
-  ] $scope
-  [swap force] $endscope
-
   ;; `dip`: takes a closure and a value, applies the closure against that value,
   ;; then restores the value to the top of the stack.
   [$c $v v c v] $dip
@@ -41,12 +33,10 @@
     v2 c
   ] $bi@
 
-  ^scope [
-    5 [2 *] [3 +] bi
-    stack print
-    [5 +] bi@
-    stack print
-  ] endscope
+  5 [2 *] [3 +] bi
+  print print
+  10 15 [5 +] bi@
+  print print
 
   ;; `tri`: takes three closures and a value, then applies the closures in order
   ;; against that value.
@@ -56,10 +46,8 @@
     c3
   ] $tri
 
-  ^scope [
-    10 [2 /] [5 /] [3 *] tri
-    stack print
-  ] endscope
+  10 [2 /] [5 /] [3 *] tri
+  print
 
   ;; `cleave`: takes an array of closures and a value, then applies the closures
   ;; in order against that value.
@@ -74,16 +62,12 @@
     force
   ] $cleave
 
-  ^scope [
-    0 vmake vswap $old-stack
-      [1 <<]
-      [2 >>]
-      [10 +]
-      [5 -]
-    old-stack vswap
-
-    8 swap
-    cleave
-    stack print
-  ] endscope
+  0 vmake
+  [1 <<] vpush
+  [2 >>] vpush
+  [10 +] vpush
+  [5 -]  vpush
+  8 swap
+  cleave
+  print
 ]

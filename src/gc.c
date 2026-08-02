@@ -194,7 +194,7 @@ void gc_stop()
       size_t base    = w * 64;
       for (u64 todo = to_reclaim; todo; todo &= todo - 1)
       {
-        auto bit   = stdc_trailing_zeros_ull(todo);
+        auto bit   = stdc_trailing_zeros(todo);
         auto vslot = (vec_t *)(chunk->data + (base + bit) * 16);
         free(vslot->items);
       }
@@ -312,7 +312,7 @@ size_t gc_sweep(void)
       for (u64 todo = to_free; todo; todo &= todo - 1)
       {
         // Find the lowest bit which is nonzero through a single hardware inst.
-        int bit        = stdc_trailing_zeros_ull(todo);
+        int bit        = stdc_trailing_zeros(todo);
         size_t slot_id = base + bit;
 
         void *slot = c->data + slot_id * 16;

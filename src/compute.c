@@ -157,17 +157,11 @@ static inline void eval_atom(obj_t *cmd, cframe_t *cframe)
       FAIL("Expected data following a quote form");
     push(cframe_pop(cframe));
   }
-  else if (cmd == state->atom_if)
+  else if (cmd == state->atom_if && !cframe_find(state->atom_if, cframe))
   {
-    if (cframe->ip > cframe->body->length - 2)
-      FAIL("Expected branches following a if form");
-
-    obj_t *t_branch = cframe_pop(cframe);
-    obj_t *f_branch = cframe_pop(cframe);
+    obj_t *f_branch = pop();
+    obj_t *t_branch = pop();
     obj_t *chosen   = pop() == state->atom_false ? f_branch : t_branch;
-
-    assert(IS_VEC(chosen));
-    chosen = make_clos(chosen, cframe->env);
     call(chosen, cframe);
   }
   else

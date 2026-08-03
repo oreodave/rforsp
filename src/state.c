@@ -39,7 +39,7 @@ obj_t *pop(void)
 obj_t *env_find(obj_t *env, obj_t *key)
 {
   if (!IS_ATOM(key))
-    FAIL("Expected 'key' (%lx) to be an atom in env_find()", (uintptr_t)key);
+    return state->fail_sentinel;
 
   while (IS_PAIR(env))
   {
@@ -51,7 +51,7 @@ obj_t *env_find(obj_t *env, obj_t *key)
     env = DIRECT_CDR(env);
   }
 
-  FAIL("Failed to find in key='%s' in environment", as_atom(key));
+  return state->fail_sentinel;
 }
 
 obj_t *env_define(obj_t *env, obj_t *key, obj_t *val)

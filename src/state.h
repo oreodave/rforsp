@@ -28,6 +28,7 @@ typedef struct state
   obj_t *atom_push;     // atom: push
   obj_t *atom_pop;      // atom: pop
   obj_t *atom_if;       // atom: if
+  obj_t *fail_sentinel;
 
   obj_t *env;        // top-level / initial environment
   obj_t *stack;      // top-of-stack (implemented as a vector)

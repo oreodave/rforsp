@@ -141,6 +141,10 @@ void state_init()
   memset(state, 0, sizeof(state));
   vec_init(&state->read_stack, 3);
   cfstack_init();
+  // The fail sentinel is implemented as a NULL pointer tagged as an atom.  This
+  // _should_ never happen in general code execution, thus we can safely say any
+  // internal function that returns this must have failed.
+  state->fail_sentinel = TAG_TYPE(NULL, ATOM);
 
   size_t total_required_atoms =
       stdc_bit_ceil(ARRSIZE(CACHED_ATOMS) + ARRSIZE(PRIMITIVES));

@@ -23,6 +23,9 @@ pub const SYM_F: SymId = SymId(0);
 pub const SYM_IF: SymId = SymId(1);
 pub const SYM_REC: SymId = SymId(2);
 
+// Build time assertion that we've built around 3 distinguished symbols.
+const _: () = assert!(DISTINGUISHED.len() == 3);
+
 /******************************************************************************
  * Implementation                                                             *
  ******************************************************************************/

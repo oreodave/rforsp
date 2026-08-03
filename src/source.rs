@@ -54,3 +54,29 @@ fn compute_line_starts(contents: &str) -> Vec<u32> {
     );
     line_starts
 }
+
+/******************************************************************************
+ * Implementations                                                            *
+ ******************************************************************************/
+impl Span {
+    pub const fn new(start: usize, end: usize) -> Self {
+        debug_assert!(start <= MAX_SOURCE_LEN);
+        debug_assert!(end <= MAX_SOURCE_LEN);
+        debug_assert!(start <= end);
+        Self {
+            start: start as u32,
+            end: end as u32,
+        }
+    }
+
+    /// Returns the length of this [`Span`].
+    pub const fn length(&self) -> u32 {
+        self.end - self.start
+    }
+}
+
+impl Default for Position {
+    fn default() -> Self {
+        Self { line: 1, col: 1 }
+    }
+}

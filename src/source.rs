@@ -116,6 +116,18 @@ impl Source {
             line_starts,
         })
     }
+
+    /// Get the length of this Source text.
+    pub fn len(&self) -> usize {
+        self.contents.len()
+    }
+
+    /// Check if the given byte position points to the end of the source
+    /// content.
+    pub fn eos(&self, pos: usize) -> bool {
+        self.len() <= pos
+    }
+
 }
 
 impl From<std::io::Error> for SourceError {
@@ -181,4 +193,20 @@ mod tests {
             })
         ))
     }
+
+    #[test]
+    fn source_eos() {
+        assert!(
+            Source::from_contents("", "".to_string())
+                .expect("Empty string should not fail source construction.")
+                .eos(0)
+        );
+
+        let text = "Hello, world!";
+        let source = Source::from_contents("", text.to_string())
+            .expect("Should not fail construction");
+        assert!(source.eos(text.len()));
+        assert!((0..text.len()).all(|i| !source.eos(i)));
+    }
+
 }

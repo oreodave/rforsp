@@ -44,6 +44,10 @@ static inline obj_t *cframe_find(obj_t *key, cframe_t *frame)
   DEBUG_LOG("compute:cframe_find: not found! caching...\n");
   // Bad path: cache did not store the thing we wanted.
   obj_t *value = env_find(frame->env, key);
+  if (value == state->fail_sentinel)
+    // Don't cache a failed env_find.
+    return value;
+
   size_t index = frame->cache.count == CFCACHE_CAPACITY ? least_used
                                                         : frame->cache.count++;
   frame->cache.keys[index]   = key;
@@ -157,7 +161,8 @@ static inline void eval_atom(obj_t *cmd, cframe_t *cframe)
       FAIL("Expected data following a quote form");
     push(cframe_pop(cframe));
   }
-  else if (cmd == state->atom_if && !cframe_find(state->atom_if, cframe))
+  else if (cmd == state->atom_if &&
+           cframe_find(state->atom_if, cframe) == state->fail_sentinel)
   {
     obj_t *f_branch = pop();
     obj_t *t_branch = pop();
@@ -167,6 +172,13 @@ static inline void eval_atom(obj_t *cmd, cframe_t *cframe)
   else
   {
     auto val = cframe_find(cmd, cframe);
+    if (val == state->fail_sentinel)
+    {
+      printf("Could not find `");
+      print(cmd);
+      printf("` in current env.");
+      FAIL("env_find fail");
+    }
     call(val, cframe);
   }
 }

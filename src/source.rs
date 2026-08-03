@@ -59,14 +59,19 @@ fn compute_line_starts(contents: &str) -> Vec<u32> {
  * Implementations                                                            *
  ******************************************************************************/
 impl Span {
+    /// Construct a new Span from usize components.
+    /// NOTE: Will panic if either component is greater than `MAX_SOURCE_LEN`.
     pub const fn new(start: usize, end: usize) -> Self {
-        debug_assert!(start <= MAX_SOURCE_LEN);
-        debug_assert!(end <= MAX_SOURCE_LEN);
-        debug_assert!(start <= end);
-        Self {
-            start: start as u32,
-            end: end as u32,
-        }
+        assert!(end <= MAX_SOURCE_LEN);
+        assert!(start <= MAX_SOURCE_LEN);
+        Self::from_u32(start as u32, end as u32)
+    }
+
+    /// Construct a new `Span` from u32 components.
+    /// NOTE: Will panic if `start > end`.
+    pub const fn from_u32(start: u32, end: u32) -> Self {
+        assert!(start <= end);
+        Self { start, end }
     }
 
     /// Returns the length of this [`Span`].

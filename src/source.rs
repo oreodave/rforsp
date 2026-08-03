@@ -25,3 +25,32 @@ pub struct Source {
     line_starts: Vec<u32>,
 }
 
+/// Maximum source length in bytes.  `Span`s fields are u32, so they work
+/// happily with content of at most this size.
+pub const MAX_SOURCE_LEN: usize = u32::MAX as usize;
+
+/// Error in constructing a Source.
+#[derive(Debug)]
+pub enum SourceError {
+    TooLarge {
+        name: String,
+        len: usize,
+        limit: usize,
+    },
+    Io(std::io::Error),
+}
+
+/******************************************************************************
+ * Standalone                                                                 *
+ ******************************************************************************/
+fn compute_line_starts(contents: &str) -> Vec<u32> {
+    let mut line_starts: Vec<u32> = vec![0];
+    line_starts.extend(
+        contents
+            .bytes()
+            .enumerate()
+            .filter_map(|(i, c)| (c == b'\n').then(|| (i + 1) as u32))
+            .collect::<Vec<u32>>(),
+    );
+    line_starts
+}

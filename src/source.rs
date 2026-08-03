@@ -93,13 +93,17 @@ impl Default for Position {
 }
 
 impl Source {
-    /// Construct a source from the given `file_name`, reading its contents.
-    /// Propagates error from reading the file.
+    /// Construct a `Source` from the given `file_name`, reading its contents
+    /// via IO.
+    /// Returns Err due to IO error or from failing `Source::from_contents`
+    /// call.
     pub fn from_file(file_name: &str) -> Result<Self, SourceError> {
         Self::from_contents(file_name, std::fs::read_to_string(file_name)?)
     }
 
-    /// Construct a source from the given `contents` string.
+    /// Construct a `Source` from the given `contents`.
+    /// Returns Err if `from_contents_limited` fails with
+    /// `limit=MAX_SOURCE_LEN`.
     pub fn from_contents(
         stream_name: &str,
         contents: String,
@@ -107,6 +111,8 @@ impl Source {
         Self::from_contents_limited(stream_name, contents, MAX_SOURCE_LEN)
     }
 
+    /// Construct a `Source` from the given `contents`.
+    /// Returns Err if `contents.len()` > `limit`.
     pub fn from_contents_limited(
         stream_name: &str,
         contents: String,

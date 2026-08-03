@@ -80,6 +80,12 @@ impl Span {
     }
 }
 
+impl Position {
+    pub const fn new(line: usize, col: usize) -> Self {
+        Self { line, col }
+    }
+}
+
 impl Default for Position {
     fn default() -> Self {
         Self { line: 1, col: 1 }
@@ -186,7 +192,7 @@ mod tests {
     #[test]
     fn defaults() {
         assert_eq!(Span::default(), Span::new(0, 0));
-        assert_eq!(Position::default(), Position { line: 1, col: 1 });
+        assert_eq!(Position::default(), Position::new(1, 1));
     }
 
     #[test]
@@ -274,7 +280,7 @@ mod tests {
         let text = "testing testing".to_string();
         let source =
             Source::from_contents("", text.clone()).expect("Should not fail");
-        source.chars_from(text.len() + 1);
+        let _ = source.chars_from(text.len() + 1);
     }
 
     #[test]

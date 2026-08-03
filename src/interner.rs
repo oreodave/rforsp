@@ -73,3 +73,70 @@ impl Interner {
         &self.names[id.0 as usize]
     }
 }
+
+/******************************************************************************
+ * Tests                                                                      *
+ ******************************************************************************/
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn construction() {
+        let interner = Interner::new();
+        assert_eq!(interner.get("f"), Some(SYM_F));
+        assert_eq!(interner.get("if"), Some(SYM_IF));
+        assert_eq!(interner.get("rec"), Some(SYM_REC));
+    }
+
+    #[test]
+    fn no_collision() {
+        let mut interner = Interner::new();
+        let a = interner.intern("my-house");
+        let b = interner.intern("your-house");
+        assert_ne!(a, b);
+        assert_eq!(interner.resolve(a), "my-house");
+        assert_eq!(interner.resolve(b), "your-house");
+    }
+
+    #[test]
+    fn interning_idempotent() {
+        let mut interner = Interner::new();
+        let a = interner.intern("xyz123");
+        let b = interner.intern("xyz123");
+        assert_eq!(a, b);
+        assert_eq!(interner.resolve(b), "xyz123");
+        assert_eq!(interner.names.len(), DISTINGUISHED.len() + 1);
+    }
+
+    #[test]
+    fn get() {
+        let mut interner = Interner::new();
+        let name = "can't-park-there-mate";
+        assert_eq!(interner.get(name), None);
+        let id = interner.intern(name);
+        assert_eq!(interner.get(name), Some(id));
+    }
+
+    #[test]
+    #[should_panic]
+    fn resolve_bad() {
+        // Resolve will panic for IDs that are out of range.
+        Interner::new().resolve(SymId(1024));
+    }
+
+    #[test]
+    fn resolve() {
+        // NOTE: Since resolve can panic, we can only do success validation
+        // tests here.
+        let mut interner = Interner::new();
+
+        const NAMES: [&str; 4] =
+            ["hello", "derivative", "->>", "xy871238huashask_;@"];
+        let ids = NAMES.map(|n| interner.intern(n));
+
+        for (&id, &name) in ids.iter().zip(NAMES.iter()) {
+            assert_eq!(interner.resolve(id), name);
+        }
+    }
+}

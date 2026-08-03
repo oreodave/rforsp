@@ -128,6 +128,28 @@ impl Source {
         self.len() <= pos
     }
 
+    /// Get the bytes of the contents of this `Source`.
+    pub fn bytes(&self) -> &[u8] {
+        self.contents.as_bytes()
+    }
+
+    /// Get the characters of the contents of this `Source`.
+    pub fn text(&self) -> &str {
+        &self.contents
+    }
+
+    /// Get the characters of the contents of this `Source` from a byte position
+    /// onwards.
+    /// NOTE: This will panic if pos is out of bounds for the given `Source`.
+    pub fn chars_from(&self, pos: usize) -> std::str::Chars<'_> {
+        self.contents[pos..].chars()
+    }
+
+    /// Map a span into a string in the content of this `Source`.
+    /// NOTE: This will panic if span is out of bounds for the given `Source`.
+    pub fn span_text(&self, span: Span) -> &str {
+        &self.contents[span.start as usize..span.end as usize]
+    }
 }
 
 impl From<std::io::Error> for SourceError {
@@ -209,4 +231,53 @@ mod tests {
         assert!((0..text.len()).all(|i| !source.eos(i)));
     }
 
+    #[test]
+    fn source_destructors() {
+        // Test the text destructors for Source as soft-wrappers for the
+        // underlying content string.
+
+        let text = "Hello, world!".to_string();
+        let source = Source::from_contents("", text.clone())
+            .expect("Should not fail construction");
+
+        assert_eq!(source.text(), text);
+        assert_eq!(source.bytes(), text.as_bytes());
+
+        assert_eq!(source.chars_from(text.len()).next(), None);
+        for (i, c) in text.chars().enumerate() {
+            assert_eq!(source.chars_from(i).next(), Some(c));
+        }
+
+        {
+            let source_iter: Vec<char> =
+                source.chars_from(text.len() / 2).collect();
+            let text_iter: Vec<char> =
+                text.chars().skip(text.len() / 2).collect();
+            assert_eq!(source_iter, text_iter);
+        }
+
+        let components = ["Hello", "world"];
+        let spans = [Span::new(0, 5), Span::new(7, text.len() - 1)];
+        for (&component, &span) in components.iter().zip(spans.iter()) {
+            assert_eq!(component, source.span_text(span));
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn source_chars_from_bad() {
+        let text = "testing testing".to_string();
+        let source =
+            Source::from_contents("", text.clone()).expect("Should not fail");
+        source.chars_from(text.len() + 1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn source_span_text_bad() {
+        let text = "testing testing".to_string();
+        let source =
+            Source::from_contents("", text.clone()).expect("Should not fail");
+        source.span_text(Span::new(0, text.len() + 1));
+    }
 }

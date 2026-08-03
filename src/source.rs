@@ -118,6 +118,25 @@ impl Source {
     }
 }
 
+impl From<std::io::Error> for SourceError {
+    fn from(e: std::io::Error) -> Self {
+        SourceError::Io(e)
+    }
+}
+
+impl std::error::Error for SourceError {}
+
+impl std::fmt::Display for SourceError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SourceError::Io(e) => write!(f, "{e}"),
+            SourceError::TooLarge { name, len, limit } => {
+                write!(f, "{name}: Contains {len} bytes when limit is {limit}")
+            }
+        }
+    }
+}
+
 /******************************************************************************
  * Tests                                                                      *
  ******************************************************************************/

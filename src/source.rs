@@ -167,6 +167,34 @@ impl Source {
     pub fn span_text(&self, span: Span) -> &str {
         &self.contents[span.start as usize..span.end as usize]
     }
+
+    /// Converts a byte position to a `Position` within the contents of this
+    /// `Source`.
+    pub fn position_at(&self, byte: usize) -> Position {
+        assert!(
+            byte <= self.contents.len(),
+            "position_at: byte {byte} out of bounds"
+        );
+
+        assert!(
+            self.contents.is_char_boundary(byte),
+            "position_at: byte {byte} is not in a char boundary"
+        );
+
+        let line = self
+            .line_starts
+            .binary_search(&(byte as u32))
+            .unwrap_or_else(|i| i - 1);
+
+        let line_start = self.line_starts[line];
+        let col = self
+            .span_text(Span::new(line_start as usize, byte))
+            .chars()
+            .count()
+            + 1;
+
+        Position::new(line + 1, col)
+    }
 }
 
 impl From<std::io::Error> for SourceError {

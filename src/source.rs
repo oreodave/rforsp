@@ -117,3 +117,49 @@ impl Source {
         })
     }
 }
+
+/******************************************************************************
+ * Tests                                                                      *
+ ******************************************************************************/
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults() {
+        assert_eq!(Span::default(), Span::new(0, 0));
+        assert_eq!(Position::default(), Position { line: 1, col: 1 });
+    }
+
+    #[test]
+    fn span_length() {
+        assert_eq!(Span::default().length(), 0);
+        assert_eq!(Span::new(100, 100).length(), 0);
+        assert_eq!(Span::new(0, 100).length(), 100);
+    }
+
+    #[test]
+    fn source_construction() {
+        const LIMIT: usize = 64;
+        assert!(
+            Source::from_contents_limited("", "a".repeat(LIMIT), LIMIT).is_ok()
+        );
+        assert!(
+            Source::from_contents_limited("", "".to_string(), LIMIT).is_ok()
+        );
+    }
+
+    #[test]
+    fn source_construction_bad() {
+        const LIMIT: usize = 64;
+        const OVER_LIMIT: usize = LIMIT + 1;
+        let contents = "a".repeat(LIMIT + 1);
+        assert!(matches!(
+            Source::from_contents_limited("", contents, LIMIT),
+            Err(SourceError::TooLarge {
+                len: OVER_LIMIT,
+                ..
+            })
+        ))
+    }
+}

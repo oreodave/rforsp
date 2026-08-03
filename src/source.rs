@@ -80,3 +80,40 @@ impl Default for Position {
         Self { line: 1, col: 1 }
     }
 }
+
+impl Source {
+    /// Construct a source from the given `file_name`, reading its contents.
+    /// Propagates error from reading the file.
+    pub fn from_file(file_name: &str) -> Result<Self, SourceError> {
+        Self::from_contents(file_name, std::fs::read_to_string(file_name)?)
+    }
+
+    /// Construct a source from the given `contents` string.
+    pub fn from_contents(
+        stream_name: &str,
+        contents: String,
+    ) -> Result<Self, SourceError> {
+        Self::from_contents_limited(stream_name, contents, MAX_SOURCE_LEN)
+    }
+
+    pub fn from_contents_limited(
+        stream_name: &str,
+        contents: String,
+        limit: usize,
+    ) -> Result<Self, SourceError> {
+        if contents.len() > limit {
+            return Err(SourceError::TooLarge {
+                name: stream_name.to_string(),
+                len: contents.len(),
+                limit: limit,
+            });
+        }
+
+        let line_starts = compute_line_starts(&contents);
+        Ok(Self {
+            name: stream_name.to_string(),
+            contents,
+            line_starts,
+        })
+    }
+}

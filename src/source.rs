@@ -157,19 +157,22 @@ impl Source {
 
     /// Get the characters of the contents of this `Source` from a byte position
     /// onwards.
-    /// NOTE: This will panic if pos is out of bounds for the given `Source`.
+    /// NOTE: Will panic if pos is out of bounds for this source.
     pub fn chars_from(&self, pos: usize) -> std::str::Chars<'_> {
         self.contents[pos..].chars()
     }
 
     /// Map a span into a string in the content of this `Source`.
-    /// NOTE: This will panic if span is out of bounds for the given `Source`.
+    /// NOTE: Will panic if span is out of bounds for this source.
     pub fn span_text(&self, span: Span) -> &str {
         &self.contents[span.start as usize..span.end as usize]
     }
 
     /// Converts a byte position to a `Position` within the contents of this
     /// `Source`.
+    /// NOTE: Will panic if either:
+    /// - `byte` is out of bounds for this source.
+    /// - `byte` is not at a char boundary for this source.
     pub fn position_at(&self, byte: usize) -> Position {
         assert!(
             byte <= self.contents.len(),

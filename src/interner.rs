@@ -8,7 +8,7 @@ use std::collections::HashMap;
 pub struct SymId(u32);
 
 /// Generic interner structure that maintains a unique collection of Symbols
-/// with associated `SymId`s.
+/// with associated [`SymId`]s.
 #[derive(Debug)]
 pub struct Interner {
     names: Vec<String>,
@@ -19,8 +19,12 @@ pub struct Interner {
  * Distinguished symbols                                                      *
  ******************************************************************************/
 const DISTINGUISHED: [&str; 3] = ["f", "if", "rec"];
+
+/// Symbol representing "f"
 pub const SYM_F: SymId = SymId(0);
+/// Symbol representing "if"
 pub const SYM_IF: SymId = SymId(1);
+/// Symbol representing "rec"
 pub const SYM_REC: SymId = SymId(2);
 
 // Build time assertion that we've built around 3 distinguished symbols.
@@ -30,7 +34,7 @@ const _: () = assert!(DISTINGUISHED.len() == 3);
  * Implementation                                                             *
  ******************************************************************************/
 impl Interner {
-    /// Creates a new [`Interner`] structure.
+    /// Creates a new [Interner] structure.
     /// The interner automatically interns a number of distinguished symbols
     /// which see.
     #[must_use]
@@ -47,12 +51,12 @@ impl Interner {
         interner
     }
 
-    /// Intern a `name`, returning its associated `SymId`.
+    /// Intern a `name`, returning its associated [`SymId`].
     /// NOTE: This will mutate and allocate iff the `name` is not already
     /// present in `self`.
     ///
     /// # Panics
-    /// - if `self.names.len()` > `u32::MAX` (over 4 billion names...)
+    /// - if `self.names.len()` > [`u32::MAX`] (over 4 billion names...)
     pub fn intern(&mut self, name: &str) -> SymId {
         if let Some(&id) = self.lookup.get(name) {
             id
@@ -67,7 +71,7 @@ impl Interner {
         }
     }
 
-    /// Get the associated `SymId` for a given `name`.
+    /// Get the associated [`SymId`] for a given `name`.
     /// Returns None iff `name` is not present in `self`.
     #[must_use]
     pub fn get(&self, name: &str) -> Option<SymId> {
@@ -75,7 +79,9 @@ impl Interner {
     }
 
     /// Resolve the given `id` to the string contents.
-    /// NOTE: This will panic iff `id` isn't a valid `SymID` in `self`.
+    ///
+    /// # Panics
+    /// - if `id` isn't a valid [`SymId`] in `self`.
     #[must_use]
     pub fn resolve(&self, id: SymId) -> &str {
         &self.names[id.0 as usize]

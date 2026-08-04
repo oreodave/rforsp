@@ -3,24 +3,29 @@ use crate::source::{Position, Span, span::offset};
 /******************************************************************************
  * Structures                                                                 *
  ******************************************************************************/
-/// Source text for scanning purposes.
+/// Contiguous collection of text for scanning purposes.
 #[derive(Debug)]
 pub struct Source {
+    /// Name of the Source.
     pub name: String,
     contents: String,
     line_starts: Vec<u32>,
 }
 
-/// Maximum source length in bytes.  `Span`s fields are u32, so they work
+/// Maximum source length in bytes.  [Span]'s fields are u32, so they work
 /// happily with content of at most this size.
 pub const MAX_SOURCE_LEN: usize = u32::MAX as usize;
 
 /// Error in constructing a Source.
 #[derive(Debug)]
 pub enum SourceError {
+    /// Given contents for Source construction was too large
     TooLarge {
+        /// Name of source
         name: String,
+        /// Length of source
         len: usize,
+        /// Limit for how large the source may be
         limit: usize,
     },
 }
@@ -45,9 +50,9 @@ fn compute_line_starts(contents: &str) -> Vec<u32> {
  * Implementations                                                            *
  ******************************************************************************/
 impl Source {
-    /// Construct a `Source` from the given `contents`.
-    /// Returns Err if `from_contents_limited` fails with
-    /// `limit=MAX_SOURCE_LEN`.
+    /// Construct a [Source] from the given `contents`.
+    /// Returns Err if [`Source::from_contents_limited`] fails with
+    /// `limit`=[`MAX_SOURCE_LEN`].
     pub(super) fn from_contents(
         source_name: &str,
         contents: String,
@@ -55,7 +60,7 @@ impl Source {
         Self::from_contents_limited(source_name, contents, MAX_SOURCE_LEN)
     }
 
-    /// Construct a `Source` from the given `contents`.
+    /// Construct a [Source] from the given `contents`.
     /// Returns Err if `contents.len()` > `limit`.
     pub(super) fn from_contents_limited(
         source_name: &str,
@@ -79,59 +84,64 @@ impl Source {
         })
     }
 
-    /// Get the length of the `Source`.
+    /// Get the length of the [Source].
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.contents.len()
     }
 
-    /// Check if the `Source` is empty. (stupid)
+    /// Check if the [Source] is empty. (stupid)
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Check if the given byte position points to the end of the source
     /// content.
     #[must_use]
-    pub fn eos(&self, pos: usize) -> bool {
+    pub const fn eos(&self, pos: usize) -> bool {
         self.len() <= pos
     }
 
     /// Check if the given `span` is valid for source.
     #[must_use]
-    pub fn valid_span(&self, span: Span) -> bool {
+    pub const fn valid_span(&self, span: Span) -> bool {
         (span.start as usize) <= self.len() && (span.end as usize) <= self.len()
     }
 
-    /// Get the bytes of the contents of this `Source`.
+    /// Get the bytes of the contents of this [Source].
     #[must_use]
-    pub fn bytes(&self) -> &[u8] {
+    pub const fn bytes(&self) -> &[u8] {
         self.contents.as_bytes()
     }
 
-    /// Get the characters of the contents of this `Source`.
+    /// Get the characters of the contents of this [Source].
     #[must_use]
     pub fn text(&self) -> &str {
         &self.contents
     }
 
-    /// Get the characters of the contents of this `Source` from a byte position
+    /// Get the characters of the contents of this [Source] from a byte position
     /// onwards.
-    /// NOTE: if pos is out of bounds for this source.
+    ///
+    /// # Panics
+    /// - if pos is out of bounds for this source.
+    /// - if pos is in a char boundary.
     pub fn chars_from(&self, pos: usize) -> std::str::Chars<'_> {
         self.contents[pos..].chars()
     }
 
-    /// Map a span into a string in the content of this `Source`.
-    /// NOTE: if span is out of bounds for this source.
+    /// Map a span into a string in the content of this [Source].
+    ///
+    /// # Panics
+    /// - if span is out of bounds for this source
     #[must_use]
     pub fn span_text(&self, span: Span) -> &str {
         &self.contents[span.start as usize..span.end as usize]
     }
 
-    /// Converts a byte position to a `Position` within the contents of this
-    /// `Source`.
+    /// Converts a byte position to a [Position] within the contents of this
+    /// [Source].
     ///
     /// # Panics
     /// - if `byte` is out of bounds for this source.
@@ -165,9 +175,9 @@ impl Source {
         Position::new(line + 1, col)
     }
 
-    /// Converts a `Span` into a tuple of two `Position`s (p1, p2)
+    /// Converts a [Span] into a tuple of two [Position]'s (p1, p2)
     ///
-    /// p1 and p2 match the inclusive-exclusive nature of `Span` itself: p2 is
+    /// p1 and p2 match the inclusive-exclusive nature of [Span] itself: p2 is
     /// *one past* the span's last character.
     ///
     /// This means span.start == span.end <=> p1 == p2.  A span covering a
@@ -177,8 +187,8 @@ impl Source {
     /// produce a p2 pointing to the position just past the last character.
     ///
     /// # Panics
-    /// - Based on `Source::position_at` conditions for `Span::start` _and_
-    ///   `Span::end`
+    /// - Based on [`Source::position_at`] conditions for [`Span::start`] _and_
+    ///   [`Span::end`]
     #[must_use]
     pub fn span_positions(&self, span: Span) -> (Position, Position) {
         (
@@ -191,7 +201,7 @@ impl Source {
 impl std::fmt::Display for SourceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SourceError::TooLarge { name, len, limit } => {
+            Self::TooLarge { name, len, limit } => {
                 write!(f, "{name}: Contains {len} bytes when limit is {limit}")
             }
         }
@@ -361,8 +371,7 @@ mod tests {
     #[should_panic(expected = "char boundary")]
     fn source_position_at_bad() {
         let text = SAMPLE_TEXT.to_string();
-        let source =
-            Source::from_contents("", text.clone()).expect("Should not fail");
+        let source = Source::from_contents("", text).expect("Should not fail");
 
         // By construction, the next byte after an emoji position should be
         // within the codepoint.  Thus, Source::position_at should fail.
@@ -401,8 +410,7 @@ mod tests {
         assert_eq!(start, end);
 
         let text = SAMPLE_TEXT.to_string();
-        let source =
-            Source::from_contents("", text.clone()).expect("Should not fail");
+        let source = Source::from_contents("", text).expect("Should not fail");
         let lines = [
             Span::new(0, SAMPLE_NEWLINES[0]),
             Span::new(SAMPLE_NEWLINES[0] + 1, SAMPLE_NEWLINES[1]),

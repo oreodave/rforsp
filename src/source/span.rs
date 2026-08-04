@@ -4,19 +4,26 @@ use crate::source::MAX_SOURCE_LEN;
  * Structures                                                                 *
  ******************************************************************************/
 /// A byte span, composed of a start and end position.
-/// NOTE: This span maps to [start, end) i.e. an exclusive ended range.
+///
+/// NOTE: This span maps to [`start`, `end`) i.e. an exclusive ended range.
 #[derive(Debug, Eq, PartialEq, Hash, Copy, Clone, Default)]
 pub struct Span {
+    /// Byte offset of the first character in the span.
     pub start: u32,
+    /// Byte offset one past the last character in the span.
     pub end: u32,
 }
 
 /// Character Line-Column position in some source text.
+///
 /// NOTE: Default initialisation sets these to {1, 1}.
+///
 /// NOTE: These are not byte-oriented, but character oriented.
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Copy, Clone)]
 pub struct Position {
+    /// Line count
     pub line: usize,
+    /// Column count, in characters.
     pub col: usize,
 }
 
@@ -46,13 +53,13 @@ impl Span {
     /// Construct a new Span from usize components.
     ///
     /// # Panics
-    /// - If either component is greater than `MAX_SOURCE_LEN`.
+    /// - If either component is greater than [`MAX_SOURCE_LEN`].
     #[must_use]
     pub const fn new(start: usize, end: usize) -> Self {
         Self::from_u32(offset(start), offset(end))
     }
 
-    /// Construct a new `Span` from u32 components.
+    /// Construct a new [Span] from u32 components.
     ///
     /// # Panics
     /// - if `start > end`.
@@ -62,7 +69,7 @@ impl Span {
         Self { start, end }
     }
 
-    /// Returns the length of this [`Span`].
+    /// Returns the length of this [Span].
     #[must_use]
     pub const fn length(&self) -> u32 {
         self.end - self.start

@@ -47,7 +47,7 @@ impl Source {
     /// Construct a `Source` from the given `contents`.
     /// Returns Err if `from_contents_limited` fails with
     /// `limit=MAX_SOURCE_LEN`.
-    pub fn from_contents(
+    pub(super) fn from_contents(
         source_name: &str,
         contents: String,
     ) -> Result<Self, SourceError> {
@@ -56,7 +56,7 @@ impl Source {
 
     /// Construct a `Source` from the given `contents`.
     /// Returns Err if `contents.len()` > `limit`.
-    pub fn from_contents_limited(
+    pub(super) fn from_contents_limited(
         source_name: &str,
         contents: String,
         limit: usize,

@@ -6,7 +6,7 @@ use crate::source::{Position, Span};
 /// Source text for scanning purposes.
 #[derive(Debug)]
 pub struct Source {
-    name: String,
+    pub name: String,
     contents: String,
     line_starts: Vec<u32>,
 }
@@ -87,6 +87,10 @@ impl Source {
     /// content.
     pub fn eos(&self, pos: usize) -> bool {
         self.len() <= pos
+    }
+
+    pub fn valid_span(&self, span: Span) -> bool {
+        span.start <= (self.len() as u32) && span.end <= (self.len() as u32)
     }
 
     /// Get the bytes of the contents of this `Source`.

@@ -198,6 +198,26 @@ impl Source {
 
         Position::new(line + 1, col)
     }
+
+    /// Converts a `Span` into a tuple of two `Position`s (p1, p2)
+    ///
+    /// p1 and p2 match the inclusive-exclusive nature of `Span` itself: p2 is
+    /// *one past* the span's last character.
+    ///
+    /// This means span.start == span.end <=> p1 == p2.  A span covering a
+    /// single line covers `p2.col - p1.col` characters.
+    ///
+    /// NOTE: A span with an ending position at the EOF of `self.content` will
+    /// produce a p2 pointing to the position just past the last character.
+    ///
+    /// NOTE: Will panic based on `Source::position_at` conditions for
+    /// `Span::start` _and_ `Span::end`
+    pub fn span_positions(&self, span: Span) -> (Position, Position) {
+        (
+            self.position_at(span.start as usize),
+            self.position_at(span.end as usize),
+        )
+    }
 }
 
 impl From<std::io::Error> for SourceError {

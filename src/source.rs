@@ -328,4 +328,78 @@ mod tests {
             Source::from_contents("", text.clone()).expect("Should not fail");
         source.span_text(Span::new(0, text.len() + 1));
     }
+
+    const SAMPLE_TEXT: &str = concat!(
+        "Hello, world!\n",
+        "Do Shinigami's like \u{1f34e}'s?\n",
+        "I like \u{1f350}'s personally.\n"
+    );
+
+    const SAMPLE_NEWLINES: [usize; 3] = [13, 41, 67];
+    const SAMPLE_EMOJIS: [usize; 2] = [34, 49];
+
+    #[test]
+    fn source_position_at() {
+        let text = SAMPLE_TEXT.to_string();
+        let source =
+            Source::from_contents("", text.clone()).expect("Should not fail");
+
+        // The position at the first byte is simply a default position.
+        assert_eq!(source.position_at(0), Position::default());
+
+        for newline in SAMPLE_NEWLINES {
+            let at_newline = source.position_at(newline);
+            let ahead_newline = source.position_at(newline + 1);
+
+            // Position.line at a newline is 1 less than Position.line ahead of
+            // the newline.
+            assert_eq!(at_newline.line + 1, ahead_newline.line);
+            // Position.col just after a newline is always 1.
+            assert_eq!(ahead_newline.col, 1);
+        }
+
+        for emoji_position in SAMPLE_EMOJIS {
+            let pos = source.position_at(emoji_position);
+
+            // By construction, the character before an emoji won't be another
+            // unicode codepoint, so this will is safe to do.
+            let previous_pos = source.position_at(emoji_position - 1);
+
+            assert_eq!(previous_pos, Position::new(pos.line, pos.col - 1));
+
+            // By construction, exactly 4 bytes ahead of each emoji position is
+            // the next "character".
+            let next_pos = source.position_at(emoji_position + 4);
+            assert_eq!(next_pos, Position::new(pos.line, pos.col + 1))
+        }
+
+        // Exhaustive checking of every character byte position
+        let mut col = 1;
+        for (pos, character) in text
+            .bytes()
+            .enumerate()
+            // ensure we're not mid char
+            .filter(|(i, _)| text.is_char_boundary(*i))
+        {
+            let line = text[..pos].matches('\n').count() + 1;
+            assert_eq!(source.position_at(pos), Position::new(line, col));
+            if character == b'\n' {
+                col = 1;
+            } else {
+                col += 1;
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn source_position_at_bad() {
+        let text = SAMPLE_TEXT.to_string();
+        let source =
+            Source::from_contents("", text.clone()).expect("Should not fail");
+
+        // By construction, the next byte after an emoji position should be
+        // within the codepoint.  Thus, Source::position_at should fail.
+        source.position_at(SAMPLE_EMOJIS[0] + 1);
+    }
 }

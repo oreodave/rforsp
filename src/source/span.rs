@@ -21,31 +21,57 @@ pub struct Position {
 }
 
 /******************************************************************************
+ * Standalone                                                                 *
+ ******************************************************************************/
+/// Return `pos` as an offset (usize -> u32).
+///
+/// # Panics
+/// - if `pos > MAX_SOURCE_LEN`.
+#[track_caller]
+pub(super) const fn offset(pos: usize) -> u32 {
+    assert!(pos <= MAX_SOURCE_LEN);
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "MUST: `contents.len() <= MAX_SOURCE_LEN`."
+    )]
+    {
+        pos as u32
+    }
+}
+
+/******************************************************************************
  * Implementations                                                            *
  ******************************************************************************/
 impl Span {
     /// Construct a new Span from usize components.
-    /// NOTE: Will panic if either component is greater than `MAX_SOURCE_LEN`.
+    ///
+    /// # Panics
+    /// - If either component is greater than `MAX_SOURCE_LEN`.
+    #[must_use]
     pub const fn new(start: usize, end: usize) -> Self {
-        assert!(end <= MAX_SOURCE_LEN);
-        assert!(start <= MAX_SOURCE_LEN);
-        Self::from_u32(start as u32, end as u32)
+        Self::from_u32(offset(start), offset(end))
     }
 
     /// Construct a new `Span` from u32 components.
-    /// NOTE: Will panic if `start > end`.
+    ///
+    /// # Panics
+    /// - if `start > end`.
+    #[must_use]
     pub const fn from_u32(start: u32, end: u32) -> Self {
         assert!(start <= end);
         Self { start, end }
     }
 
     /// Returns the length of this [`Span`].
+    #[must_use]
     pub const fn length(&self) -> u32 {
         self.end - self.start
     }
 }
 
 impl Position {
+    /// Construct a new postion from the given `line` and `col`.
+    #[must_use]
     pub const fn new(line: usize, col: usize) -> Self {
         Self { line, col }
     }
@@ -71,15 +97,15 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "start <= end")]
     fn span_new_bad() {
-        Span::new(1, 0);
+        let _ = Span::new(1, 0);
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "start <= end")]
     fn span_from_u32_bad() {
-        Span::from_u32(10, 9);
+        let _ = Span::from_u32(10, 9);
     }
 
     #[test]

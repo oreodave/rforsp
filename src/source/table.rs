@@ -15,13 +15,6 @@ pub struct SyntaxOrigin {
     pub span: Span,
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct Location<'a> {
-    pub file: &'a str,
-    pub start: Position,
-    pub end: Position,
-}
-
 #[derive(Debug)]
 pub struct SourceTable {
     sources: Vec<Source>,
@@ -34,7 +27,15 @@ pub enum SourceTableError {
     Io(std::io::Error),
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct Location<'a> {
+    pub file: &'a str,
+    pub start: Position,
+    pub end: Position,
+}
+
 impl SourceTable {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             sources: Vec::new(),
@@ -50,15 +51,27 @@ impl SourceTable {
         self.add_source_raw(file_name, contents)
     }
 
+    /// Add a new source given `source_name` and `contents`.
+    ///
+    /// # Panics
+    /// - if `self.sources.len()` > `u32::MAX`.
     pub fn add_source_raw(
         &mut self,
         source_name: &str,
         contents: String,
     ) -> Result<SourceId, SourceTableError> {
         let source = Source::from_contents(source_name, contents)?;
-        let id = SourceId(self.sources.len() as u32);
+        let id = SourceId(
+            u32::try_from(self.sources.len()).expect("|sources| > u32::MAX"),
+        );
         self.sources.push(source);
         Ok(id)
+    }
+}
+
+impl Default for SourceTable {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

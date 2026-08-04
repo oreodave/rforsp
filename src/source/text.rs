@@ -1,4 +1,4 @@
-use crate::source::{Position, Span};
+use crate::source::{Position, Span, span::offset};
 
 /******************************************************************************
  * Structures                                                                 *
@@ -28,14 +28,15 @@ pub enum SourceError {
 /******************************************************************************
  * Standalone                                                                 *
  ******************************************************************************/
+/// Compute the starting byte positions of every line within `contents`.
 fn compute_line_starts(contents: &str) -> Vec<u32> {
     let mut line_starts: Vec<u32> = vec![0];
     line_starts.extend(
         contents
             .bytes()
             .enumerate()
-            .filter_map(|(i, c)| (c == b'\n').then(|| (i + 1) as u32))
-            .collect::<Vec<u32>>(),
+            .filter(|(_, c)| *c == b'\n')
+            .map(|(i, _)| offset(i + 1)),
     );
     line_starts
 }
@@ -78,49 +79,64 @@ impl Source {
         })
     }
 
-    /// Get the length of this Source text.
+    /// Get the length of the `Source`.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.contents.len()
     }
 
+    /// Check if the `Source` is empty. (stupid)
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Check if the given byte position points to the end of the source
     /// content.
+    #[must_use]
     pub fn eos(&self, pos: usize) -> bool {
         self.len() <= pos
     }
 
+    /// Check if the given `span` is valid for source.
+    #[must_use]
     pub fn valid_span(&self, span: Span) -> bool {
-        span.start <= (self.len() as u32) && span.end <= (self.len() as u32)
+        (span.start as usize) <= self.len() && (span.end as usize) <= self.len()
     }
 
     /// Get the bytes of the contents of this `Source`.
+    #[must_use]
     pub fn bytes(&self) -> &[u8] {
         self.contents.as_bytes()
     }
 
     /// Get the characters of the contents of this `Source`.
+    #[must_use]
     pub fn text(&self) -> &str {
         &self.contents
     }
 
     /// Get the characters of the contents of this `Source` from a byte position
     /// onwards.
-    /// NOTE: Will panic if pos is out of bounds for this source.
+    /// NOTE: if pos is out of bounds for this source.
     pub fn chars_from(&self, pos: usize) -> std::str::Chars<'_> {
         self.contents[pos..].chars()
     }
 
     /// Map a span into a string in the content of this `Source`.
-    /// NOTE: Will panic if span is out of bounds for this source.
+    /// NOTE: if span is out of bounds for this source.
+    #[must_use]
     pub fn span_text(&self, span: Span) -> &str {
         &self.contents[span.start as usize..span.end as usize]
     }
 
     /// Converts a byte position to a `Position` within the contents of this
     /// `Source`.
-    /// NOTE: Will panic if either:
-    /// - `byte` is out of bounds for this source.
-    /// - `byte` is not at a char boundary for this source.
+    ///
+    /// # Panics
+    /// - if `byte` is out of bounds for this source.
+    /// - if `byte` is not at a char boundary for this source.
+    #[must_use]
     pub fn position_at(&self, byte: usize) -> Position {
         assert!(
             byte <= self.contents.len(),
@@ -132,14 +148,16 @@ impl Source {
             "position_at: byte {byte} is not in a char boundary"
         );
 
+        let byte = offset(byte);
+
         let line = self
             .line_starts
-            .binary_search(&(byte as u32))
+            .binary_search(&byte)
             .unwrap_or_else(|i| i - 1);
 
         let line_start = self.line_starts[line];
         let col = self
-            .span_text(Span::new(line_start as usize, byte))
+            .span_text(Span::from_u32(line_start, byte))
             .chars()
             .count()
             + 1;
@@ -158,8 +176,10 @@ impl Source {
     /// NOTE: A span with an ending position at the EOF of `self.content` will
     /// produce a p2 pointing to the position just past the last character.
     ///
-    /// NOTE: Will panic based on `Source::position_at` conditions for
-    /// `Span::start` _and_ `Span::end`
+    /// # Panics
+    /// - Based on `Source::position_at` conditions for `Span::start` _and_
+    ///   `Span::end`
+    #[must_use]
     pub fn span_positions(&self, span: Span) -> (Position, Position) {
         (
             self.position_at(span.start as usize),
@@ -192,7 +212,7 @@ mod tests {
             Source::from_contents_limited("", "a".repeat(LIMIT), LIMIT).is_ok()
         );
         assert!(
-            Source::from_contents_limited("", "".to_string(), LIMIT).is_ok()
+            Source::from_contents_limited("", String::new(), LIMIT).is_ok()
         );
     }
 
@@ -207,13 +227,13 @@ mod tests {
                 len: OVER_LIMIT,
                 ..
             })
-        ))
+        ));
     }
 
     #[test]
     fn source_eos() {
         assert!(
-            Source::from_contents("", "".to_string())
+            Source::from_contents("", String::new())
                 .expect("Empty string should not fail source construction.")
                 .eos(0)
         );
@@ -258,7 +278,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "out of bounds")]
     fn source_chars_from_bad() {
         let text = "testing testing".to_string();
         let source =
@@ -267,12 +287,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "out of bounds")]
     fn source_span_text_bad() {
         let text = "testing testing".to_string();
         let source =
             Source::from_contents("", text.clone()).expect("Should not fail");
-        source.span_text(Span::new(0, text.len() + 1));
+        let _ = source.span_text(Span::new(0, text.len() + 1));
     }
 
     const SAMPLE_TEXT: &str = concat!(
@@ -316,7 +336,7 @@ mod tests {
             // By construction, exactly 4 bytes ahead of each emoji position is
             // the next "character".
             let next_pos = source.position_at(emoji_position + 4);
-            assert_eq!(next_pos, Position::new(pos.line, pos.col + 1))
+            assert_eq!(next_pos, Position::new(pos.line, pos.col + 1));
         }
 
         // Exhaustive checking of every character byte position
@@ -338,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "char boundary")]
     fn source_position_at_bad() {
         let text = SAMPLE_TEXT.to_string();
         let source =
@@ -346,7 +366,7 @@ mod tests {
 
         // By construction, the next byte after an emoji position should be
         // within the codepoint.  Thus, Source::position_at should fail.
-        source.position_at(SAMPLE_EMOJIS[0] + 1);
+        let _ = source.position_at(SAMPLE_EMOJIS[0] + 1);
     }
 
     #[test]

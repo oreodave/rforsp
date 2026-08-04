@@ -4,7 +4,7 @@ use std::collections::HashMap;
  * Structures                                                                 *
  ******************************************************************************/
 /// ID representing an interned symbol - only returnable by the Interner.
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct SymId(u32);
 
 /// Generic interner structure that maintains a unique collection of Symbols

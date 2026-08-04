@@ -8,7 +8,7 @@ use std::collections::HashMap;
 pub struct SymId(u32);
 
 /// Generic interner structure that maintains a unique collection of Symbols
-/// with associated SymIds.
+/// with associated `SymId`s.
 #[derive(Debug)]
 pub struct Interner {
     names: Vec<String>,
@@ -33,6 +33,7 @@ impl Interner {
     /// Creates a new [`Interner`] structure.
     /// The interner automatically interns a number of distinguished symbols
     /// which see.
+    #[must_use]
     pub fn new() -> Self {
         let mut interner = Self {
             names: Vec::new(),
@@ -49,11 +50,16 @@ impl Interner {
     /// Intern a `name`, returning its associated `SymId`.
     /// NOTE: This will mutate and allocate iff the `name` is not already
     /// present in `self`.
+    ///
+    /// # Panics
+    /// - if `self.names.len()` > `u32::MAX` (over 4 billion names...)
     pub fn intern(&mut self, name: &str) -> SymId {
         if let Some(&id) = self.lookup.get(name) {
             id
         } else {
-            let id = SymId(self.names.len() as u32);
+            let id = SymId(
+                u32::try_from(self.names.len()).expect("|names| > u32::MAX"),
+            );
             let name: String = name.into();
             self.names.push(name.clone());
             self.lookup.insert(name, id);
@@ -63,14 +69,22 @@ impl Interner {
 
     /// Get the associated `SymId` for a given `name`.
     /// Returns None iff `name` is not present in `self`.
+    #[must_use]
     pub fn get(&self, name: &str) -> Option<SymId> {
         self.lookup.get(name).copied()
     }
 
     /// Resolve the given `id` to the string contents.
     /// NOTE: This will panic iff `id` isn't a valid `SymID` in `self`.
+    #[must_use]
     pub fn resolve(&self, id: SymId) -> &str {
         &self.names[id.0 as usize]
+    }
+}
+
+impl Default for Interner {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -119,20 +133,20 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "index out of bounds")]
     fn resolve_bad() {
         // Resolve will panic for IDs that are out of range.
-        Interner::new().resolve(SymId(1024));
+        let _ = Interner::new().resolve(SymId(1024));
     }
 
     #[test]
     fn resolve() {
+        const NAMES: [&str; 4] =
+            ["hello", "derivative", "->>", "xy871238huashask_;@"];
+
         // NOTE: Since resolve can panic, we can only do success validation
         // tests here.
         let mut interner = Interner::new();
-
-        const NAMES: [&str; 4] =
-            ["hello", "derivative", "->>", "xy871238huashask_;@"];
         let ids = NAMES.map(|n| interner.intern(n));
 
         for (&id, &name) in ids.iter().zip(NAMES.iter()) {

@@ -67,6 +67,17 @@ impl SourceTable {
         self.sources.push(source);
         Ok(id)
     }
+
+    /// Get the Source related to the given `id`
+    ///
+    /// # Panics
+    /// - if `id` is out of bounds of `self.sources`.
+    #[must_use]
+    pub fn get_source(&self, id: SourceId) -> &Source {
+        let id = id.0 as usize;
+        assert!(id < self.sources.len());
+        &self.sources[id]
+    }
 }
 
 impl Default for SourceTable {

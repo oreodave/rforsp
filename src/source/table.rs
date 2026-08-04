@@ -42,9 +42,9 @@ pub enum SourceTableError {
 pub struct Location<'a> {
     /// Name of the [Source] this location relates to.
     pub name: &'a str,
-    /// Starting postion of this LOC
+    /// Starting [Position] of this LOC
     pub start: Position,
-    /// End postion (1 past last character) of this LOC
+    /// End [Position] (1 past last character) of this LOC
     pub end: Position,
 }
 

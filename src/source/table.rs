@@ -93,6 +93,17 @@ impl SourceTable {
         self.origins.push(SyntaxOrigin { source: id, span });
         syn_id
     }
+
+    /// Get the `SyntaxOrigin` associated to the given `id`.
+    ///
+    /// # Panics
+    /// - if `id` is out of bounds of `self.origins`.
+    #[must_use]
+    pub fn get_origin(&self, id: SyntaxId) -> &SyntaxOrigin {
+        let id = id.0 as usize;
+        assert!(id < self.origins.len());
+        &self.origins[id]
+    }
 }
 
 impl Default for SourceTable {

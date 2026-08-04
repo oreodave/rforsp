@@ -140,6 +140,14 @@ impl SourceTable {
             end,
         }
     }
+
+    /// Get the text within the source of a given `id`.
+    #[must_use]
+    pub fn text_of(&self, id: SyntaxId) -> &str {
+        let SyntaxOrigin { source, span } = self.get_origin(id);
+        let source = self.get_source(*source);
+        source.span_text(*span)
+    }
 }
 
 impl Default for SourceTable {

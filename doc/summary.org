@@ -1,0 +1,28 @@
+#+TITLE: rForsp Interpreter Summary (for future agents)
+#+DATE: 2026-07-20
+
+* What is rForsp?
+rForsp ("Refined Forsp") is a hybrid Forth + Lisp language, forked
+from [[https://github.com/xorvoid/forsp][xorvoid/forsp]].  The
+language combines S-expression syntax (Lisp) with postfix/stack-based
+evaluation (Forth), using Call-By-Push-Value (CBPV) semantics.
+
+The old interpreter was implemented as a C23 interpreter (~2500 lines
+in 16 source files under old-interpreter/) - but a compiler for the
+language is now being implemented in Rust.
+
+* Key Language Features
+- Postfix (stack-based) evaluation with S-expression like-syntax
+  (using `[]` instead of `()`)
+- Lexically-scoped closures (closures use vectors for body/env)
+- Only 3 special forms: ' (quote), ^ (push), $ (pop)
+- Vectors as first-class data type alongside cons/lists
+- Tail-call optimization via frame reuse
+- ~rec~ primitive for recursion
+- High capability: forsp.rfp emulates the original Forsp in rForsp
+* Next links
+- See [[file:../examples/]] for a set of examples in the rForsp
+  language.
+- See [[file:ir-design.org]] for more information the
+  lowering stages that the first pass compiler will perform.
+- See src/ for the Rust code currently being actively developed.

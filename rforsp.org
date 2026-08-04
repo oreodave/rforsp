@@ -49,7 +49,7 @@ The reader will take raw rForsp source code and generate HIR.
 [[file:agents/ir-design.org::*Part I: HIR][Part I: HIR]]
 *** WIP Sources
 **** DONE Source data type
-**** WIP Source Table
+**** DONE Source Table
 *** TODO Tokeniser
 *** TODO Parser
 ** TODO Resolution

@@ -422,4 +422,73 @@ mod tests {
         // within the codepoint.  Thus, Source::position_at should fail.
         source.position_at(SAMPLE_EMOJIS[0] + 1);
     }
+
+    #[test]
+    fn source_span_positions() {
+        // A span going to the end of the text should have a position that is
+        // one past the last character.
+
+        // When text ends in a a newline, the EOF will be on this phantom
+        // newline.
+        let text = "Hello, world!\n".to_string();
+        let source =
+            Source::from_contents("", text.clone()).expect("Should not fail");
+        let span = Span::new(0, text.len());
+        let (start, end) = source.span_positions(span);
+        assert_eq!(start, Position::default());
+        assert_eq!(end, Position::new(2, 1));
+
+        // When text doesn't have a newline, the EOF will be placed in the
+        // column just after the last character of the last line.
+        let text = "Hello, world!".to_string();
+        let source =
+            Source::from_contents("", text.clone()).expect("Should not fail");
+        let span = Span::new(0, text.len());
+        let (start, end) = source.span_positions(span);
+        assert_eq!(start, Position::default());
+        assert_eq!(end, Position::new(1, text.len() + 1));
+
+        // An empty span should have equivalent positions for start and end.
+        let span = Span::new(2, 2);
+        let (start, end) = source.span_positions(span);
+        assert_eq!(span.length(), 0);
+        assert_eq!(start, end);
+
+        let text = SAMPLE_TEXT.to_string();
+        let source =
+            Source::from_contents("", text.clone()).expect("Should not fail");
+        let lines = [
+            Span::new(0, SAMPLE_NEWLINES[0]),
+            Span::new(SAMPLE_NEWLINES[0] + 1, SAMPLE_NEWLINES[1]),
+            Span::new(SAMPLE_NEWLINES[1] + 1, SAMPLE_NEWLINES[2]),
+        ];
+
+        for (i, &line) in lines.iter().enumerate() {
+            let (start, end) = source.span_positions(line);
+
+            // We expect the line to mirror the indices of `lines`.
+            assert_eq!(start.line, i + 1);
+            // We expect the start and end to be on the same line.
+            assert_eq!(start.line, end.line);
+            // We expect the difference between the start and end columns to be
+            // exactly the number of characters in the `span_text`.
+            assert_eq!(
+                source.span_text(line).chars().count(),
+                end.col - start.col
+            );
+            // NOTE: We cannot do:
+            //   assert_eq!(end.col - start.col, line.length());
+            // ... since spans are bytes, and Position.col is characters.
+
+            // Constructing a span where the end is past the newline.
+            let (start, end) =
+                source.span_positions(Span::from_u32(line.start, line.end + 1));
+
+            // We still expect the line to mirror the indices of `lines`
+            assert_eq!(start.line, i + 1);
+            // We expect end to be on the line after start, but on the same
+            // column.
+            assert_eq!(end, Position::new(start.line + 1, start.col));
+        }
+    }
 }

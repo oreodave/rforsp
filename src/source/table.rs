@@ -78,6 +78,21 @@ impl SourceTable {
         assert!(id < self.sources.len());
         &self.sources[id]
     }
+
+    /// Add a new `SyntaxOrigin` given the `id` and `span`.
+    ///
+    /// # Panics
+    /// - if `span` is not valid for the `Source` related to `id`.
+    /// - if `self.origins.len()` > `u32::MAX`.
+    pub fn add_origin(&mut self, id: SourceId, span: Span) -> SyntaxId {
+        let source = self.get_source(id);
+        assert!(source.valid_span(span));
+        let syn_id = SyntaxId(
+            u32::try_from(self.origins.len()).expect("|origins| > u32::MAX"),
+        );
+        self.origins.push(SyntaxOrigin { source: id, span });
+        syn_id
+    }
 }
 
 impl Default for SourceTable {

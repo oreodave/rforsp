@@ -105,13 +105,13 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "start <= end")]
-    fn span_new_bad() {
+    fn span_new_misordered_start_end() {
         let _ = Span::new(1, 0);
     }
 
     #[test]
     #[should_panic(expected = "start <= end")]
-    fn span_from_u32_bad() {
+    fn span_from_u32_misordered_start_end() {
         let _ = Span::from_u32(10, 9);
     }
 

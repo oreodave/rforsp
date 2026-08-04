@@ -227,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn construction_bad() {
+    fn construction_invalid_contents_length() {
         const LIMIT: usize = 64;
         const OVER_LIMIT: usize = LIMIT + 1;
         let contents = "a".repeat(LIMIT + 1);
@@ -289,7 +289,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "out of bounds")]
-    fn chars_from_bad() {
+    fn chars_from_invalid_offset() {
         let text = "testing testing".to_string();
         let source =
             Source::from_contents("", text.clone()).expect("Should not fail");
@@ -298,7 +298,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "out of bounds")]
-    fn span_text_bad() {
+    fn span_text_invalid_end() {
         let text = "testing testing".to_string();
         let source =
             Source::from_contents("", text.clone()).expect("Should not fail");
@@ -369,7 +369,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "char boundary")]
-    fn position_at_bad() {
+    fn position_at_in_char_boundary() {
         let text = SAMPLE_TEXT.to_string();
         let source = Source::from_contents("", text).expect("Should not fail");
 
@@ -447,5 +447,5 @@ mod tests {
     }
 
     // NOTE: No `span_positions_bad` test, as it will just be a repeat of
-    // `positions_bad`.
+    // `positions_at_in_char_boundary`.
 }

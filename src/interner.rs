@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "index out of bounds")]
-    fn resolve_bad() {
+    fn resolve_invalid_id() {
         // Resolve will panic for IDs that are out of range.
         let _ = Interner::new().resolve(SymId(1024));
     }

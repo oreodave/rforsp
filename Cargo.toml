@@ -5,6 +5,13 @@ edition = "2024"
 
 [dependencies]
 
+[lints.rust]
+missing_docs = "warn"
+
+[lints.rustdoc]
+broken_intra_doc_links = "deny"
+private_intra_doc_links = "warn"
+
 [lints.clippy]
 all = "deny"
 pedantic = "deny"

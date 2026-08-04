@@ -131,9 +131,9 @@ impl SourceTable {
     /// Get the [Location] within the source of a given `id`
     #[must_use]
     pub fn location_of(&self, id: SyntaxId) -> Location<'_> {
-        let SyntaxOrigin { source, span } = self.origins[id.0 as usize];
-        let source = self.get_source(source);
-        let (start, end) = source.span_positions(span);
+        let SyntaxOrigin { source, span } = self.get_origin(id);
+        let source = self.get_source(*source);
+        let (start, end) = source.span_positions(*span);
         Location {
             name: &source.name,
             start,

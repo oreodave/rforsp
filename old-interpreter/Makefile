@@ -96,12 +96,12 @@ benchmark: $(OUT)
 	> $(BENCHMARK_OUT);
 	@cat $(BENCHMARK_OUT);
 
-scratch.rfp:
+../scratch.rfp:
 	echo "()" > scratch.rfp
 
 .PHONY: scratch
-scratch: $(OUT) scratch.rfp
-	./$(OUT) scratch.rfp
+scratch: $(OUT) ../scratch.rfp
+	./$(OUT) ../scratch.rfp
 
 compile_commands.json:
 	bear -- $(MAKE) -B

@@ -180,3 +180,148 @@ impl std::fmt::Display for SourceTableError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SOURCES: [(&str, &str); 2] = [
+        ("a", concat!("hello\n", "world!\n")),
+        ("b", concat!("Foo\n", "bar\n")),
+    ];
+
+    fn add_sources(table: &mut SourceTable) -> [SourceId; SOURCES.len()] {
+        SOURCES.map(|(name, text)| {
+            table
+                .add_source_raw(name, text.into())
+                .expect("This should not fail")
+        })
+    }
+
+    #[test]
+    fn sources() {
+        let mut table = SourceTable::new();
+        let source_ids = add_sources(&mut table);
+
+        assert!(source_ids[0].0 < source_ids[1].0);
+
+        for (&s_id, (name, text)) in source_ids.iter().zip(SOURCES.iter()) {
+            let source = table.get_source(s_id);
+            assert_eq!(source.name, *name);
+            assert_eq!(source.text(), *text);
+        }
+    }
+
+    #[test]
+    fn syntax_ids() {
+        let mut table = SourceTable::new();
+        let source_ids = add_sources(&mut table);
+        let cases = [
+            (
+                source_ids[0],
+                Span::new(0, SOURCES[0].1.len()),
+                SOURCES[0].0,
+                Position::default(),
+                Position { line: 3, col: 1 },
+                SOURCES[0].1,
+            ),
+            (
+                source_ids[0],
+                Span::new(2, 3),
+                SOURCES[0].0,
+                Position { line: 1, col: 3 },
+                Position { line: 1, col: 4 },
+                "l",
+            ),
+            (
+                source_ids[1],
+                Span::new(0, SOURCES[1].1.len()),
+                SOURCES[1].0,
+                Position::default(),
+                Position { line: 3, col: 1 },
+                SOURCES[1].1,
+            ),
+            (
+                source_ids[1],
+                Span::new(2, 5),
+                SOURCES[1].0,
+                Position { line: 1, col: 3 },
+                Position { line: 2, col: 2 },
+                "o\nb",
+            ),
+            (
+                source_ids[0],
+                Span::new(0, 0),
+                SOURCES[0].0,
+                Position::default(),
+                Position { line: 1, col: 1 },
+                "",
+            ),
+        ];
+
+        let syntax_ids = cases
+            .map(|(source, span, _, _, _, _)| table.add_origin(source, span));
+
+        for window in syntax_ids.windows(2) {
+            let SyntaxId(a) = window[0];
+            let SyntaxId(b) = window[1];
+            assert!(a < b);
+        }
+
+        for (&syntax_id, (source, span, name, start, end, text)) in
+            syntax_ids.iter().zip(cases.iter())
+        {
+            let origin = table.get_origin(syntax_id);
+            // Test that getting the origin yields us the input components.
+            assert_eq!(origin.source, *source);
+            assert_eq!(origin.span, *span);
+
+            // Test location_of works as we expect, across sources.
+            let location = table.location_of(syntax_id);
+            assert_eq!(location.name, *name);
+            assert_eq!(location.start, *start);
+            assert_eq!(location.end, *end);
+
+            let actual_text = table.text_of(syntax_id);
+            assert_eq!(*text, actual_text);
+        }
+    }
+
+    #[test]
+    fn sources_invalid_filename() {
+        let mut table = SourceTable::new();
+        let res = table.add_source_file("/no-way/this-is/real");
+        assert!(res.is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "id < self.sources.len()")]
+    fn get_source_invalid_id() {
+        let table = SourceTable::new();
+        let bad_id = SourceId(10);
+        let _ = table.get_source(bad_id);
+    }
+
+    #[test]
+    #[should_panic(expected = "valid_span")]
+    fn add_origin_invalid_span() {
+        let mut table = SourceTable::new();
+        let source_ids = add_sources(&mut table);
+        let _ = table
+            .add_origin(source_ids[0], Span::new(0, SOURCES[0].1.len() + 1));
+    }
+
+    #[test]
+    #[should_panic(expected = "id < self.sources.len()")]
+    fn add_origin_invalid_source() {
+        let mut table = SourceTable::new();
+        let _ = table.add_origin(SourceId(1024), Span::new(0, 0));
+    }
+
+    #[test]
+    #[should_panic(expected = "id < self.origins.len()")]
+    fn get_origin_invalid_id() {
+        let table = SourceTable::new();
+        let _ = table.get_origin(SyntaxId(1024));
+    }
+}

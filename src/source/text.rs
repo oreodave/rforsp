@@ -8,7 +8,9 @@ use crate::source::{Position, Span, span::offset};
 pub struct Source {
     /// Name of the Source.
     pub name: String,
+    /// Contents of a Source.
     contents: String,
+    /// Byte position for the starts of lines in the Source.
     line_starts: Vec<u32>,
 }
 

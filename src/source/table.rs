@@ -14,26 +14,28 @@ pub struct SyntaxId(u32);
 /// Special syntactical structure within a [Source], specified by a [Span].
 #[derive(Debug, Copy, Clone)]
 pub struct SyntaxOrigin {
-    /// The [`SourceId`] of the [`Source`] this [`SyntaxOrigin`] is located in.
+    /// The [`SourceId`] of the [Source] this [`SyntaxOrigin`] is located in.
     pub source: SourceId,
-    /// The [`Span`] within the [`Source`] that this [`SyntaxOrigin`] relates
-    /// to.
+    /// The [Span] within the [Source] that this [`SyntaxOrigin`] relates to.
     pub span: Span,
 }
 
 /// Session-time Table of [Source]s, with relevant metadata for the compiler.
 #[derive(Debug)]
 pub struct SourceTable {
-    /// Collection of [`Source`]'s managed by this table.
+    /// Collection of [Source]'s managed by this table.
     sources: Vec<Source>,
     /// Collection of [`SyntaxOrigin`]'s pointing at [Source]'s within this
     /// table.
     origins: Vec<SyntaxOrigin>,
 }
 
+/// Possible errors that may arise during [Source] construction.
 #[derive(Debug)]
 pub enum SourceTableError {
+    /// Error arose when creating the raw [Source]
     SourceCreate(SourceError),
+    /// Error arose when doing a IO read operation.
     Io(std::io::Error),
 }
 

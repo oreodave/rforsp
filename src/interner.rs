@@ -11,13 +11,16 @@ pub struct SymId(u32);
 /// with associated [`SymId`]s.
 #[derive(Debug)]
 pub struct Interner {
+    /// Collection of `String` indexed by [`SymId`]
     names: Vec<String>,
+    /// Reverse lookup to get [`SymId`] given the contents of the symbol.
     lookup: HashMap<String, SymId>,
 }
 
 /******************************************************************************
  * Distinguished symbols                                                      *
  ******************************************************************************/
+/// Distinguished symbol raw string contents.
 const DISTINGUISHED: [&str; 3] = ["f", "if", "rec"];
 
 /// Symbol representing "f"

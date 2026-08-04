@@ -216,7 +216,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn source_construction() {
+    fn construction() {
         const LIMIT: usize = 64;
         assert!(
             Source::from_contents_limited("", "a".repeat(LIMIT), LIMIT).is_ok()
@@ -227,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn source_construction_bad() {
+    fn construction_bad() {
         const LIMIT: usize = 64;
         const OVER_LIMIT: usize = LIMIT + 1;
         let contents = "a".repeat(LIMIT + 1);
@@ -241,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn source_eos() {
+    fn eos() {
         assert!(
             Source::from_contents("", String::new())
                 .expect("Empty string should not fail source construction.")
@@ -256,7 +256,7 @@ mod tests {
     }
 
     #[test]
-    fn source_destructors() {
+    fn destructors() {
         // Test the text destructors for Source as soft-wrappers for the
         // underlying content string.
 
@@ -289,7 +289,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "out of bounds")]
-    fn source_chars_from_bad() {
+    fn chars_from_bad() {
         let text = "testing testing".to_string();
         let source =
             Source::from_contents("", text.clone()).expect("Should not fail");
@@ -298,7 +298,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "out of bounds")]
-    fn source_span_text_bad() {
+    fn span_text_bad() {
         let text = "testing testing".to_string();
         let source =
             Source::from_contents("", text.clone()).expect("Should not fail");
@@ -315,7 +315,7 @@ mod tests {
     const SAMPLE_EMOJIS: [usize; 2] = [34, 49];
 
     #[test]
-    fn source_position_at() {
+    fn position_at() {
         let text = SAMPLE_TEXT.to_string();
         let source =
             Source::from_contents("", text.clone()).expect("Should not fail");
@@ -369,7 +369,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "char boundary")]
-    fn source_position_at_bad() {
+    fn position_at_bad() {
         let text = SAMPLE_TEXT.to_string();
         let source = Source::from_contents("", text).expect("Should not fail");
 
@@ -379,7 +379,7 @@ mod tests {
     }
 
     #[test]
-    fn source_span_positions() {
+    fn span_positions() {
         // A span going to the end of the text should have a position that is
         // one past the last character.
 
@@ -445,4 +445,7 @@ mod tests {
             assert_eq!(end, Position::new(start.line + 1, start.col));
         }
     }
+
+    // NOTE: No `span_positions_bad` test, as it will just be a repeat of
+    // `positions_bad`.
 }

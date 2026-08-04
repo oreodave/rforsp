@@ -139,13 +139,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "index out of bounds")]
-    fn resolve_bad() {
-        // Resolve will panic for IDs that are out of range.
-        let _ = Interner::new().resolve(SymId(1024));
-    }
-
-    #[test]
     fn resolve() {
         const NAMES: [&str; 4] =
             ["hello", "derivative", "->>", "xy871238huashask_;@"];
@@ -158,5 +151,12 @@ mod tests {
         for (&id, &name) in ids.iter().zip(NAMES.iter()) {
             assert_eq!(interner.resolve(id), name);
         }
+    }
+
+    #[test]
+    #[should_panic(expected = "index out of bounds")]
+    fn resolve_bad() {
+        // Resolve will panic for IDs that are out of range.
+        let _ = Interner::new().resolve(SymId(1024));
     }
 }

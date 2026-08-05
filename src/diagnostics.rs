@@ -1,6 +1,9 @@
 //! Unified diagnostic representation.
 //!
-//! TODO: Finish this.
+//! Every stage of the compiler reports through the [`Diagnostic`] type.  Stages
+//! do not render; they accumulate into a [`Diagnostics`] and rendering happens
+//! once, at the driver, where the [`SourceTable`][crate::source::SourceTable]
+//! is available to turn a [`Site`] into line/column text.
 
 mod phase;
 pub use phase::{Aborted, Phase};

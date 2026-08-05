@@ -4,3 +4,6 @@
 
 mod phase;
 pub use phase::{Aborted, Phase};
+
+mod class;
+pub use class::{Class, Severity};

@@ -50,7 +50,12 @@ pub enum SourceTableError {
     /// Error arose when creating the raw [Source]
     SourceCreate(SourceError),
     /// Error arose when doing a IO read operation.
-    Io(std::io::Error),
+    Io {
+        /// File name
+        name: String,
+        /// IO error
+        err: std::io::Error,
+    },
 }
 
 impl From<SourceError> for SourceTableError {
@@ -78,7 +83,13 @@ impl SourceTable {
         &mut self,
         file_name: &str,
     ) -> Result<SourceId, SourceTableError> {
-        let contents = std::fs::read_to_string(file_name)?;
+        let contents =
+            std::fs::read_to_string(file_name).map_err(|io_err| {
+                SourceTableError::Io {
+                    name: file_name.into(),
+                    err: io_err,
+                }
+            })?;
         self.add_source_raw(file_name, contents)
     }
 
@@ -164,12 +175,6 @@ impl SourceTable {
 impl Default for SourceTable {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl From<std::io::Error> for SourceTableError {
-    fn from(e: std::io::Error) -> Self {
-        Self::Io(e)
     }
 }
 

@@ -196,16 +196,6 @@ impl Source {
     }
 }
 
-impl std::fmt::Display for SourceError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::TooLarge { name, len, limit } => {
-                write!(f, "{name}: Contains {len} bytes when limit is {limit}")
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -173,19 +173,6 @@ impl From<std::io::Error> for SourceTableError {
     }
 }
 
-impl std::fmt::Display for SourceTableError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::SourceCreate(e) => {
-                write!(f, "{e}")
-            }
-            Self::Io(e) => {
-                write!(f, "{e}")
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

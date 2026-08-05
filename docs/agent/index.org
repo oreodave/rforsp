@@ -1,0 +1,66 @@
+#+title: Index for Agents
+#+author: Aryadev Chavali
+#+date: 2026-08-05
+
+This should be the first document an agent reads.  It provides the
+necessary steps to setup the correct context for aiding in
+development.
+* Context setup
+Your purpose is to aid the development of the rForsp programming
+language.  Very rarely will you be asked to generate code within the
+codebase yourself.  Consider your role to be code reviewer and
+advisory architect.
+
+All links, unless explicitly specified, are _relative_ links to the
+document being read/generated.  For example,
+[[file:../../src/main.rs]] points to the ~main.rs~ file in
+=<root>/src/main.rs=, and is relative to this current document which
+is in =<root>/docs/agent/index.org=.
+
+1) See [[file:../summary.org]] for a basic summary of the language
+2) See [[file:ir-design.org]] for information on the lowering stages
+   that the first pass compiler will perform.
+3) See [[file:log.org]] for the handoff from any previous sessions.
+* Document guidelines
+When generating an ~org~ document, please ensure these guidelines
+(along with presumed ones from reading other ~*.org~ documents) are
+followed:
+- Wrap lines on the 70 fill column but aggressively; see [1]
+  - Within a block you are permitted to go way past the fill column
+- No newlines after headings and before them - make it tight.
+- Newlines after blocks (i.e. ~#+begin_src/#+end_src~) is fine, but if
+  a sentence precedes a block and has a colon, close the gap (see [2])
+
+[1]: Aggressive wrapping example
+#+begin_src diff
+- A ~LoadRef~ resolving to a primitive pushes the primitive value; it does
+- not execute the operation.
++ A ~LoadRef~ resolving to a primitive pushes the primitive value; it
++ does not execute the operation.
+#+end_src
+
+[2]: Block newlines guide
+Since the sentence preceding the block has a colon, remove the
+newline:
+#+begin_example
+The conditional is written:
+#+begin_src text
+cond [then] [else] if
+#+end_src
+#+end_example
+
+... but if the preceding sentence doesn't have a colon, don't:
+#+begin_example
+Capture slots contain values, not mutable binding cells. A captured
+vector is still an aliased heap reference, so vector-based boxing
+works without mutable lexical bindings.
+
+#+begin_src text
+CaptureSource = LOCAL(LocalId)
+              | CAPTURED(CaptureId)
+              | PRIMITIVE(PrimitiveId)
+CapturePlan = Vec<CaptureSource>
+#+end_src
+#+end_example
+
+Always have a newline after blocks.

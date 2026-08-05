@@ -23,6 +23,5 @@ language is now being implemented in Rust.
 * Next links
 - See [[file:../examples/]] for a set of examples in the rForsp
   language.
-- See [[file:ir-design.org]] for more information the
-  lowering stages that the first pass compiler will perform.
-- See src/ for the Rust code currently being actively developed.
+- See [[file:../src/]] for the Rust code currently being actively
+  developed.

@@ -44,11 +44,14 @@ The first attempt of the IR compiler will do the following passes:
   Stack-Effect oriented IR (SIR).
 - Pass the SIR into a temporary evaluator.
 
-** TODO Unified diagnostics
+** WIP Unified diagnostics
 We need a unified diagnostics system that handles all the nitty-gritty
 details of collection, severity tracking, and pretty printing.
 
 [[file:docs/agent/ir-design.org::*Diagnostics][Diagnostics]].
+*** DONE Basic structures
+*** DONE Accumulator
+*** TODO Renderer
 ** TODO Reader phase for HIR
 The reader will take raw rForsp source code and generate HIR.
 [[file:docs/agent/ir-design.org::*Part I: HIR][Part I: HIR]]

@@ -4,9 +4,6 @@
 
 use crate::source::MAX_SOURCE_LEN;
 
-/******************************************************************************
- * Structures                                                                 *
- ******************************************************************************/
 /// A byte span, composed of a start and end position.
 ///
 /// NOTE: This span maps to [`start`, `end`) i.e. an exclusive ended range.
@@ -18,28 +15,6 @@ pub struct Span {
     pub end: u32,
 }
 
-/******************************************************************************
- * Standalone                                                                 *
- ******************************************************************************/
-/// Return `pos` as an offset (usize -> u32).
-///
-/// # Panics
-/// - if `pos > MAX_SOURCE_LEN`.
-#[track_caller]
-pub(super) const fn offset(pos: usize) -> u32 {
-    assert!(pos <= MAX_SOURCE_LEN);
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "MUST: `contents.len() <= MAX_SOURCE_LEN`."
-    )]
-    {
-        pos as u32
-    }
-}
-
-/******************************************************************************
- * Implementations                                                            *
- ******************************************************************************/
 impl Span {
     /// Construct a new Span from usize components.
     ///
@@ -67,9 +42,22 @@ impl Span {
     }
 }
 
-/******************************************************************************
- * Tests                                                                      *
- ******************************************************************************/
+/// Return `pos` as an offset (usize -> u32).
+///
+/// # Panics
+/// - if `pos > MAX_SOURCE_LEN`.
+#[track_caller]
+pub(super) const fn offset(pos: usize) -> u32 {
+    assert!(pos <= MAX_SOURCE_LEN);
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "MUST: `contents.len() <= MAX_SOURCE_LEN`."
+    )]
+    {
+        pos as u32
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

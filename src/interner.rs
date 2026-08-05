@@ -8,9 +8,6 @@
 
 use std::collections::HashMap;
 
-/******************************************************************************
- * Structures                                                                 *
- ******************************************************************************/
 /// ID representing an interned symbol - only returnable by the Interner.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct SymId(u32);
@@ -25,9 +22,6 @@ pub struct Interner {
     lookup: HashMap<String, SymId>,
 }
 
-/******************************************************************************
- * Distinguished symbols                                                      *
- ******************************************************************************/
 /// Distinguished symbol raw string contents.
 const DISTINGUISHED: [&str; 3] = ["f", "if", "rec"];
 
@@ -41,9 +35,6 @@ pub const SYM_REC: SymId = SymId(2);
 // Build time assertion that we've built around 3 distinguished symbols.
 const _: () = assert!(DISTINGUISHED.len() == 3);
 
-/******************************************************************************
- * Implementation                                                             *
- ******************************************************************************/
 impl Interner {
     /// Creates a new [Interner] structure.
     /// The interner automatically interns a number of distinguished symbols
@@ -105,9 +96,6 @@ impl Default for Interner {
     }
 }
 
-/******************************************************************************
- * Tests                                                                      *
- ******************************************************************************/
 #[cfg(test)]
 mod tests {
     use super::*;

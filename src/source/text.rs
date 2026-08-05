@@ -5,9 +5,6 @@
 
 use crate::source::{Position, Span, span::offset};
 
-/******************************************************************************
- * Structures                                                                 *
- ******************************************************************************/
 /// Contiguous collection of text for scanning purposes.
 #[derive(Debug)]
 pub struct Source {
@@ -37,9 +34,6 @@ pub enum SourceError {
     },
 }
 
-/******************************************************************************
- * Standalone                                                                 *
- ******************************************************************************/
 /// Compute the starting byte positions of every line within `contents`.
 fn compute_line_starts(contents: &str) -> Vec<u32> {
     let mut line_starts: Vec<u32> = vec![0];
@@ -53,9 +47,6 @@ fn compute_line_starts(contents: &str) -> Vec<u32> {
     line_starts
 }
 
-/******************************************************************************
- * Implementations                                                            *
- ******************************************************************************/
 impl Source {
     /// Construct a [Source] from the given `contents`.
     /// Returns Err if [`Source::from_contents_limited`] fails with
@@ -215,9 +206,6 @@ impl std::fmt::Display for SourceError {
     }
 }
 
-/******************************************************************************
- * Tests                                                                      *
- ******************************************************************************/
 #[cfg(test)]
 mod tests {
     use super::*;

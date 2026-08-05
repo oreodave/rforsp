@@ -6,9 +6,6 @@
 
 use crate::source::{Position, Source, SourceError, Span};
 
-/******************************************************************************
- * Structures                                                                 *
- ******************************************************************************/
 /// ID for a [Source] in the [`SourceTable`]
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct SourceId(u32);
@@ -24,6 +21,17 @@ pub struct SyntaxOrigin {
     pub source: SourceId,
     /// The [Span] within the [Source] that this [`SyntaxOrigin`] relates to.
     pub span: Span,
+}
+
+/// Collated metadata for the location of code within the [`SourceTable`]
+#[derive(Debug, Copy, Clone)]
+pub struct Location<'a> {
+    /// Name of the [Source] this location relates to.
+    pub name: &'a str,
+    /// Starting [Position] of this LOC
+    pub start: Position,
+    /// End [Position] (1 past last character) of this LOC
+    pub end: Position,
 }
 
 /// Session-time Table of [Source]s, with relevant metadata for the compiler.
@@ -45,15 +53,10 @@ pub enum SourceTableError {
     Io(std::io::Error),
 }
 
-/// Collated metadata for the location of code within the [`SourceTable`]
-#[derive(Debug, Copy, Clone)]
-pub struct Location<'a> {
-    /// Name of the [Source] this location relates to.
-    pub name: &'a str,
-    /// Starting [Position] of this LOC
-    pub start: Position,
-    /// End [Position] (1 past last character) of this LOC
-    pub end: Position,
+impl From<SourceError> for SourceTableError {
+    fn from(e: SourceError) -> Self {
+        Self::SourceCreate(e)
+    }
 }
 
 impl SourceTable {
@@ -161,12 +164,6 @@ impl SourceTable {
 impl Default for SourceTable {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl From<SourceError> for SourceTableError {
-    fn from(e: SourceError) -> Self {
-        Self::SourceCreate(e)
     }
 }
 

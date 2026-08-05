@@ -143,7 +143,7 @@ suppressible.
 #+begin_src text
 Site = None                   ; no location: missing file, bad argument
      | Source(SourceId)       ; a whole source, no meaningful position
-     | Raw(SourceId, Span)    ; before HIR exists
+     | Raw(SyntaxOrigin)      ; before HIR exists
      | Syntax(SyntaxId)       ; a form with a source-table entry
 #+end_src
 
@@ -164,6 +164,8 @@ give.
 The general rule: typed error at the leaf, ~Diagnostic~ at the
 reporting layer, and an accumulator only where recovery exists.
 ** Per-phase error surfaces
+NOTE: This is not complete for each phase, and will be updated.
+
 - Phase 0 (source):
   - file could not be read;
   - source exceeds ~MAX_SOURCE_LEN~;
@@ -222,17 +224,43 @@ phase's codes.
 Diagnostic construction lives in one module: a named constructor per
 code, so every user-facing string in the compiler has one home.
 ** The phase gate
-Between every pair of phases:
+A phase that produced errors must not hand its output to the next.
+The reason is not tidiness: a lex failure means the tokens are
+unknown, so parse errors derived from them would be noise generated
+from garbage.
+
+Every phase that can fail returns ~Result<T, Aborted>~, where
+~Aborted~ is an empty sentinel carrying no data — the details are in
+the accumulator. The gate is then enforced by the type system rather
+than by convention, and the phase sequence lives in one driver
+function where ~?~ performs the gating:
 #+begin_src text
-if diagnostics.has_errors() { stop }
+let tokens      = lex(source, interner, diags)?;
+let forms       = parse(&tokens, table, diags)?;
+let resolutions = resolve(&forms, diags)?;
+verify(&module, diags)?;
 #+end_src
 
-A phase that produced errors must not hand its output to the next. The
-reason is not tidiness: a lex failure means the tokens are unknown, so
-parse errors derived from them would be noise generated from garbage.
+Not every phase takes this shape:
+| # | Phase        | Returns                     |
+|---+--------------+-----------------------------|
+| 1 | Lexing       | ~Result<Vec<Token>,...>~    |
+| 2 | Parsing      | ~Result<Vec<HirForm>,...>~  |
+| 3 | Resolution   | ~Result<ResolutionMap,...>~ |
+| 4 | Lowering     | ~Module~                    |
+| 5 | Verification | ~Result<(), Aborted>~       |
+| 6 | Evaluation   | ~Result<Value, RuntimeError>~ |
 
-The gate should be written once in the driver rather than repeated at
-each boundary.
+Lowering has no ~Result~ because it is total given a successful
+resolution; a failure there is a compiler bug and panics rather than
+returning. Verification returns no data, so its ~Ok~ is permission to
+proceed rather than a value. Evaluation does not accumulate, so its
+failure is a typed error carrying its own data rather than a sentinel.
+
+Each phase also exposes an ungated entry point returning its output
+unconditionally. Tests use these to inspect partial recovery — the
+token stream after a lex error, the tree after a bracket mismatch —
+which the gated form necessarily discards.
 ** Error caps
 Accumulation without a cap turns one mistake into a flood. A limit of
 roughly twenty diagnostics per input, with a trailing count of those

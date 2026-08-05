@@ -44,48 +44,66 @@ The first attempt of the IR compiler will do the following passes:
   Stack-Effect oriented IR (SIR).
 - Pass the SIR into a temporary evaluator.
 
+** TODO Unified diagnostics
+We need a unified diagnostics system that handles all the nitty-gritty
+details of collection, severity tracking, and pretty printing.
+
+[[file:docs/agent/ir-design.org::*Diagnostics][Diagnostics]].
 ** TODO Reader phase for HIR
 The reader will take raw rForsp source code and generate HIR.
-[[file:agents/ir-design.org::*Part I: HIR][Part I: HIR]]
-*** WIP Sources
+[[file:docs/agent/ir-design.org::*Part I: HIR][Part I: HIR]]
+*** DONE Sources
 Sources are fed into the tokeniser.  They also need to persist
 throughout the lifetime of the compiler for the purposes of
 diagnostics.
 **** DONE Source data type
 **** DONE Source Table
-*** TODO Unified diagnostics
-We need a unified diagnostics system that handles all the nitty-gritty
-details of collection, severity tracking, and pretty printing.
 *** TODO Tokeniser
-Easy work -
+Convert the raw text from a Source/Sources in the Source Table into a
+slightly nicer tokenised format.
+
+- [[file:docs/agent/ir-design.org::*Phase 1: lexing][Phase 1: lexing]]
+- [[file:docs/agent/ir-design.org::- Phase 1 (lexing):]].
 *** TODO Parser
+Generates HIR from the output of Tokeniser.
+
+- [[file:docs/agent/ir-design.org::*Phase 2: parsing][Phase 2: parsing]]
+- [[file:docs/agent/ir-design.org::- Phase 2 (parsing):]].
 ** TODO Resolution
 After we have generated HIR, the resolver walks the HIR to generate a
 resolution side table.  This table has annotations regarding bindings,
 closure construction and lifting, and branch recognition.
 
-[[file:agents/ir-design.org::*Part II: Binding resolution][Part II:
-Binding resolution]]
+[[file:docs/agent/ir-design.org::*Phase 3: resolution][Phase 3:
+resolution]]
 ** TODO SIR generation
 The HIR + Resolution table is then lowered to SIR, which is the
 executable format for this first attempt compiler.
 
-- [[file:agents/ir-design.org::*Part III: SIR][Part III: SIR]]
-- [[file:agents/ir-design.org::*Part IV: Lowering HIR to SIR][Part IV:
-  Lowering HIR to SIR]]
+[[file:docs/agent/ir-design.org::*Phase 4: lowering][Phase 4:
+lowering]]
+** TODO Verification
+The SIR modules we've generated need to be verified before we can
+evaluate.  Big stuff will happen here in later phases, but for now
+it's relatively small in scope.
+
+[[file:docs/agent/ir-design.org::*Phase 5: verification][Phase 5:
+verification]]
 ** TODO Evaluation
 Now that  we finally have SIR, we need to execute it.  Due to the
 resolution pass, the runtime model won't need to emulate a linked list
 based environment; instead every frame has a buffer of "locals" that
 can be read/mutated.
 
-- [[file:agents/ir-design.org::*Part V: Runtime model][Part V: Runtime
-  model]]
-- [[file:agents/ir-design.org::*Part VI: Stack rows and effects][Part
-  VI: Stack rows and effects]]
-- [[file:agents/ir-design.org::*Part VII: Verification][Part VII:
+- [[file:docs/agent/ir-design.org::*Phase 6: evaluation][Phase 6:
+  evaluation]]
+- [[file:docs/agent/ir-design.org::*Part V: Runtime model][Part V:
+  Runtime model]]
+- [[file:docs/agent/ir-design.org::*Part VI: Stack rows and
+  effects][Part VI: Stack rows and effects]]
+- [[file:docs/agent/ir-design.org::*Part VII: Verification][Part VII:
   Verification]]
-- [[file:agents/ir-design.org::*Part VIII: SIR evaluator
+- [[file:docs/agent/ir-design.org::*Part VIII: SIR evaluator
   contract][Part VIII: SIR evaluator contract]]
 * BACKLOG Language :lang:
 Language design projects.

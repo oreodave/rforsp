@@ -48,9 +48,16 @@ The first attempt of the IR compiler will do the following passes:
 The reader will take raw rForsp source code and generate HIR.
 [[file:agents/ir-design.org::*Part I: HIR][Part I: HIR]]
 *** WIP Sources
+Sources are fed into the tokeniser.  They also need to persist
+throughout the lifetime of the compiler for the purposes of
+diagnostics.
 **** DONE Source data type
 **** DONE Source Table
+*** TODO Unified diagnostics
+We need a unified diagnostics system that handles all the nitty-gritty
+details of collection, severity tracking, and pretty printing.
 *** TODO Tokeniser
+Easy work -
 *** TODO Parser
 ** TODO Resolution
 After we have generated HIR, the resolver walks the HIR to generate a

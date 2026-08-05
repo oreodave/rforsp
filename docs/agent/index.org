@@ -36,6 +36,20 @@ Reading order: start with ~status.org~ for where things stand, then
 ~log.org~ for why the code is shaped as it is, and ~ir-design.org~ for
 what the compiler is supposed to do.  ~index.org~ itself is the fixed
 entry point.
+* Handover process
+When you are asked to "handover", please:
+1) Regenerate [[file:status.org]] with the current stuff:
+   - repository layout
+   - build status
+   - completed and pending milestones
+   - state of untracked/in-flight work and open questions by end of
+     session.
+   - suggested next steps
+2) Append to [[file:log.org]] with the relevant decisions and their
+   rationale from that session.
+
+=status.org= is meant to be refreshed every session, while =log.org=
+is append-only and preserved across sessions.
 * Document guidelines
 When generating an ~org~ document, please ensure these guidelines
 (along with presumed ones from reading other ~*.org~ documents) are

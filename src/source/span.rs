@@ -1,7 +1,6 @@
-//! Positions and spans.
+//! Byte Spans.
 //!
 //! Defines [`Span`], a byte range within a [`Source`][crate::source::Source],
-//! and [`Position`], a character-oriented line-column location.
 
 use crate::source::MAX_SOURCE_LEN;
 
@@ -17,19 +16,6 @@ pub struct Span {
     pub start: u32,
     /// Byte offset one past the last character in the span.
     pub end: u32,
-}
-
-/// Character Line-Column position in some source text.
-///
-/// NOTE: Default initialisation sets these to {1, 1}.
-///
-/// NOTE: These are not byte-oriented, but character oriented.
-#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Copy, Clone)]
-pub struct Position {
-    /// Line count
-    pub line: usize,
-    /// Column count, in characters.
-    pub col: usize,
 }
 
 /******************************************************************************
@@ -81,20 +67,6 @@ impl Span {
     }
 }
 
-impl Position {
-    /// Construct a new postion from the given `line` and `col`.
-    #[must_use]
-    pub const fn new(line: usize, col: usize) -> Self {
-        Self { line, col }
-    }
-}
-
-impl Default for Position {
-    fn default() -> Self {
-        Self { line: 1, col: 1 }
-    }
-}
-
 /******************************************************************************
  * Tests                                                                      *
  ******************************************************************************/
@@ -105,7 +77,6 @@ mod tests {
     #[test]
     fn defaults() {
         assert_eq!(Span::default(), Span::new(0, 0));
-        assert_eq!(Position::default(), Position::new(1, 1));
     }
 
     #[test]

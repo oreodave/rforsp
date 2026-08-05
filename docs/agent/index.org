@@ -18,9 +18,24 @@ document being read/generated.  For example,
 is in =<root>/docs/agent/index.org=.
 
 1) See [[file:../summary.org]] for a basic summary of the language
-2) See [[file:ir-design.org]] for information on the lowering stages
-   that the first pass compiler will perform.
-3) See [[file:log.org]] for the handoff from any previous sessions.
+2) See [[file:ir-design.org]] for the authoritative design of the
+   compilation phases, IRs, and diagnostics.  This is the document to
+   consult when unsure what a phase should do or report; it moves
+   slowly and changes by review.
+3) See [[file:log.org]] for durable decisions and rationale - the
+   *why* behind the code.  It records tradeoffs and rejected
+   alternatives that the code cannot show, and grows by appending.
+   Preserve it; do not regenerate it.
+4) See [[file:status.org]] for the current, quickly-obsolescing
+   state - repository layout, build status, completed and pending
+   milestones, and the suggested next steps.  This is the document to
+   regenerate or refresh at the start of a session, since it derives
+   from the code, git history, and test runs.
+
+Reading order: start with ~status.org~ for where things stand, then
+~log.org~ for why the code is shaped as it is, and ~ir-design.org~ for
+what the compiler is supposed to do.  ~index.org~ itself is the fixed
+entry point.
 * Document guidelines
 When generating an ~org~ document, please ensure these guidelines
 (along with presumed ones from reading other ~*.org~ documents) are

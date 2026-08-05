@@ -15,7 +15,7 @@ pub struct SourceId(u32);
 pub struct SyntaxId(u32);
 
 /// Special syntactical structure within a [Source], specified by a [Span].
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct SyntaxOrigin {
     /// The [`SourceId`] of the [Source] this [`SyntaxOrigin`] is located in.
     pub source: SourceId,

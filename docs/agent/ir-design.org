@@ -24,7 +24,22 @@ generation.  Those are specified as later-pass stubs.
 
 User vectors remain mutable heap objects. That mutation is not binding
 mutation and cannot alias the value stack.
-* Compilation pipeline
+* Compilation phases
+The first-pass compiler has seven phases. Each is responsible for one
+transformation, produces one shape of data, and has its own error
+surface. This section is the quick reference;
+[[*Diagnostics][Diagnostics]] covers what each phase reports.
+| # | Phase              | Produces        | Site available  |
+|---+--------------------+-----------------+-----------------|
+| 0 | Source acquisition | ~SourceId~      | ~None~/~Source~ |
+| 1 | Lexing             | ~Vec<Token>~    | ~Raw~           |
+| 2 | Parsing            | ~Vec<HirForm>~  | ~Raw~, ~Syntax~ |
+| 3 | Resolution         | ~ResolutionMap~ | ~Syntax~        |
+| 4 | Lowering           | ~Module~        | none emitted    |
+| 5 | Verification       | pass or fail    | ~Syntax~        |
+| 6 | Evaluation         | values or fault | ~Syntax~        |
+
+As a data-flow sketch:
 #+begin_src text
 Source text
   -> Tokens with spans
@@ -35,7 +50,6 @@ Source text
 #+end_src
 
 Later:
-
 #+begin_src text
 SIR
   -> effect inference and specialization
@@ -44,9 +58,185 @@ SIR
   -> native code generation
 #+end_src
 
-Resolution is a separate stage between the two IRs, not part of
+Resolution is a separate phase between the two IRs, not part of
 either.  It reads HIR and produces a side table; SIR construction
 reads both.
+** Phase 0: source acquisition
+Reads bytes, checks length against the source-length bound, computes
+line starts, and registers the text with the [[*Source table][source
+table]], which assigns a ~SourceId~.  Nothing before this point has a
+location to report against.
+** Phase 1: lexing
+Bytes to spanned tokens. Skips whitespace and comments. Produces
+~Vec<Token>~ where a token is a kind plus a ~Span~.
+
+Recovery is straightforward — record the error, skip one character,
+resume — so error accumulation is genuinely useful here rather than
+nominal.
+** Phase 2: parsing
+See: [[*Part I: HIR]]
+
+Tokens to HIR. Assigns a ~SyntaxId~ to every form and registers its
+origin in the source table. Produces ~Vec<HirForm>~ for the input, and
+the form tree becomes discardable once lowering completes.
+
+Bracket matching lives here rather than in the lexer: the lexer emits
+brackets as ordinary tokens and has no unterminated case.
+** Phase 3: resolution
+See: [[*Part II: Binding resolution][Part II: Binding resolution]].
+
+Sequential walk producing a ~ResolutionMap~, with binding IDs, capture
+layouts, and conditional and ~rec~ recognition. This is the last phase
+that inspects user intent; everything after it is mechanical.
+
+To report more than one unresolved name per input, resolution must
+continue past the first failure. It therefore needs a poison
+~Resolution~ variant, recorded for the offending form so the walk can
+proceed. Lowering must never see one, which the phase gate guarantees.
+** Phase 4: lowering
+See: [[*Part III: SIR][Part III: SIR]] and [[*Part IV: Lowering HIR to
+SIR]].
+
+HIR plus ~ResolutionMap~ to a ~Module~: instructions, blocks,
+terminators, the data table, and capture plans, with tail positions
+determined.
+
+Lowering emits no diagnostics. If resolution succeeded, every user
+error has already been caught, and lowering is total. Anything that
+goes wrong here is a compiler bug, reported as such.
+** Phase 5: verification
+See: [[*Part VII: Verification]].
+
+Structural checks over the ~Module~, plus partial depth checking.
+Produces a pass or fail rather than data.
+
+This phase reports in two categories that must not be conflated. See
+[[*Verification reports two categories][Verification reports two
+categories]].
+** Phase 6: evaluation
+See: [[*Part VIII: SIR evaluator contract]].
+
+Executes the ~Module~. Produces values on the session stack, or a
+single runtime fault.
+
+Unlike phases 1 through 3, evaluation does not accumulate: it stops at
+the first fault. Runtime errors are therefore singular and terminal.
+* Diagnostics
+Every phase reports through one ~Diagnostic~ type. Phases do not
+render; they accumulate, and rendering happens once at the driver,
+where the source table is available to turn spans into line and column
+text.
+** Severity
+#+begin_src text
+Severity = Note      ; context attached to another diagnostic
+         | Warning   ; program accepted, something is likely wrong
+         | Error     ; program rejected, user's fault
+         | Bug       ; invariant violated, compiler's fault
+#+end_src
+
+~Bug~ is not decoration. Several of the verifier's checks examine the
+compiler's own output rather than the user's program, and reporting
+those as user errors would be a lie. ~Bug~ renders as an internal
+compiler error naming the violated invariant, and must not be
+suppressible.
+** Site
+#+begin_src text
+Site = None                   ; no location: missing file, bad argument
+     | Source(SourceId)       ; a whole source, no meaningful position
+     | Raw(SourceId, Span)    ; before HIR exists
+     | Syntax(SyntaxId)       ; a form with a source-table entry
+#+end_src
+
+~Raw~ exists because the lexer and early parser report before any
+~SyntaxId~ has been assigned. ~None~ exists because phase 0 can fail
+before a ~SourceId~ does.
+** Where errors are typed and where they are diagnostics
+A leaf operation with a local, structured failure returns a typed
+error — ~Source::from_contents~ returns ~Result<Source, SourceError>~,
+and the evaluator returns a single ~RuntimeError~. Conversion to a
+~Diagnostic~ happens at the reporting boundary, where the driver knows
+how to name things.
+
+The ordering constraint that forces this is concrete: a ~Site~ needs a
+~SourceId~, and during source construction there is not yet one to
+give.
+
+The general rule: typed error at the leaf, ~Diagnostic~ at the
+reporting layer, and an accumulator only where recovery exists.
+** Per-phase error surfaces
+- Phase 0 (source):
+  - file could not be read;
+  - source exceeds ~MAX_SOURCE_LEN~;
+  - contents are not valid UTF-8.
+- Phase 1 (lexing):
+  - unknown character;
+  - ~$~ or ~^~ not followed by a name;
+  - integer literal outside ~i64~.
+- Phase 2 (parsing):
+  - unterminated ~[~ or ~(~;
+  - unexpected closing bracket;
+  - mismatched bracket kinds;
+  - quote at end of input;
+  - quote of a form with nothing to denote — ~'^x~ and ~'$x~.
+- Phase 3 (resolution):
+  - unresolved name, on any path including dead ones;
+  - data operand to a recognized ~rec~.
+- Phase 4 (lowering):
+  - None. Lowering is total given a successful resolution.
+- Phase 5 (verification):
+  - See [[*Verification reports two categories][below]]; the split
+    matters more than the list.
+- Phase 6 (evaluation):
+  - stack underflow;
+  - invalid primitive arguments;
+  - vector index out of bounds;
+  - ~Primitive(If)~ called with fewer than three values.
+** Verification reports two categories
+The structural checks — valid IDs, terminated blocks, capture layouts
+matching, initialization dataflow, scope — examine the resolver's and
+lowerer's output. A failure means the compiler is wrong, and these are
+~Bug~.
+
+Partial depth checking is different: it catches genuine arity mistakes
+in user code, and those are ~Error~.
+
+One pass therefore emits both severities, and the distinction must be
+made per check rather than per phase.
+** Codes
+Every diagnostic carries a stable ~code~ identifying its class,
+namespaced by phase:
+#+begin_src text
+lex::UNKNOWN_CHAR
+parse::UNTERMINATED_VECTOR
+resolve::UNBOUND_NAME
+verify::DEPTH_MISMATCH
+ice::MALFORMED_BLOCK
+#+end_src
+
+Codes exist so that tests can assert on the class of a diagnostic
+rather than its prose, so that improving a message does not break the
+conformance corpus. They also make the full error surface enumerable
+and greppable, and let a test assert that no phase emits another
+phase's codes.
+
+Diagnostic construction lives in one module: a named constructor per
+code, so every user-facing string in the compiler has one home.
+** The phase gate
+Between every pair of phases:
+#+begin_src text
+if diagnostics.has_errors() { stop }
+#+end_src
+
+A phase that produced errors must not hand its output to the next. The
+reason is not tidiness: a lex failure means the tokens are unknown, so
+parse errors derived from them would be noise generated from garbage.
+
+The gate should be written once in the driver rather than repeated at
+each boundary.
+** Error caps
+Accumulation without a cap turns one mistake into a flood. A limit of
+roughly twenty diagnostics per input, with a trailing count of those
+suppressed, is enough to keep output readable.
 * Shared infrastructure
 A small amount of state is shared across every stage and outlives both
 IRs. It is session-scoped, not module-scoped.
@@ -79,6 +269,7 @@ two categories that must not be confused.
 #+begin_src text
 f       ; the false atom
 #+end_src
+
 ~f~ is compared against runtime *values*: the truth test asks whether
 a ~Value~ is ~Atom(f)~. This has nothing to do with name
 resolution. An atom is data, not a binding, so there is no rebinding
@@ -1328,6 +1519,13 @@ Changes from the previous draft:
   language and cannot consume the corpus. Added bidirectional
   divergence annotations and a separate section on ~forsp.rfp~'s three
   actual roles.
+- Replaced the pipeline sketch with a seven-phase reference giving
+  each phase's output and available ~Site~, and added a diagnostics
+  section covering severity, site, per-phase error surfaces, codes,
+  the phase gate, and error caps.
+- Recorded that lowering emits no diagnostics, that verification
+  reports ~Bug~ and ~Error~ from the same pass, and that evaluation is
+  singular and terminal rather than accumulating.
 
 Carried forward from the prior revision: block-based branch lowering,
 removal of ~EntryId~, contiguous locals stack, ~Nil~-fill on frame

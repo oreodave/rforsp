@@ -1,3 +1,8 @@
+//! Positions and spans.
+//!
+//! Defines [`Span`], a byte range within a [`Source`][crate::source::Source],
+//! and [`Position`], a character-oriented line-column location.
+
 use crate::source::MAX_SOURCE_LEN;
 
 /******************************************************************************

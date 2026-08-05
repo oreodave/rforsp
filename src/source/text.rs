@@ -1,3 +1,8 @@
+//! A single source buffer.
+//!
+//! [`Source`] is a raw in-memory text buffer, capped at [`MAX_SOURCE_LEN`],
+//! with byte-to-[`Position`] mapping used by the rest of the source stage.
+
 use crate::source::{Position, Span, span::offset};
 
 /******************************************************************************

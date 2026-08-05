@@ -1,3 +1,9 @@
+//! The session source table.
+//!
+//! The append-only [`SourceTable`] holds every [`Source`] and assigns each a
+//! unique [`SourceId`], registers [`SyntaxOrigin`]s as [`SyntaxId`]s, and
+//! resolves them back to [`Location`]s and text for diagnostics.
+
 use crate::source::{Position, Source, SourceError, Span};
 
 /******************************************************************************

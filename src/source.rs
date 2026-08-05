@@ -1,13 +1,12 @@
-//! Source generation and management.
+//! Source acquisition and management.
 //!
-//! The first stage to the compiler is slurping source code.  This stage handles
-//! the raw text, and manages the tagging of
+//! The first stage of the compiler: reading raw source text into a [`Source`]
+//! registered in a session-global [`SourceTable`]. Byte offsets become
+//! [`Span`]s and line-column [`Position`]s, each form is tagged with a
+//! [`SyntaxId`], and diagnostics resolve those origins back to text.
 
-/// Module defining positions within a [Source], by byte and by character.
 mod span;
-/// Module for defining the [`SymbolTable`]: managing a collection of [Sources]
 mod table;
-/// Module defining a singular [Source]
 mod text;
 
 pub use span::{Position, Span};

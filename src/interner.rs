@@ -1,3 +1,11 @@
+//! Symbol interning.
+//!
+//! Maps source-level name strings to unique [`SymId`]s.  Used by the rest of
+//! the compiler to make comparison of symbols O(1).
+//!
+//! On construction the [`Interner`] interns the distinguished symbols
+//! ([`SYM_F`], [`SYM_IF`], [`SYM_REC`]).
+
 use std::collections::HashMap;
 
 /******************************************************************************

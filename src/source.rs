@@ -6,13 +6,15 @@
 //! [`SyntaxId`], and diagnostics resolve those origins back to text.
 
 mod position;
-mod span;
-mod table;
-mod text;
-
 pub use position::Position;
+
+mod span;
 pub use span::Span;
+
+mod table;
 pub use table::{
     Location, SourceId, SourceTable, SourceTableError, SyntaxId, SyntaxOrigin,
 };
+
+mod text;
 pub use text::{MAX_SOURCE_LEN, Source, SourceError};

@@ -150,12 +150,11 @@ impl SourceTable {
         &self.origins[id]
     }
 
-    /// Get the [Location] within the source of a given `id`
+    /// Get the [Location] within of a [`SyntaxOrigin`].
     #[must_use]
-    pub fn location_of(&self, id: SyntaxId) -> Location<'_> {
-        let SyntaxOrigin { source, span } = self.get_origin(id);
-        let source = self.get_source(*source);
-        let (start, end) = source.span_positions(*span);
+    pub fn location_of(&self, origin: &SyntaxOrigin) -> Location<'_> {
+        let source = self.get_source(origin.source);
+        let (start, end) = source.span_positions(origin.span);
         Location {
             name: &source.name,
             start,
@@ -163,12 +162,11 @@ impl SourceTable {
         }
     }
 
-    /// Get the text within the source of a given `id`.
+    /// Get the text of a [`SyntaxOrigin`].
     #[must_use]
-    pub fn text_of(&self, id: SyntaxId) -> &str {
-        let SyntaxOrigin { source, span } = self.get_origin(id);
-        let source = self.get_source(*source);
-        source.span_text(*span)
+    pub fn text_of(&self, origin: &SyntaxOrigin) -> &str {
+        let source = self.get_source(origin.source);
+        source.span_text(origin.span)
     }
 }
 
@@ -274,12 +272,12 @@ mod tests {
             assert_eq!(origin.span, *span);
 
             // Test location_of works as we expect, across sources.
-            let location = table.location_of(syntax_id);
+            let location = table.location_of(origin);
             assert_eq!(location.name, *name);
             assert_eq!(location.start, *start);
             assert_eq!(location.end, *end);
 
-            let actual_text = table.text_of(syntax_id);
+            let actual_text = table.text_of(origin);
             assert_eq!(*text, actual_text);
         }
     }

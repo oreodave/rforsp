@@ -144,6 +144,42 @@ impl Source {
         &self.contents[span.start as usize..span.end as usize]
     }
 
+    /// Get the text of a full line given the line number.
+    ///
+    /// NOTE: `line` is 1-indexed.
+    ///
+    /// # Panics
+    /// - if line is out of bounds
+    #[must_use]
+    pub fn line_text(&self, line: usize) -> &str {
+        assert!(line > 0, "line must be 1-indexed");
+        assert!(line <= self.line_starts.len(), "{line} is out of bounds");
+        let start = self.line_starts[line - 1];
+        let end = {
+            if line == self.line_starts.len() {
+                u32::try_from(self.len()).expect("self.len() <= MAX_SOURCE_LEN")
+            } else {
+                self.line_starts[line] - 1
+            }
+        };
+        self.span_text(Span::from_u32(start, end))
+    }
+
+    /// Get the text of the full line an offset is located in.
+    ///
+    /// # Panics
+    /// - if the offset is out of bounds
+    #[must_use]
+    pub fn line_text_of(&self, byte: usize) -> &str {
+        assert!(byte <= self.len(), "{byte} is out of bounds");
+        let offset = offset(byte);
+        let line = self
+            .line_starts
+            .binary_search(&offset)
+            .unwrap_or_else(|i| i - 1);
+        self.line_text(line + 1)
+    }
+
     /// Converts a byte position to a [Position] within the contents of this
     /// [Source].
     ///

@@ -120,7 +120,7 @@ impl SourceTable {
     #[must_use]
     pub fn get_source(&self, id: SourceId) -> &Source {
         let id = id.0 as usize;
-        assert!(id < self.sources.len());
+        assert!(id < self.sources.len(), "{id} out of bounds of |sources|");
         &self.sources[id]
     }
 
@@ -131,7 +131,10 @@ impl SourceTable {
     /// - if `self.origins.len()` > [`u32::MAX`].
     pub fn add_origin(&mut self, id: SourceId, span: Span) -> SyntaxId {
         let source = self.get_source(id);
-        assert!(source.valid_span(span));
+        assert!(
+            source.valid_span(span),
+            "{span:?} components out of bounds for {id:?}"
+        );
         let syn_id = SyntaxId(
             u32::try_from(self.origins.len()).expect("|origins| > u32::MAX"),
         );
@@ -146,7 +149,7 @@ impl SourceTable {
     #[must_use]
     pub fn get_origin(&self, id: SyntaxId) -> &SyntaxOrigin {
         let id = id.0 as usize;
-        assert!(id < self.origins.len());
+        assert!(id < self.origins.len(), "{id} out of bounds");
         &self.origins[id]
     }
 
@@ -290,7 +293,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "id < self.sources.len()")]
+    #[should_panic(expected = "out of bounds")]
     fn get_source_invalid_id() {
         let table = SourceTable::new();
         let bad_id = SourceId(10);
@@ -298,7 +301,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "valid_span")]
+    #[should_panic(expected = "out of bounds")]
     fn add_origin_invalid_span() {
         let mut table = SourceTable::new();
         let source_ids = add_sources(&mut table);
@@ -307,14 +310,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "id < self.sources.len()")]
+    #[should_panic(expected = "out of bounds")]
     fn add_origin_invalid_source() {
         let mut table = SourceTable::new();
         let _ = table.add_origin(SourceId(1024), Span::new(0, 0));
     }
 
     #[test]
-    #[should_panic(expected = "id < self.origins.len()")]
+    #[should_panic(expected = "out of bounds")]
     fn get_origin_invalid_id() {
         let table = SourceTable::new();
         let _ = table.get_origin(SyntaxId(1024));

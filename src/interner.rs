@@ -33,7 +33,10 @@ pub const SYM_IF: SymId = SymId(1);
 pub const SYM_REC: SymId = SymId(2);
 
 // Build time assertion that we've built around 3 distinguished symbols.
-const _: () = assert!(DISTINGUISHED.len() == 3);
+const _: () = assert!(
+    DISTINGUISHED.len() == 3,
+    "There should only be 3 distinguished symbols"
+);
 
 impl Interner {
     /// Creates a new [Interner] structure.

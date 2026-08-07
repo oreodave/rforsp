@@ -126,6 +126,11 @@ impl Source {
     /// - if pos is out of bounds for this source.
     /// - if pos is in a char boundary.
     pub fn chars_from(&self, pos: usize) -> std::str::Chars<'_> {
+        assert!(pos <= self.len(), "{pos} is out of bounds");
+        assert!(
+            self.contents.is_char_boundary(pos),
+            "{pos} is not in a char boundary"
+        );
         self.contents[pos..].chars()
     }
 
@@ -135,6 +140,7 @@ impl Source {
     /// - if span is out of bounds for this source
     #[must_use]
     pub fn span_text(&self, span: Span) -> &str {
+        assert!(self.valid_span(span), "{span:?} is invalid for this source");
         &self.contents[span.start as usize..span.end as usize]
     }
 
@@ -282,7 +288,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "out of bounds")]
+    #[should_panic(expected = "invalid")]
     fn span_text_invalid_end() {
         let text = "testing testing".to_string();
         let source =

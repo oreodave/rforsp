@@ -338,6 +338,12 @@ mod tests {
         "I like \u{1f350}'s personally.\n"
     );
 
+    const SAMPLE_LINES: [&str; 3] = [
+        "Hello, world!",
+        "Do Shinigami's like \u{1f34e}'s?",
+        "I like \u{1f350}'s personally.",
+    ];
+
     const SAMPLE_NEWLINES: [usize; 3] = [13, 41, 67];
     const SAMPLE_EMOJIS: [usize; 2] = [34, 49];
 
@@ -473,6 +479,97 @@ mod tests {
         }
     }
 
-    // NOTE: No `span_positions_bad` test, as it will just be a repeat of
-    // `positions_at_in_char_boundary`.
+    fn sample_no_trailing_newline() -> String {
+        String::from(&SAMPLE_TEXT[..SAMPLE_TEXT.len() - 1])
+    }
+
+    #[test]
+    fn line_text() {
+        let text = SAMPLE_TEXT.to_string();
+        let source = Source::from_contents("", text).expect("Should not fail");
+
+        for (i, &expected) in SAMPLE_LINES.iter().enumerate() {
+            assert_eq!(source.line_text(i + 1), expected);
+        }
+
+        // A source ending in a newline has a phantom empty final line.
+        assert_eq!(source.line_text(4), "");
+
+        // A text with no trailing newline still can iterate through all lines.
+        let text = sample_no_trailing_newline();
+        let source = Source::from_contents("", text).expect("Should not fail");
+        for (i, &expected) in SAMPLE_LINES.iter().enumerate() {
+            assert_eq!(source.line_text(i + 1), expected);
+        }
+
+        // An empty source means we have an empty starting line
+        let source =
+            Source::from_contents("", String::new()).expect("Should not fail");
+        assert_eq!(source.line_text(1), "");
+    }
+
+    #[test]
+    fn line_text_of() {
+        let text = SAMPLE_TEXT.to_string();
+        let source = Source::from_contents("", text).expect("Should not fail");
+
+        // The first byte of the source is on line 1.
+        assert_eq!(source.line_text_of(0), "Hello, world!");
+        // A byte at a line start resolves to that line.
+        assert_eq!(
+            source.line_text_of(SAMPLE_NEWLINES[0] + 1),
+            SAMPLE_LINES[1],
+        );
+        assert_eq!(
+            source.line_text_of(SAMPLE_NEWLINES[1] + 1),
+            SAMPLE_LINES[2],
+        );
+        // A mid-line byte resolves to its owning line.
+        assert_eq!(source.line_text_of(20), SAMPLE_LINES[1]);
+        // A byte at a newline still belongs to the line it terminates.
+        assert_eq!(source.line_text_of(SAMPLE_NEWLINES[0]), SAMPLE_LINES[0]);
+
+        // Line membership is a byte fact: a byte inside a multi-byte codepoint
+        // still resolves to the owning line (no char-boundary requirement).
+        let expected = SAMPLE_LINES[1];
+        // `SAMPLE_EMOJIS[0]` is the first byte of a 4-byte emoji in line 2.
+        for offset in SAMPLE_EMOJIS[0] + 1..SAMPLE_EMOJIS[0] + 4 {
+            assert_eq!(source.line_text_of(offset), expected);
+        }
+
+        // The byte one past the end of a newline-terminated source resolves to
+        // the phantom final line.
+        assert_eq!(source.line_text_of(source.len()), "");
+
+        // For a source without an ending newline, it resolves to the final line
+        // of text.
+        let source = Source::from_contents("", sample_no_trailing_newline())
+            .expect("Should not fail");
+
+        assert_eq!(source.line_text_of(source.len()), SAMPLE_LINES[2]);
+    }
+
+    #[test]
+    #[should_panic(expected = "1-indexed")]
+    fn line_text_zero_line() {
+        let source = Source::from_contents("", sample_no_trailing_newline())
+            .expect("Should not fail");
+        let _ = source.line_text(0);
+    }
+
+    #[test]
+    #[should_panic(expected = "out of bounds")]
+    fn line_text_out_of_bounds() {
+        let source = Source::from_contents("", sample_no_trailing_newline())
+            .expect("Should not fail");
+        let _ = source.line_text(4);
+    }
+
+    #[test]
+    #[should_panic(expected = "out of bounds")]
+    fn line_text_of_out_of_bounds() {
+        let source = Source::from_contents("", sample_no_trailing_newline())
+            .expect("Should not fail");
+        let _ = source.line_text_of(source.len() + 1);
+    }
 }

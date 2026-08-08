@@ -53,12 +53,12 @@ impl Class {
         }
     }
 
-    /// Convert Class to `str`.
+    /// Convert Class to a stable diagnostic code.
     #[must_use]
-    pub const fn as_str(&self) -> &'static str {
+    pub const fn as_code(&self) -> &'static str {
         match self {
-            Self::SourceTooLarge => "Too Large",
-            Self::SourceReadError => "I/O Error",
+            Self::SourceTooLarge => "TOO_LARGE",
+            Self::SourceReadError => "I/O_ERROR",
         }
     }
 }

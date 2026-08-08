@@ -15,7 +15,7 @@ pub struct SourceId(u32);
 pub struct SyntaxId(u32);
 
 /// Special syntactical structure within a [Source], specified by a [Span].
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct SyntaxOrigin {
     /// The [`SourceId`] of the [Source] this [`SyntaxOrigin`] is located in.
     pub source: SourceId,
@@ -120,7 +120,7 @@ impl SourceTable {
     #[must_use]
     pub fn get_source(&self, id: SourceId) -> &Source {
         let id = id.0 as usize;
-        assert!(id < self.sources.len());
+        assert!(id < self.sources.len(), "{id} out of bounds of |sources|");
         &self.sources[id]
     }
 
@@ -131,7 +131,10 @@ impl SourceTable {
     /// - if `self.origins.len()` > [`u32::MAX`].
     pub fn add_origin(&mut self, id: SourceId, span: Span) -> SyntaxId {
         let source = self.get_source(id);
-        assert!(source.valid_span(span));
+        assert!(
+            source.valid_span(span),
+            "{span:?} components out of bounds for {id:?}"
+        );
         let syn_id = SyntaxId(
             u32::try_from(self.origins.len()).expect("|origins| > u32::MAX"),
         );
@@ -146,16 +149,15 @@ impl SourceTable {
     #[must_use]
     pub fn get_origin(&self, id: SyntaxId) -> &SyntaxOrigin {
         let id = id.0 as usize;
-        assert!(id < self.origins.len());
+        assert!(id < self.origins.len(), "{id} out of bounds");
         &self.origins[id]
     }
 
-    /// Get the [Location] within the source of a given `id`
+    /// Get the [Location] within of a [`SyntaxOrigin`].
     #[must_use]
-    pub fn location_of(&self, id: SyntaxId) -> Location<'_> {
-        let SyntaxOrigin { source, span } = self.get_origin(id);
-        let source = self.get_source(*source);
-        let (start, end) = source.span_positions(*span);
+    pub fn location_of(&self, origin: &SyntaxOrigin) -> Location<'_> {
+        let source = self.get_source(origin.source);
+        let (start, end) = source.span_positions(origin.span);
         Location {
             name: &source.name,
             start,
@@ -163,12 +165,36 @@ impl SourceTable {
         }
     }
 
-    /// Get the text within the source of a given `id`.
+    /// Get the text of a [`SyntaxOrigin`].
     #[must_use]
-    pub fn text_of(&self, id: SyntaxId) -> &str {
-        let SyntaxOrigin { source, span } = self.get_origin(id);
-        let source = self.get_source(*source);
-        source.span_text(*span)
+    pub fn text_of(&self, origin: &SyntaxOrigin) -> &str {
+        let source = self.get_source(origin.source);
+        source.span_text(origin.span)
+    }
+
+    /// Get the full line of text for the given `line` (1-indexed) within a
+    /// [`SourceId`].
+    #[must_use]
+    pub fn line_text(&self, source: SourceId, line: usize) -> &str {
+        let source = self.get_source(source);
+        source.line_text(line)
+    }
+
+    /// Get the full line of text for the start of the given [`SyntaxOrigin`]
+    /// within a [`SourceId`].
+    #[must_use]
+    pub fn line_text_of(&self, origin: &SyntaxOrigin) -> &str {
+        let source = self.get_source(origin.source);
+        source.line_text_of(origin.span.start as usize)
+    }
+
+    /// Get the line indices for the given [`SyntaxOrigin`].  If the
+    /// [`SyntaxOrigin`] only occurs on a single line, the two indices returned
+    /// should be equivalent.
+    #[must_use]
+    pub fn lines_of(&self, origin: &SyntaxOrigin) -> (usize, usize) {
+        let source = self.get_source(origin.source);
+        source.span_lines(origin.span)
     }
 }
 
@@ -219,15 +245,15 @@ mod tests {
                 Span::new(0, SOURCES[0].1.len()),
                 SOURCES[0].0,
                 Position::default(),
-                Position { line: 3, col: 1 },
+                Position::new(3, 1),
                 SOURCES[0].1,
             ),
             (
                 source_ids[0],
                 Span::new(2, 3),
                 SOURCES[0].0,
-                Position { line: 1, col: 3 },
-                Position { line: 1, col: 4 },
+                Position::new(1, 3),
+                Position::new(1, 4),
                 "l",
             ),
             (
@@ -235,15 +261,15 @@ mod tests {
                 Span::new(0, SOURCES[1].1.len()),
                 SOURCES[1].0,
                 Position::default(),
-                Position { line: 3, col: 1 },
+                Position::new(3, 1),
                 SOURCES[1].1,
             ),
             (
                 source_ids[1],
                 Span::new(2, 5),
                 SOURCES[1].0,
-                Position { line: 1, col: 3 },
-                Position { line: 2, col: 2 },
+                Position::new(1, 3),
+                Position::new(2, 2),
                 "o\nb",
             ),
             (
@@ -251,7 +277,7 @@ mod tests {
                 Span::new(0, 0),
                 SOURCES[0].0,
                 Position::default(),
-                Position { line: 1, col: 1 },
+                Position::new(1, 1),
                 "",
             ),
         ];
@@ -274,13 +300,25 @@ mod tests {
             assert_eq!(origin.span, *span);
 
             // Test location_of works as we expect, across sources.
-            let location = table.location_of(syntax_id);
+            let location = table.location_of(origin);
             assert_eq!(location.name, *name);
             assert_eq!(location.start, *start);
             assert_eq!(location.end, *end);
 
-            let actual_text = table.text_of(syntax_id);
+            // Prove that the text we get for this origin is the same as what we
+            // expect.
+            let actual_text = table.text_of(origin);
             assert_eq!(*text, actual_text);
+
+            // The line mirrors (`line_text`, `line_text_of`, `lines_of`) are
+            // thin delegates over `Source`; prove they agree with the resolved
+            // location's start line, across both sources.
+            let start_line = location.start.line;
+            assert_eq!(table.lines_of(origin).0, start_line);
+            assert_eq!(
+                table.line_text_of(origin),
+                table.line_text(origin.source, start_line)
+            );
         }
     }
 
@@ -292,7 +330,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "id < self.sources.len()")]
+    #[should_panic(expected = "out of bounds")]
     fn get_source_invalid_id() {
         let table = SourceTable::new();
         let bad_id = SourceId(10);
@@ -300,7 +338,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "valid_span")]
+    #[should_panic(expected = "out of bounds")]
     fn add_origin_invalid_span() {
         let mut table = SourceTable::new();
         let source_ids = add_sources(&mut table);
@@ -309,14 +347,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "id < self.sources.len()")]
+    #[should_panic(expected = "out of bounds")]
     fn add_origin_invalid_source() {
         let mut table = SourceTable::new();
         let _ = table.add_origin(SourceId(1024), Span::new(0, 0));
     }
 
     #[test]
-    #[should_panic(expected = "id < self.origins.len()")]
+    #[should_panic(expected = "out of bounds")]
     fn get_origin_invalid_id() {
         let table = SourceTable::new();
         let _ = table.get_origin(SyntaxId(1024));

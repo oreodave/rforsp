@@ -126,6 +126,11 @@ impl Source {
     /// - if pos is out of bounds for this source.
     /// - if pos is in a char boundary.
     pub fn chars_from(&self, pos: usize) -> std::str::Chars<'_> {
+        assert!(pos <= self.len(), "{pos} is out of bounds");
+        assert!(
+            self.contents.is_char_boundary(pos),
+            "{pos} is not in a char boundary"
+        );
         self.contents[pos..].chars()
     }
 
@@ -135,7 +140,19 @@ impl Source {
     /// - if span is out of bounds for this source
     #[must_use]
     pub fn span_text(&self, span: Span) -> &str {
+        assert!(self.valid_span(span), "{span:?} is invalid for this source");
         &self.contents[span.start as usize..span.end as usize]
+    }
+
+    /// Get the index of the line that contains this `byte` within this Source.
+    ///
+    /// NOTE: It is presumed that `byte` is within bounds.  But it doesn't need
+    /// to be in a char boundary for this to work.
+    #[must_use]
+    fn line_index(&self, byte: u32) -> usize {
+        self.line_starts
+            .binary_search(&byte)
+            .unwrap_or_else(|i| i - 1)
     }
 
     /// Converts a byte position to a [Position] within the contents of this
@@ -158,10 +175,7 @@ impl Source {
 
         let byte = offset(byte);
 
-        let line = self
-            .line_starts
-            .binary_search(&byte)
-            .unwrap_or_else(|i| i - 1);
+        let line = self.line_index(byte);
 
         let line_start = self.line_starts[line];
         let col = self
@@ -193,6 +207,62 @@ impl Source {
             self.position_at(span.start as usize),
             self.position_at(span.end as usize),
         )
+    }
+
+    /// Get the text of a full line given the line number.
+    ///
+    /// NOTE: `line` is 1-indexed.
+    ///
+    /// # Panics
+    /// - if line is out of bounds
+    #[must_use]
+    pub fn line_text(&self, line: usize) -> &str {
+        assert!(line > 0, "line must be 1-indexed");
+        assert!(line <= self.line_starts.len(), "{line} is out of bounds");
+        let start = self.line_starts[line - 1];
+        let end = {
+            if line == self.line_starts.len() {
+                u32::try_from(self.len()).expect("self.len() <= MAX_SOURCE_LEN")
+            } else {
+                self.line_starts[line] - 1
+            }
+        };
+        self.span_text(Span::from_u32(start, end))
+    }
+
+    /// Get the text of the full line an offset is located in.
+    ///
+    /// # Panics
+    /// - if the offset is out of bounds
+    #[must_use]
+    pub fn line_text_of(&self, byte: usize) -> &str {
+        assert!(byte <= self.len(), "{byte} is out of bounds");
+        let offset = offset(byte);
+        let line = self.line_index(offset);
+        self.line_text(line + 1)
+    }
+
+    /// Convert a [Span] into a tuple of two line indices (l1, l2) - these are
+    /// 1-indexed.
+    ///
+    /// l1 and l2 do NOT match the inclusive-exclusive nature of [Span]; l2 is
+    /// the line of `span.end - 1` so [l1, l2] represent all the lines the given
+    /// [Span] covers.
+    ///
+    /// If the span is "empty" i.e. `span.start == span.end`, the same line is
+    /// returned twice.
+    ///
+    /// # Panics
+    /// - if the given span is "invalid" (see [`Source::valid_span`])
+    #[must_use]
+    pub fn span_lines(&self, span: Span) -> (usize, usize) {
+        assert!(self.valid_span(span), "{span:?} is invalid for this source");
+        let start_line = self.line_index(span.start) + 1;
+        if span.start == span.end {
+            (start_line, start_line)
+        } else {
+            (start_line, self.line_index(span.end - 1) + 1)
+        }
     }
 }
 
@@ -282,7 +352,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "out of bounds")]
+    #[should_panic(expected = "invalid")]
     fn span_text_invalid_end() {
         let text = "testing testing".to_string();
         let source =
@@ -295,6 +365,12 @@ mod tests {
         "Do Shinigami's like \u{1f34e}'s?\n",
         "I like \u{1f350}'s personally.\n"
     );
+
+    const SAMPLE_LINES: [&str; 3] = [
+        "Hello, world!",
+        "Do Shinigami's like \u{1f34e}'s?",
+        "I like \u{1f350}'s personally.",
+    ];
 
     const SAMPLE_NEWLINES: [usize; 3] = [13, 41, 67];
     const SAMPLE_EMOJIS: [usize; 2] = [34, 49];
@@ -431,6 +507,144 @@ mod tests {
         }
     }
 
-    // NOTE: No `span_positions_bad` test, as it will just be a repeat of
-    // `positions_at_in_char_boundary`.
+    fn sample_no_trailing_newline() -> String {
+        String::from(&SAMPLE_TEXT[..SAMPLE_TEXT.len() - 1])
+    }
+
+    #[test]
+    fn line_text() {
+        let text = SAMPLE_TEXT.to_string();
+        let source = Source::from_contents("", text).expect("Should not fail");
+
+        for (i, &expected) in SAMPLE_LINES.iter().enumerate() {
+            assert_eq!(source.line_text(i + 1), expected);
+        }
+
+        // A source ending in a newline has a phantom empty final line.
+        assert_eq!(source.line_text(4), "");
+
+        // A text with no trailing newline still can iterate through all lines.
+        let text = sample_no_trailing_newline();
+        let source = Source::from_contents("", text).expect("Should not fail");
+        for (i, &expected) in SAMPLE_LINES.iter().enumerate() {
+            assert_eq!(source.line_text(i + 1), expected);
+        }
+
+        // An empty source means we have an empty starting line
+        let source =
+            Source::from_contents("", String::new()).expect("Should not fail");
+        assert_eq!(source.line_text(1), "");
+    }
+
+    #[test]
+    fn line_text_of() {
+        let text = SAMPLE_TEXT.to_string();
+        let source = Source::from_contents("", text).expect("Should not fail");
+
+        // The first byte of the source is on line 1.
+        assert_eq!(source.line_text_of(0), "Hello, world!");
+        // A byte at a line start resolves to that line.
+        assert_eq!(
+            source.line_text_of(SAMPLE_NEWLINES[0] + 1),
+            SAMPLE_LINES[1],
+        );
+        assert_eq!(
+            source.line_text_of(SAMPLE_NEWLINES[1] + 1),
+            SAMPLE_LINES[2],
+        );
+        // A mid-line byte resolves to its owning line.
+        assert_eq!(source.line_text_of(20), SAMPLE_LINES[1]);
+        // A byte at a newline still belongs to the line it terminates.
+        assert_eq!(source.line_text_of(SAMPLE_NEWLINES[0]), SAMPLE_LINES[0]);
+
+        // Line membership is a byte fact: a byte inside a multi-byte codepoint
+        // still resolves to the owning line (no char-boundary requirement).
+        let expected = SAMPLE_LINES[1];
+        // `SAMPLE_EMOJIS[0]` is the first byte of a 4-byte emoji in line 2.
+        for offset in SAMPLE_EMOJIS[0] + 1..SAMPLE_EMOJIS[0] + 4 {
+            assert_eq!(source.line_text_of(offset), expected);
+        }
+
+        // The byte one past the end of a newline-terminated source resolves to
+        // the phantom final line.
+        assert_eq!(source.line_text_of(source.len()), "");
+
+        // For a source without an ending newline, it resolves to the final line
+        // of text.
+        let source = Source::from_contents("", sample_no_trailing_newline())
+            .expect("Should not fail");
+
+        assert_eq!(source.line_text_of(source.len()), SAMPLE_LINES[2]);
+    }
+
+    #[test]
+    fn span_lines() {
+        let text = SAMPLE_TEXT.to_string();
+        let source = Source::from_contents("", text).expect("Should not fail");
+
+        // A single line, whether whole or partial.
+        assert_eq!(source.span_lines(Span::new(0, SAMPLE_NEWLINES[0])), (1, 1));
+        assert_eq!(
+            source.span_lines(Span::new(
+                SAMPLE_NEWLINES[0] + 1,
+                SAMPLE_NEWLINES[1]
+            )),
+            (2, 2)
+        );
+        assert_eq!(source.span_lines(Span::new(2, 5)), (1, 1));
+
+        // An empty span lies in the single line containing its byte.
+        assert_eq!(source.span_lines(Span::new(2, 2)), (1, 1));
+        assert_eq!(source.span_lines(Span::new(14, 14)), (2, 2));
+
+        // A span ending at a line start includes that line's newline, not the
+        // next line's content, so it stays on the predecessor line.
+        assert_eq!(
+            source.span_lines(Span::new(0, SAMPLE_NEWLINES[0] + 1)),
+            (1, 1)
+        );
+
+        // Multi-line spans report the inclusive line range they touch.
+        assert_eq!(source.span_lines(Span::new(0, 20)), (1, 2));
+        assert_eq!(
+            source.span_lines(Span::new(14, SAMPLE_NEWLINES[2])),
+            (2, 3)
+        );
+
+        // A span running to the end of a newline-terminated source stops at
+        // the last line of text, never the phantom final line.
+        assert_eq!(source.span_lines(Span::new(0, source.len())), (1, 3));
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid")]
+    fn span_lines_invalid_span() {
+        let source = Source::from_contents("", SAMPLE_TEXT.into())
+            .expect("Should not fail");
+        let _ = source.span_lines(Span::new(0, source.len() + 1));
+    }
+
+    #[test]
+    #[should_panic(expected = "1-indexed")]
+    fn line_text_zero_line() {
+        let source = Source::from_contents("", sample_no_trailing_newline())
+            .expect("Should not fail");
+        let _ = source.line_text(0);
+    }
+
+    #[test]
+    #[should_panic(expected = "out of bounds")]
+    fn line_text_out_of_bounds() {
+        let source = Source::from_contents("", sample_no_trailing_newline())
+            .expect("Should not fail");
+        let _ = source.line_text(4);
+    }
+
+    #[test]
+    #[should_panic(expected = "out of bounds")]
+    fn line_text_of_out_of_bounds() {
+        let source = Source::from_contents("", sample_no_trailing_newline())
+            .expect("Should not fail");
+        let _ = source.line_text_of(source.len() + 1);
+    }
 }

@@ -31,7 +31,7 @@ impl Span {
     /// - if `start > end`.
     #[must_use]
     pub const fn from_u32(start: u32, end: u32) -> Self {
-        assert!(start <= end);
+        assert!(start <= end, "Span must be an ordered range");
         Self { start, end }
     }
 
@@ -48,7 +48,7 @@ impl Span {
 /// - if `pos > MAX_SOURCE_LEN`.
 #[track_caller]
 pub(super) const fn offset(pos: usize) -> u32 {
-    assert!(pos <= MAX_SOURCE_LEN);
+    assert!(pos <= MAX_SOURCE_LEN, "pos out of bounds of any source");
     #[expect(
         clippy::cast_possible_truncation,
         reason = "MUST: `contents.len() <= MAX_SOURCE_LEN`."
@@ -68,13 +68,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "start <= end")]
+    #[should_panic(expected = "ordered range")]
     fn span_new_misordered_start_end() {
         let _ = Span::new(1, 0);
     }
 
     #[test]
-    #[should_panic(expected = "start <= end")]
+    #[should_panic(expected = "ordered range")]
     fn span_from_u32_misordered_start_end() {
         let _ = Span::from_u32(10, 9);
     }

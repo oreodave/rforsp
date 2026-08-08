@@ -305,8 +305,20 @@ mod tests {
             assert_eq!(location.start, *start);
             assert_eq!(location.end, *end);
 
+            // Prove that the text we get for this origin is the same as what we
+            // expect.
             let actual_text = table.text_of(origin);
             assert_eq!(*text, actual_text);
+
+            // The line mirrors (`line_text`, `line_text_of`, `lines_of`) are
+            // thin delegates over `Source`; prove they agree with the resolved
+            // location's start line, across both sources.
+            let start_line = location.start.line;
+            assert_eq!(table.lines_of(origin).0, start_line);
+            assert_eq!(
+                table.line_text_of(origin),
+                table.line_text(origin.source, start_line)
+            );
         }
     }
 

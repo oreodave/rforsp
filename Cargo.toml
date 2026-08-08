@@ -1,0 +1,25 @@
+[package]
+name = "rforsp"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+[lints.rust]
+missing_docs = "warn"
+
+[lints.rustdoc]
+broken_intra_doc_links = "deny"
+private_intra_doc_links = "warn"
+
+[lints.clippy]
+all = "deny"
+pedantic = "deny"
+nursery = "deny"
+unreachable = "deny"
+unimplemented = "deny"
+todo = "deny"
+panic = "deny"
+exit = "deny"
+missing_docs_in_private_items = "deny"
+missing_assert_message = "deny"

@@ -1,0 +1,1663 @@
+#+TITLE: rForsp Compiler IRs: HIR and SIR
+#+DATE: 2026-08-02
+
+* Status and scope
+This document specifies the first two compiler intermediate
+representations for rForsp:
+
+- *HIR*, a source-shaped form tree produced by the parser;
+- *SIR*, the Semantic Stack-Effect IR, produced by resolution and
+  lowering, and directly executable by an interpreter.
+
+Together they must:
+
+- preserve CBPV evaluation semantics;
+- resolve lexical bindings and closure captures;
+- preserve primitive fast paths across rebinding;
+- represent stack effects, including latent effects of executable
+  values;
+- be executable by an interpreter;
+- retain source origins for diagnostics.
+
+Neither performs SSA conversion, optimization, or native code
+generation.  Those are specified as later-pass stubs.
+
+User vectors remain mutable heap objects. That mutation is not binding
+mutation and cannot alias the value stack.
+* Compilation phases
+The first-pass compiler has seven phases. Each is responsible for one
+transformation, produces one shape of data, and has its own error
+surface. This section is the quick reference;
+[[*Diagnostics][Diagnostics]] covers what each phase reports.
+| # | Phase              | Produces        | Site available  |
+|---+--------------------+-----------------+-----------------|
+| 0 | Source acquisition | ~SourceId~      | ~None~/~Source~ |
+| 1 | Lexing             | ~Vec<Token>~    | ~Raw~           |
+| 2 | Parsing            | ~Vec<HirForm>~  | ~Raw~, ~Syntax~ |
+| 3 | Resolution         | ~ResolutionMap~ | ~Syntax~        |
+| 4 | Lowering           | ~Module~        | none emitted    |
+| 5 | Verification       | pass or fail    | ~Syntax~        |
+| 6 | Evaluation         | values or fault | ~Syntax~        |
+
+As a data-flow sketch:
+#+begin_src text
+Source text
+  -> Tokens with spans
+  -> HIR: form tree with spans
+  -> Binding resolution and capture analysis  (produces ResolutionMap)
+  -> SIR: bodies, blocks, instructions
+  -> SIR evaluator
+#+end_src
+
+Later:
+#+begin_src text
+SIR
+  -> effect inference and specialization
+  -> SSA lowering
+  -> SSA optimization
+  -> native code generation
+#+end_src
+
+Resolution is a separate phase between the two IRs, not part of
+either.  It reads HIR and produces a side table; SIR construction
+reads both.
+** Phase 0: source acquisition
+Reads bytes, checks length against the source-length bound, computes
+line starts, and registers the text with the [[*Source table][source
+table]], which assigns a ~SourceId~.  Nothing before this point has a
+location to report against.
+** Phase 1: lexing
+Bytes to spanned tokens. Skips whitespace and comments. Produces
+~Vec<Token>~ where a token is a kind plus a ~Span~.
+
+Recovery is straightforward — record the error, skip one character,
+resume — so error accumulation is genuinely useful here rather than
+nominal.
+** Phase 2: parsing
+See: [[*Part I: HIR]]
+
+Tokens to HIR. Assigns a ~SyntaxId~ to every form and registers its
+origin in the source table. Produces ~Vec<HirForm>~ for the input, and
+the form tree becomes discardable once lowering completes.
+
+Bracket matching lives here rather than in the lexer: the lexer emits
+brackets as ordinary tokens and has no unterminated case.
+** Phase 3: resolution
+See: [[*Part II: Binding resolution][Part II: Binding resolution]].
+
+Sequential walk producing a ~ResolutionMap~, with binding IDs, capture
+layouts, and conditional and ~rec~ recognition. This is the last phase
+that inspects user intent; everything after it is mechanical.
+
+To report more than one unresolved name per input, resolution must
+continue past the first failure. It therefore needs a poison
+~Resolution~ variant, recorded for the offending form so the walk can
+proceed. Lowering must never see one, which the phase gate guarantees.
+** Phase 4: lowering
+See: [[*Part III: SIR][Part III: SIR]] and [[*Part IV: Lowering HIR to
+SIR]].
+
+HIR plus ~ResolutionMap~ to a ~Module~: instructions, blocks,
+terminators, the data table, and capture plans, with tail positions
+determined.
+
+Lowering emits no diagnostics. If resolution succeeded, every user
+error has already been caught, and lowering is total. Anything that
+goes wrong here is a compiler bug, reported as such.
+** Phase 5: verification
+See: [[*Part VII: Verification]].
+
+Structural checks over the ~Module~, plus partial depth checking.
+Produces a pass or fail rather than data.
+
+This phase reports in two categories that must not be conflated. See
+[[*Verification reports two categories][Verification reports two
+categories]].
+** Phase 6: evaluation
+See: [[*Part VIII: SIR evaluator contract]].
+
+Executes the ~Module~. Produces values on the session stack, or a
+single runtime fault.
+
+Unlike phases 1 through 3, evaluation does not accumulate: it stops at
+the first fault. Runtime errors are therefore singular and terminal.
+* Diagnostics
+Every phase reports through one ~Diagnostic~ type. Phases do not
+render; they accumulate, and rendering happens once at the driver,
+where the source table is available to turn spans into line and column
+text.
+** Severity
+#+begin_src text
+Severity = Note      ; context attached to another diagnostic
+         | Warning   ; program accepted, something is likely wrong
+         | Error     ; program rejected, user's fault
+         | Bug       ; invariant violated, compiler's fault
+#+end_src
+
+~Bug~ is not decoration. Several of the verifier's checks examine the
+compiler's own output rather than the user's program, and reporting
+those as user errors would be a lie. ~Bug~ renders as an internal
+compiler error naming the violated invariant, and must not be
+suppressible.
+** Site
+#+begin_src text
+Site = None                   ; no location: missing file, bad argument
+     | Source(SourceId)       ; a whole source, no meaningful position
+     | Raw(SyntaxOrigin)      ; before HIR exists
+     | Syntax(SyntaxId)       ; a form with a source-table entry
+#+end_src
+
+~Raw~ exists because the lexer and early parser report before any
+~SyntaxId~ has been assigned. ~None~ exists because phase 0 can fail
+before a ~SourceId~ does.
+** Where errors are typed and where they are diagnostics
+A leaf operation with a local, structured failure returns a typed
+error — ~Source::from_contents~ returns ~Result<Source, SourceError>~,
+and the evaluator returns a single ~RuntimeError~. Conversion to a
+~Diagnostic~ happens at the reporting boundary, where the driver knows
+how to name things.
+
+The ordering constraint that forces this is concrete: a ~Site~ needs a
+~SourceId~, and during source construction there is not yet one to
+give.
+
+The general rule: typed error at the leaf, ~Diagnostic~ at the
+reporting layer, and an accumulator only where recovery exists.
+** Per-phase error surfaces
+NOTE: This is not complete for each phase, and will be updated.
+
+- Phase 0 (source):
+  - file could not be read;
+  - source exceeds ~MAX_SOURCE_LEN~;
+  - contents are not valid UTF-8.
+- Phase 1 (lexing):
+  - unknown character;
+  - ~$~ or ~^~ not followed by a name;
+  - integer literal outside ~i64~.
+- Phase 2 (parsing):
+  - unterminated ~[~ or ~(~;
+  - unexpected closing bracket;
+  - mismatched bracket kinds;
+  - quote at end of input;
+  - quote of a form with nothing to denote — ~'^x~ and ~'$x~.
+- Phase 3 (resolution):
+  - unresolved name, on any path including dead ones;
+  - data operand to a recognized ~rec~.
+- Phase 4 (lowering):
+  - None. Lowering is total given a successful resolution.
+- Phase 5 (verification):
+  - See [[*Verification reports two categories][below]]; the split
+    matters more than the list.
+- Phase 6 (evaluation):
+  - stack underflow;
+  - invalid primitive arguments;
+  - vector index out of bounds;
+  - ~Primitive(If)~ called with fewer than three values.
+** Verification reports two categories
+The structural checks — valid IDs, terminated blocks, capture layouts
+matching, initialization dataflow, scope — examine the resolver's and
+lowerer's output. A failure means the compiler is wrong, and these are
+~Bug~.
+
+Partial depth checking is different: it catches genuine arity mistakes
+in user code, and those are ~Error~.
+
+One pass therefore emits both severities, and the distinction must be
+made per check rather than per phase.
+** Codes
+Every diagnostic carries a stable ~code~ identifying its class,
+namespaced by phase:
+#+begin_src text
+lex::UNKNOWN_CHAR
+parse::UNTERMINATED_VECTOR
+resolve::UNBOUND_NAME
+verify::DEPTH_MISMATCH
+ice::MALFORMED_BLOCK
+#+end_src
+
+Codes exist so that tests can assert on the class of a diagnostic
+rather than its prose, so that improving a message does not break the
+conformance corpus. They also make the full error surface enumerable
+and greppable, and let a test assert that no phase emits another
+phase's codes.
+
+Diagnostic construction lives in one module: a named constructor per
+code, so every user-facing string in the compiler has one home.
+** The phase gate
+A phase that produced errors must not hand its output to the next.
+The reason is not tidiness: a lex failure means the tokens are
+unknown, so parse errors derived from them would be noise generated
+from garbage.
+
+Every phase that can fail returns ~Result<T, Aborted>~, where
+~Aborted~ is an empty sentinel carrying no data — the details are in
+the accumulator. The gate is then enforced by the type system rather
+than by convention, and the phase sequence lives in one driver
+function where ~?~ performs the gating:
+#+begin_src text
+let tokens      = lex(source, interner, diags)?;
+let forms       = parse(&tokens, table, diags)?;
+let resolutions = resolve(&forms, diags)?;
+verify(&module, diags)?;
+#+end_src
+
+Not every phase takes this shape:
+| # | Phase        | Returns                     |
+|---+--------------+-----------------------------|
+| 1 | Lexing       | ~Result<Vec<Token>,...>~    |
+| 2 | Parsing      | ~Result<Vec<HirForm>,...>~  |
+| 3 | Resolution   | ~Result<ResolutionMap,...>~ |
+| 4 | Lowering     | ~Module~                    |
+| 5 | Verification | ~Result<(), Aborted>~       |
+| 6 | Evaluation   | ~Result<Value, RuntimeError>~ |
+
+Lowering has no ~Result~ because it is total given a successful
+resolution; a failure there is a compiler bug and panics rather than
+returning. Verification returns no data, so its ~Ok~ is permission to
+proceed rather than a value. Evaluation does not accumulate, so its
+failure is a typed error carrying its own data rather than a sentinel.
+
+Each phase also exposes an ungated entry point returning its output
+unconditionally. Tests use these to inspect partial recovery — the
+token stream after a lex error, the tree after a bracket mismatch —
+which the gated form necessarily discards.
+** Error caps
+Accumulation without a cap turns one mistake into a flood. A limit of
+roughly twenty diagnostics per input, with a trailing count of those
+suppressed, is enough to keep output readable.
+* Shared infrastructure
+A small amount of state is shared across every stage and outlives both
+IRs. It is session-scoped, not module-scoped.
+** Symbol interner
+~SymId~ has the longest reach of anything in the system: HIR names,
+quoted atoms, the ~f~ atom, ~Value::Atom~ at runtime.
+** Source table
+#+begin_src text
+SyntaxOrigin {
+    source: SourceId,
+    span:   Span,
+}
+#+end_src
+
+Every HIR form is assigned a ~SyntaxId~ at parse time. SIR
+instructions carry those same IDs in an origin side table. The table
+therefore outlives HIR entirely: after lowering, the form tree can be
+discarded and diagnostics still work, because SIR points into the
+table rather than into HIR.
+
+The table is append-only and session-global. That is what allows a
+closure created on REPL input 3 to report a correct span on
+input 17. A failed input leaves its entries behind; this is harmless,
+and truncating them is safe because nothing references them.
+** Distinguished symbols
+A small number of symbols are interned at startup and held in a struct
+rather than re-interned from strings at each use site. They fall into
+two categories that must not be confused.
+*** Value identity
+#+begin_src text
+f       ; the false atom
+#+end_src
+
+~f~ is compared against runtime *values*: the truth test asks whether
+a ~Value~ is ~Atom(f)~. This has nothing to do with name
+resolution. An atom is data, not a binding, so there is no rebinding
+question — ~'f~ denotes the same datum regardless of what any
+environment contains.
+*** Name pre-filter
+#+begin_src text
+if      ; recognized conditional
+rec     ; recognized recursive closure
+#+end_src
+
+These are compared against *names* during resolution, and the
+governing rule is:
+#+begin_quote
+Identity narrows. Resolution decides.
+#+end_quote
+
+An identity check on a name is only safe when it is a cheap pre-filter
+ahead of a resolution check, never a substitute for
+one. [[*Conditional recognition][Conditional recognition]] requires
+both that ~forms[i+2]~ is ~CallRef(if)~ *and* that the symbol resolves
+to ~Primitive(If)~; the first clause exists so the resolver can skip
+the lookahead without a lookup in the overwhelming majority of cases,
+and the second clause is what actually decides.
+
+This is precisely the bug the reference interpreter had before its
+~if~ rework: identity was used *instead of* resolution, so ~$if~ bound
+successfully and was then silently ignored. The corrected form is ~cmd
+== atom_if && !cframe_find(atom_if, cframe)~ — narrow by identity,
+decide by resolution.
+
+The invariant to hold: *no symbol may be dispatched on identity
+alone.* The moment one is, it stops being rebindable and the language
+has grown a reserved word by accident.
+
+~self~ is deliberately absent from this list. It is an ordinary name
+with no special status: a recursive closure pushes its self value onto
+the stack, and ~$self~ is merely the conventional way to bind it. See
+[[*Recursive is a calling convention][Recursive is a calling
+convention]].
+*** Primitive names are not on this list
+~+~, ~eq~, and every other primitive name is interned at startup as a
+side effect of building the primordial environment, but the
+implementation never compares against them by identity. They are
+resolved like any other name. Interning them eagerly is a consequence
+of constructing that environment, not a distinguishing property.
+** Primitive registry
+Each ~PrimitiveId~ has one stack signature, runtime implementation,
+heap-effect summary, and lowering description. The registry is
+consumed by resolution, SIR construction, the evaluator, the effect
+pass, and eventual backends.
+
+It is deliberately *not* consumed by HIR. Whether a use of ~+~ means
+~Primitive(Add)~ or a captured value depends on what is visible at
+that point, which the parser cannot know. Primitive identity is a
+resolution-time fact.
+
+The registry populates the primordial environment — a scope context
+mapping ~SymId~ to ~Primitive(PrimitiveId)~ — at session
+initialisation.  That environment must exist before the first
+~CallRef~ is resolved, but not before parsing. The reader runs against
+an interner it populates as it goes, so there is no dependency from
+parsing to the registry, and HIR's independence from ~PrimitiveId~ is
+preserved.
+* Part I: HIR
+** Purpose
+HIR is the source-shaped IR. Its job is to preserve every distinction
+the source makes and drop only notation. A diagnostic that points at
+an HIR node points at something the user recognizes as their own
+program.
+
+HIR knows:
+- ~SymId~ for every name;
+- ~SyntaxId~ and therefore spans for every form;
+- the syntactic category of every form.
+
+HIR does *not* know:
+- what any name resolves to;
+- which names are free or captured;
+- whether a vector is a closure or a branch arm;
+- whether ~if~ is the conditional;
+- local slot indices, capture indices, or body identities.
+** Node set
+#+begin_src text
+HirForm {
+    id:   SyntaxId,
+    kind: HirKind,
+}
+
+HirKind = Int(i64)
+        | Quote(Box<HirForm>)     ; 'f
+        | List(Vec<HirForm>)      ; ( ... )
+        | Vector(Vec<HirForm>)    ; [ ... ]
+        | Bind(SymId)             ; $x
+        | LoadRef(SymId)          ; ^x
+        | CallRef(SymId)          ; x
+#+end_src
+
+A body is ~Vec<HirForm>~, not a tree. The language is concatenative;
+sequence is the structure.
+
+There is no ~If~ node. Recognizing the conditional requires knowing
+what ~if~ resolves to, which is not available at parse time.
+
+There is no ~QuotedVector~ node. A quoted vector is
+~Quote(Vector(..))~, which keeps quoting uniform and lets lowering
+decide that quoting a vector yields a data constant rather than a
+closure.
+** Binding forms are first-class
+The original Forsp spec desugars ~$x~ to ~quote x pop~ and ~^x~ to
+~quote x push~. rForsp does not. ~Bind~ and ~LoadRef~ are HIR nodes,
+and ~push~ and ~pop~ are not primitives.
+
+The reason is that neither can be given a signature. ~pop~ mutates the
+static binding context, which no ~Effect~ value can express; the spec
+is explicit that a binding operation changes the context, not a
+runtime object. ~push~ is worse: its output type is a function of the
+*value* of its symbol argument, which is a dependent type and
+unwritable in a row system. Both are typeable only when the symbol is
+statically known, at which point they are syntax rather than calls.
+
+Keeping the desugar would also reopen the dynamic case. If ~pop~
+accepted a computed symbol, the set of bindings in scope would not be
+statically known, which takes down capture analysis, the
+one-~BindingId~-to-one- ~LocalId~ mapping, compile-time rejection of
+unresolved names, and ultimately the absence of a runtime environment
+chain.
+
+~'x~ survives untouched as an ordinary atom literal. Only ~'x pop~
+stops being a binding operation.
+** Quote denotation
+~Quote(f)~ produces the datum denoted by ~f~:
+#+begin_src text
+Quote(CallRef(x))   -> Atom(x)
+Quote(LoadRef(x))   -> error: nothing to denote
+Quote(Bind(x))      -> error: nothing to denote
+Quote(Int(n))       -> Int(n)
+Quote(List(..))     -> a list datum, elements denoted recursively
+Quote(Vector(..))   -> a vector datum, elements denoted recursively
+Quote(Quote(f))     -> the datum denoting a quote of f
+#+end_src
+
+A quoted vector is data, not code. A parenthesized list is
+self-evaluating data and needs no quote.
+** Parse-time errors
+The parser reports:
+
+- unterminated ~[~, ~(~, or quote;
+- ~$~ or ~^~ not followed by a name;
+- unknown characters.
+
+Everything else is deferred. In particular, the parser does not check
+arity, does not check that ~if~ has arms, and does not reject unbound
+names. Those require resolution.
+* Part II: Binding resolution
+Resolution walks HIR left to right, per body, carrying a scope
+context.  It produces a side table rather than annotating HIR in
+place:
+#+begin_src text
+Resolution = Bound(BindingId)                 ; for Bind
+           | Ref(Target)                      ; for LoadRef / CallRef
+           | MakesClosure(CaptureLayout)      ; for Vector in value position
+           | MakesRecursiveClosure(CaptureLayout)
+                                              ; for Vector recognized as a rec operand
+           | BranchArm(ArmRole)               ; for Vector recognized as an arm
+           | Conditional                      ; for CallRef(if) recognized
+           | Recursive                        ; for CallRef(rec) recognized
+           | Poison                           ; resolution failed here; walk continued
+
+Target = Local(BindingId)
+       | Captured(CaptureId)
+       | Primitive(PrimitiveId)
+
+ArmRole = Then | Else
+
+ResolutionMap = Map<SyntaxId, Resolution>
+#+end_src
+
+A recognition records one entry per form it consumes.  The conditional
+records ~BranchArm(ArmRole)~ for each arm and ~Conditional~ for the
+operator; ~rec~ records ~MakesRecursiveClosure~ for the operand and
+~Recursive~ for the operator.  The operator entry is what tells
+lowering the form has already been accounted for.  Leaving it absent
+instead would overload absence, which already means "nothing to
+resolve" — ~Int~, ~Quote~, and ~List~ have no entry at all — so a
+dropped entry would be indistinguishable from a deliberate one.
+
+~Poison~ is recorded for a form whose resolution failed, so the walk
+can continue and report more than one error per input. Lowering must
+never see one.
+
+A side table is required, not merely tidy. REPL atomicity says the
+whole input resolves before any of it executes, and everything is
+discarded on failure. A side table plus a scratch binding context are
+both trivially droppable; in-place annotation would be a mutation to
+undo.
+** Sequential scope
+A bind introduces its new binding only for subsequent forms in that
+body.  There is no hoisting of any kind.
+
+Every ~$x~ creates a fresh binding and shadows any previous binding
+with the same spelling. It never updates a previous binding.
+
+#+begin_src text
+5 $x       => BindingId(x#0)
+6 $x       => BindingId(x#1)
+#+end_src
+
+Mutual recursion must therefore be expressed by passing the peer
+explicitly, or by ~rec~ for the direct case. This is not a narrowing:
+the reference interpreter captures its environment list head at
+closure creation and cannot see later bindings either.
+** Unresolved names
+An unresolved name is a compile error, with no dead-code exemption: a
+reference to an unbound name is rejected even on a path that would
+never execute.
+
+This makes ~CALL_LOCAL~ and ~CALL_CAPTURED~ total. There is no
+lookup-failure path at runtime, the evaluator sheds an entire error
+class, and the verifier's binding checks become structural properties.
+
+Compared to the reference interpreter, which fails only when the path
+is taken, the accepted program set is unchanged except for dead
+references. Failure moves from run time to compile time.
+** Primitive resolution
+The initial environment contains ordinary bindings:
+#+begin_src text
++   -> Primitive(Add)
+-   -> Primitive(Sub)
+eq  -> Primitive(Eq)
+if  -> Primitive(If)
+#+end_src
+
+Rebinding creates a new binding; it does not invalidate the old one.
+Resolution depends on what is visible at that point in that body.
+
+#+begin_src text
++ before rebinding -> CALL_PRIMITIVE Add
++ after rebinding  -> CALL_CAPTURED or CALL_LOCAL
+#+end_src
+
+A ~LoadRef~ resolving to a primitive pushes the primitive value; it
+does not execute the operation.
+** Captures
+For every vector body, resolution computes:
+
+- local binding IDs created by ~Bind~;
+- free binding IDs;
+- capture slots for those free bindings;
+- the source binding of every call and value load.
+
+Each ~BindingId~ maps one-to-one to a ~LocalId~. No local-slot reuse
+is performed in the first pass. A binding is initialized exactly once.
+
+Capture slots contain values, not mutable binding cells. A captured
+vector is still an aliased heap reference, so vector-based boxing
+works without mutable lexical bindings.
+
+#+begin_src text
+CaptureSource = LOCAL(LocalId)
+              | CAPTURED(CaptureId)
+              | PRIMITIVE(PrimitiveId)
+
+CapturePlan = Vec<CaptureSource>
+#+end_src
+
+Capture sources are evaluated at closure creation. A primitive source
+may be eliminated from the runtime capture array when all uses are
+call-position primitive uses.
+*** Why capture-by-value: the measured case
+This is the compiler's primary motivation, not an incidental design
+preference. In the reference interpreter, ~env_find~ — the linked-list
+environment walk performed on every name reference — accounted for
+over 33% of execution time, making it the single largest cost in the
+runtime.
+
+The interpreter mitigates this with a per-frame symbol cache
+invalidated on every bind. That mitigation is correct for the same
+reason the real fix is: ~$x~ is the only operation that can change
+what is visible, since there is no mutation, no hoisting, and no
+dynamic binding. The resolver relies on exactly that property.
+
+Capture-by-value does not make the lookup faster; it removes it.
+~PUSH_CAPTURED~ indexes an array at an offset fixed at compile time,
+so that third of runtime ceases to exist rather than being
+reduced. This is also why no runtime environment chain appears
+anywhere in this design.
+
+For benchmarking the branch changes specifically, wall time is the
+wrong measure — allocations per iteration is the figure ~BRANCH~
+drives to zero. Record the pre-compiler number so the eventual
+comparison is meaningful.
+** Conditional recognition
+The conditional is written:
+#+begin_src text
+cond <then> <else> if
+#+end_src
+
+Condition first, arms adjacent to ~if~. Adjacency is what makes
+recognition possible: the pattern is purely local.
+
+While walking a body, at index ~i~, resolution recognizes the
+conditional when all three hold:
+#+begin_src text
+forms[i]   is an arm form
+forms[i+1] is an arm form
+forms[i+2] is CallRef(sym), and sym resolves to Primitive(If)
+#+end_src
+
+An *arm form* is any ~HirKind~ except ~Bind~, ~LoadRef~, and
+~CallRef~ — that is, ~Vector~, ~Int~, ~Quote~, and ~List~. Those three
+exclusions are exactly the environment-dependent kinds, which gives
+the rule behind the list: an arm is recognizable precisely when which
+code runs is determined syntactically. For a vector the code is its
+body; for a datum the code is "push this". For ~CallRef(t)~ or ~^t~ it
+is not knowable until run time.
+
+The predicate is per-arm. ~cond [then] 'false if~ recognizes: the
+first arm inlines as a block, the second becomes a singleton
+~PUSH_DATA~ block. There is no requirement that both arms be the same
+category.
+
+On a match, resolution records ~BranchArm(Then)~ for ~forms[i]~,
+~BranchArm(Else)~ for ~forms[i+1]~, and ~Conditional~ for
+~forms[i+2]~, resolves both arms' contents *in the enclosing scope*,
+records their bindings as enclosing-body locals marked arm-scoped,
+emits no capture layouts for them, and advances past all three.
+
+If any clause fails, nothing special happens. Each vector resolves as
+its own closure body with a capture layout, and the name resolves like
+any other.
+
+Recognition must happen during resolution, not after it. It determines
+whether an arm's free variables are locals or captures, which is
+resolution's own output.
+*** Why immediate arms are recognized
+The justification is analyzability, not cycles saved. An unrecognized
+vector arm costs a ~MAKE_CLOSURE~ allocation; an unrecognized data arm
+costs nothing but a push, a pop, and a dispatch. The runtime saving
+for immediates is therefore modest.
+
+What changes is the tier. Without this rule, ~n zero? 'yes 'no if~ is
+a fully dynamic conditional: arity checked only at run time, and the
+effect pass sees an opaque ~Choice~ through a primitive rather than a
+CFG join. With it, the same program is a ~BRANCH~ whose arms have
+trivial rows — ~rho -> rho Atom~ each — unifying at the join with no
+inference required. See [[*Coverage for conditionals][Coverage for
+conditionals]].
+
+Two consequences fall out of the predicate rather than needing rules
+of their own. ~[a b]~ and ~'[a b]~ as arms compile differently and
+correctly: the first is code and inlines, the second is data and
+pushes the raw vector. And ~cond [do-thing] [] if~ yields an empty
+else block rather than an allocated empty closure.
+*** Recognition is unobservable
+Under the primitive path both arms are pushed before ~if~ runs; under
+~BRANCH~ only the taken one executes. For data arms this difference is
+not observable: ~PUSH_DATA~ has no heap effect, since the datum is
+module-owned and created at compile time, so there is no allocation to
+skip and no ordering to disturb. Identity is preserved too — the same
+~DataId~ yields the same object on either path, so a mutable ~'[1 2
+3]~ arm is the same vector whichever way it is reached.
+*** Where recognition stops
+Recognition is a syntactic pattern, decided without type information.
+Arm classification inspects ~HirKind~ and nothing else. Extending it
+to ~^x~ where ~x~ is bound to something inert would require knowing
+~x~'s value type, which is inference and belongs to the later pass.
+
+Nothing is lost by stopping there. Bindings are immutable and
+single-assignment, so constant propagation recovers the case: ~'true
+$t 'false $f cond ^t ^f if~ inlines back to literal arms in the
+optimizer without a language rule.
+*** Keeping the dynamic path tested
+This rule shrinks the ~Primitive(If)~ population enough that it risks
+becoming under-exercised. The conformance corpus must deliberately
+carry cases with genuinely computed arms — arms arriving from a
+~CallRef~, or through ~cswap~ — or the dynamic path will rot quietly
+while everything else passes.
+*** if is recognized, not reserved
+~$if~ is legal and shadows normally. After shadowing, the third clause
+fails for the rest of that body, so ~if~ is an ordinary ~CallRef~
+lowering to ~CALL_LOCAL~ or ~CALL_CAPTURED~ — exactly what happens to
+~+~ after ~$+~.
+
+~^if~ pushes ~Primitive(If)~. ~if~ can be stored in a list, passed to
+a combinator, or applied to computed arms. Every rule in the language
+holds without exception; "every ~$x~ creates a fresh binding" stays
+universal.
+
+The fallback is a real primitive:
+#+begin_src text
+If : rho Value Closure Closure -> ...
+     effect: Choice(then.effect, else.effect)
+     heap:   union of both arms
+#+end_src
+
+It pops the else arm, then arm, and condition, and invokes the
+selected one using the same dispatch rule as ~CALL_LOCAL~. The
+evaluator already supports primitives that enter closures; ~force~
+does exactly this.
+
+Arms need not be closures. Under the standard dispatch rule a
+non-callable arm is pushed unchanged, so ~2 1 eq 'true 'false if~
+pushes ~'false~ and a quoted vector arm pushes the raw vector. This is
+uniform dispatch, not a special case, and it must not be
+restricted. An implementation cannot distinguish a closure produced by
+a literal arm from one that arrived via a binding, and attempting to
+would reintroduce exactly the provenance distinction this design
+removes.
+
+~Primitive(If)~ must check at runtime that three values are available
+and report a distinguishable arity error otherwise. Static analysis
+cannot always reach this case — see [[*Coverage for
+conditionals][Coverage for conditionals]] — and a bare underflow
+report loses information the old interpreter's arity diagnostic used
+to supply.
+
+The two spellings must agree on frame discipline. See [[*Tail calls
+through dynamic if][Tail calls through dynamic if]].
+*** Argument order
+~cond [then] [else] if~ places the condition first because the arms
+must be adjacent to ~if~ for recognition. ~cswap~ takes its condition
+last, because it is an ordinary primitive popping from the top:
+
+#+begin_src text
+[then] [else] cond cswap
+#+end_src
+
+The arm order agrees between them — the then arm is written first in
+both — and only the condition's position differs. That difference is
+forced by recognition and is worth stating in user documentation.
+*** Why not other orders
+~[then] [else] cond if~ cannot be recognized. The condition is an
+arbitrary sequence of forms, so the pattern would be "two vectors,
+then some unknown number of forms netting to +1, then ~if~", which
+requires abstract interpretation of the stack rather than a syntactic
+match. Depth is ~Unknown~ through any ~CALL_LOCAL~, which the
+condition acquires the moment anyone rebinds a primitive it uses.
+
+~cond if [then] [else]~ is recognizable but forecloses the fallback:
+at the point ~if~ would execute as a primitive, the arms have not been
+pushed, so there is nothing to pop. That spelling forces ~if~ to be a
+reserved word.
+** Scope across branch arms
+Compile-time scope and runtime storage are separate concerns and need
+not agree.
+
+A binding introduced inside a branch arm occupies a slot in the
+enclosing body's frame, but the resolver makes it nameable only within
+that arm.  It is not visible in the join or in the other arm. The
+frame is sized for the union of all bindings in the body; the scoping
+table restricts which of those slots any given form can name.
+** Recursion
+The ~rec~ primitive requires a closure value on the value stack.
+Recognition follows the same shape as the conditional, with one
+operand instead of three:
+#+begin_src text
+forms[i]   is Vector
+forms[i+1] is CallRef(sym), and sym resolves to Primitive(Rec)
+#+end_src
+
+On a match, resolution records ~MakesRecursiveClosure(layout)~ for
+~forms[i]~ and ~Recursive~ for ~forms[i+1]~, and advances past both
+forms. Lowering emits ~MAKE_RECURSIVE_CLOSURE(body, plan)~ from the
+first of those; the second lowers to nothing.  ~$rec~ shadows
+normally; after shadowing the second clause fails and ~rec~ is an
+ordinary call. Identity narrows, resolution decides, exactly as for
+~if~.
+
+Two differences from conditional recognition are worth stating.
+
+Data operands are an error, not a fallback. Extending recognition to
+immediates works for ~if~ because data has trivial call semantics;
+there is no such thing as a recursive integer. So when ~forms[i]~ is
+~Int~, ~Quote~, or ~List~ and ~forms[i+1]~ resolves to
+~Primitive(Rec)~, that is a compile error — ~'foo rec~ can never
+succeed, and the runtime primitive could only catch it dynamically.
+
+Recognition does not eliminate ~Primitive(Rec)~. ~^f rec~, or ~rec~
+applied to a computed value, still needs it, which is why ~mode~ lives
+on ~Closure~ rather than in a static table. ~[...] rec rec~ behaves:
+the first is recognized, the second sees no adjacent vector and calls
+the primitive, which clones with ~mode = Recursive~ — idempotent.
+* Part III: SIR
+** Module structure
+#+begin_src text
+Module {
+    entry:  BodyId,
+    bodies: Map<BodyId, Body>,
+    data:   Map<DataId, DataConstant>,
+}
+
+Body {
+    local_count:     usize,
+    captures:        CaptureLayout,
+    entry:           BlockId,
+    blocks:          Map<BlockId, Block>,
+    inferred_effect: Option<EffectScheme>,
+}
+
+Block {
+    instructions: Vec<Instruction>,
+    origins:      Vec<SyntaxId>,   ; parallel to instructions
+    terminator:   Terminator,
+    term_origin:  SyntaxId,
+}
+#+end_src
+
+Origins live in a side table parallel to the instruction vector, not
+inline in the instruction encoding. Instructions stay compact;
+diagnostics perform a direct source-table lookup.
+** Instructions
+#+begin_src text
+PUSH_DATA(DataId)
+PUSH_PRIMITIVE(PrimitiveId)
+PUSH_LOCAL(LocalId)
+PUSH_CAPTURED(CaptureId)
+
+POP_LOCAL(LocalId)
+
+CALL_LOCAL(LocalId)
+CALL_CAPTURED(CaptureId)
+CALL_PRIMITIVE(PrimitiveId)
+
+MAKE_CLOSURE(BodyId, CapturePlan)
+MAKE_RECURSIVE_CLOSURE(BodyId, CapturePlan)
+#+end_src
+** Terminators
+#+begin_src text
+END
+JUMP(BlockId)
+BRANCH(BlockId, BlockId)          ; then, else
+TAIL_CALL_LOCAL(LocalId)
+TAIL_CALL_CAPTURED(CaptureId)
+TAIL_CALL_PRIMITIVE(PrimitiveId)
+#+end_src
+
+~PUSH_LOCAL~ and ~PUSH_CAPTURED~ load values without evaluating them.
+~POP_LOCAL~ consumes the top value and initializes a fresh binding
+slot.  ~CALL_LOCAL~ and ~CALL_CAPTURED~ evaluate their bindings using
+the runtime dispatch rule. ~CALL_PRIMITIVE~ bypasses lookup.
+
+~MAKE_CLOSURE~ captures the current values described by its capture
+plan.  ~MAKE_RECURSIVE_CLOSURE~ additionally sets ~mode = Recursive~.
+
+~BRANCH~ pops the condition and transfers control to the else block if
+it is the ~f~ atom, otherwise to the then block. It does not push a
+frame, allocate, or evaluate a capture plan.
+
+~JUMP~ transfers control within the body. ~END~ returns from the
+current body. A tail-call terminator replaces the current frame rather
+than adding a new one; this is required for unbounded tail recursion.
+* Part IV: Lowering HIR to SIR
+** Form-by-form
+#+begin_src text
+Int(n)                          -> PUSH_DATA(d)
+Quote(f)                        -> PUSH_DATA(d)
+List(..)                        -> PUSH_DATA(d)
+
+Vector(..) with MakesClosure    -> MAKE_CLOSURE(body, plan)
+Vector(..) with MakesRecursiveClosure
+                                -> MAKE_RECURSIVE_CLOSURE(body, plan)
+Vector(..) with BranchArm       -> a block in the enclosing body
+
+Bind(x)                         -> POP_LOCAL(l)
+
+LoadRef with Ref(Local)         -> PUSH_LOCAL(l)
+LoadRef with Ref(Captured)      -> PUSH_CAPTURED(c)
+LoadRef with Ref(Primitive)     -> PUSH_PRIMITIVE(p)
+
+CallRef with Ref(Local)         -> CALL_LOCAL(l)
+CallRef with Ref(Captured)      -> CALL_CAPTURED(c)
+CallRef with Ref(Primitive)     -> CALL_PRIMITIVE(p)
+CallRef with Conditional        -> BRANCH(b_then, b_else)
+CallRef with Recursive          -> nothing; the instruction was
+                                   emitted at the operand
+
+any form with Poison            -> unreachable; the phase gate
+                                   guarantees lowering never sees one
+#+end_src
+
+A ~CallRef~ resolved as ~Ref(..)~ in tail position lowers to the
+corresponding ~TAIL_CALL_*~ terminator instead of a call instruction.
+Tail position means the last form of a body, or the last form of a
+branch arm whose join is itself in tail position.
+
+A *recognized* ~CallRef~ — one resolved as ~Conditional~ or
+~Recursive~ — is not a call site and is unaffected by that rule.  A
+recognized ~if~ in tail position lowers to ~BRANCH~, whose arms carry
+the tail position inward; a recognized ~rec~ in tail position lowers
+to nothing, leaving the ~MAKE_RECURSIVE_CLOSURE~ from its operand as
+the body's last instruction.  Neither may become a ~TAIL_CALL_*~.
+
+Lowering that encounters ~Recursive~ without having just emitted
+~MAKE_RECURSIVE_CLOSURE~ is a compiler bug and panics, consistent with
+lowering being total.
+** Branch lowering
+Branch arms are blocks of the enclosing body. They execute in the
+enclosing frame, so an enclosing local stays a local inside an arm:
+never re-indexed into a capture slot, never copied.
+
+For:
+#+begin_src text
+loop = [$n n zero? ['done] [n dec loop] if]
+#+end_src
+
+the lowering is a single body:
+#+begin_src text
+B0 (loop):
+  b0: POP_LOCAL n
+      PUSH_LOCAL n
+      CALL_PRIMITIVE ZeroP
+      term: BRANCH(b1, b2)
+
+  b1: PUSH_DATA 'done
+      term: END
+
+  b2: PUSH_LOCAL n
+      CALL_PRIMITIVE Dec
+      term: TAIL_CALL_CAPTURED loop
+#+end_src
+
+A tail call in an arm is a tail call of the enclosing body, with no
+special case and no continuation mode. Tail recursion through ~if~ is
+bounded in frames.
+
+An ~if~ in non-tail position is an ordinary join:
+#+begin_src text
+  b0: ... term: BRANCH(b1, b2)
+  b1: ... term: JUMP(b3)
+  b2: ... term: JUMP(b3)
+  b3: <rest of the body>
+      term: END
+#+end_src
+
+A body is still created for any ~[...]~ in value position that becomes
+a closure. Branch arms never become values, so they never need one.
+
+Because ~if~ consumes its arms syntactically when recognized, no
+program can obtain a reference to a recognized arm, store it, or apply
+~rec~ to it. Materializing recognized arms as closures would be
+unobservable cost.
+* Part V: Runtime model
+#+begin_src text
+Machine {
+    value_stack: Vec<Value>,
+    locals:      Vec<Value>,   ; contiguous locals stack
+    frames:      Vec<Frame>,
+    heap:        Heap,
+}
+
+Frame {
+    body:        BodyId,
+    block:       BlockId,
+    pc:          usize,
+    locals_base: usize,
+    closure:     Option<ClosureRef>,
+}
+#+end_src
+
+Locals live in one contiguous stack. A frame owns the slot range
+~[locals_base, locals_base + body.local_count)~. Frame push and pop
+are index arithmetic, not per-frame heap allocation.
+
+Captures are read through the frame's ~closure~, not copied into the
+frame. Captures are immutable, so there is nothing to copy for. The
+module entry body has no closure and an empty capture layout.
+
+This layout is chosen for the garbage collector. A root scan is two
+contiguous arrays — the value stack and the locals stack — plus the
+frames' closure references, rather than a walk over every frame
+chasing two separate heap vectors.
+** Frame slot initialization
+On frame push, the frame's locals slot range must be filled with
+~Nil~.
+
+This is required for GC soundness, not language semantics. Because a
+frame is sized for the union of all bindings in all blocks of the
+body, some slots are guaranteed unwritten on any given path. Without
+clearing, they hold stale values from whichever frame previously
+occupied that region, and a root scan would trace them as live.
+
+The alternative is a per-frame initialized watermark respected by the
+root scan. Fill is simpler and is a memset over a few words.
+
+The semantic invariant remains that each nameable local slot is
+written exactly once before any use. The first evaluator may use a
+debug-only sentinel instead of ~Nil~ to catch violations.
+** Closures
+There is no runtime linked environment chain.
+
+#+begin_src text
+Closure {
+    body:     BodyId,
+    captures: Vec<Value>,
+    mode:     EntryMode,
+}
+
+EntryMode = Normal | Recursive
+#+end_src
+
+~mode~ is stored on the closure rather than reached through an
+indirection table. A static table cannot work: dynamic ~rec~ must pair
+an existing body with ~Recursive~ mode at runtime and cannot add
+entries to a module-level map. With the mode on the closure, dynamic
+~rec~ is a clone with the flag set, and ~mode~ packs into existing
+padding beside the capture vector.
+*** Recursive is a calling convention
+There is no ~expects_self~ field, and no static classifier for whether
+a body wants its self value. ~Recursive~ is a calling convention,
+uniform and unconditional: entering the closure pushes it first. What
+the body then does with that value — bind it, swap past it, ignore it
+— is the body's business and invisible to the caller.
+
+The reason no classifier is possible is that ~self~ is not a special
+binding. It is a value that arrives on the stack. ~$self~ is the
+conventional way to name it, not a requirement, and a body may
+manipulate it with ordinary stack operations instead. Both of these
+are correct and behaviourally identical:
+#+begin_src text
+[$self $n 0 n eq [0] [n n 1 - self] if] rec
+
+[$a $b $c ^b ^a ^c] $rot
+[swap dup 0 eq
+      [drop drop 0]
+      [dup 1 - rot force]
+ if] rec
+#+end_src
+
+A classifier keyed on ~Bind(self)~ returns false for the second, which
+genuinely requires ~Recursive~ entry. A diagnostic that fires on
+correct code is worse than none, so the field is removed rather than
+weakened.
+
+The real property — whether a body's input row requires a ~Closure~ on
+top — is an arity question and therefore inference. It belongs to the
+effect pass, where an arity mismatch on ~Recursive~ entry becomes a
+genuine static error, and where the native backend can use the same
+information to decide whether ~self~ warrants a hidden receiver
+register.
+
+This is also why one tempting optimization does not work. For a
+recognized ~[...] rec~ one might capture the closure into its own
+capture array — cyclic, but mark/sweep handles cycles — and turn
+~self~ into a ~PUSH_CAPTURED~, skipping the entry push. That is sound
+only when the body names ~self~ through a binding. The point-free form
+above needs it on the stack, and nothing syntactic distinguishes the
+two cases, so the push stays unconditional.
+** Values
+#+begin_src text
+Value = Int(i64)
+      | Atom(SymId)
+      | Nil
+      | Pair(...)
+      | Vector(VectorRef)
+      | Closure(ClosureRef)
+      | Primitive(PrimitiveId)
+#+end_src
+** Quoted data identity
+~PUSH_DATA~ pushes a body-owned runtime object, preserving its
+identity across repeated execution of the same quoted form. Mutating a
+quoted vector affects later pushes of that same form. This matches
+Lisp literal semantics and is intentional. If fresh mutable literals
+are ever required, a separate ~MAKE_DATA~ operation must be introduced
+rather than changing ~PUSH_DATA~.
+
+Mutable quoted vectors and pairs are heap objects owned by their
+module and are permanent GC roots for the module's lifetime. Scalar
+data may remain immediate.
+** Truth
+The interned ~f~ atom is false; every other value is true. Only
+~BRANCH~, ~Primitive(If)~, and ~cswap~ interpret a value this way. If
+this becomes a language-level contract it should be expressed by a
+named runtime predicate rather than a physical object-tag test.
+* Part VI: Stack rows and effects
+Stack rows are written from bottom to top. ~rho~ denotes an arbitrary
+stack prefix.
+
+#+begin_src text
+StackRow = Empty
+         | Extend(StackRow, ValueType)
+         | RowVar(RowVarId)
+#+end_src
+
+An effect is a stack transformation plus non-stack effects. Some
+operations select between transforms at runtime, so ~Effect~ is a sum:
+
+#+begin_src text
+Effect = Simple {
+             input:  StackRow,
+             output: StackRow,
+             heap:   HeapEffects,
+         }
+       | Choice(Effect, Effect)
+
+HeapEffectFlag = ALLOCATES | READS_HEAP | WRITES_HEAP | IO | MAY_FAIL
+HeapEffects    = Set<HeapEffectFlag>
+#+end_src
+
+Primitive examples:
+#+begin_src text
+Add  : rho Int Int          -> rho Int
+Sub  : rho Int Int          -> rho Int
+VGet : rho Vector Int       -> rho Value
+VSet : rho Vector Int Value -> rho Vector    WRITES_HEAP | MAY_FAIL
+Print: rho Value            -> rho           IO | MAY_FAIL
+#+end_src
+
+Effects compose by unifying the output row of one with the input row
+of the next:
+#+begin_src text
+E1 : S0 -> S1
+E2 : S1 -> S2
+----------------
+E1 ; E2 : S0 -> S2
+#+end_src
+
+Every use of an effect *scheme* must be freshly instantiated before
+unification. The rule above is stated on already-instantiated effects;
+sharing row variables across uses of one scheme is unsound.
+
+Every row in the system is a finite ~Extend~ chain over either ~Empty~
+or a single ~RowVar~.  No row is formed by concatenating two unknown
+rows.  This *row-finiteness* invariant is what keeps unification
+tractable: the structural peel proceeds from the top through known
+elements and terminates at a row variable, so its terminal case is
+always an ordinary binding of that variable to a finite chain over
+another, and no row concatenation operator is required.
+
+Row-finiteness is preserved by composition, which is the property that
+matters, since composition is the operation the language is built on:
+#+begin_src text
+;; equal lengths
+dup : rho1 A       -> rho1 A A
++   : rho2 Int Int -> rho2 Int
+peel A ~ Int, A ~ Int, then rho1 ~ rho2
+  => rho1 Int -> rho1 Int
+
+;; unequal lengths
+1 : rho           -> rho Int
++ : sigma Int Int -> sigma Int
+peel Int ~ Int, then rho ~ sigma Int, so rho := sigma Int
+  => sigma Int -> sigma Int
+#+end_src
+
+In the unequal case the leftover prefix binds into the left scheme's
+variable and the composite's input row grows, which is the correct
+account of partial application against the stack.  Either way the
+result is a finite chain over one variable.
+
+Row-finiteness is an admissibility condition on *primitive
+signatures*.  A primitive relating ~rho~ to a permutation, a reversal,
+or a length of ~rho~ — ~vswap~, ~depth~, ~clear~ — is not admissible,
+and every proposed primitive must be checked against it.
+
+It is *not* a property the language enforces on bodies.  General
+recursion regenerates unbounded stack manipulation directly: ~drop-n~
+consumes a runtime-determined number of values from beneath its
+argument, and ~cleave~ grows the stack by the runtime length of a
+vector, neither of which has a row-finite effect.  What the effect
+pass produces for such a body is an open item.
+** cswap
+#+begin_src text
+input: rho A B Value
+
+condition == f:   output: rho A B
+condition != f:   output: rho B A
+#+end_src
+
+Its effect is ~Choice~ of those two transforms. Where ~A~ and ~B~
+unify — the common case, two closures with a compatible effect — the
+choice collapses.
+
+The dynamic conditional idiom:
+#+begin_src text
+[then] [else] cond cswap $sel $other sel
+#+end_src
+** Instruction effect rules
+#+begin_src text
+PUSH_LOCAL(x):      rho -> rho T
+PUSH_CAPTURED(c):   rho -> rho T
+POP_LOCAL(x):       rho T -> rho ;  context[x] := T
+
+CALL_LOCAL(x):      effect := context[x].eval_effect
+CALL_CAPTURED(c):   effect := capture[c].eval_effect
+CALL_PRIMITIVE(p):  effect := primitive[p].effect
+
+MAKE_CLOSURE(body): rho -> rho Closure(body.effect)   ALLOCATES
+
+BRANCH(bt, be):     rho Value -> rho  on both successor edges
+#+end_src
+
+The effect context records binding information separately from the
+stack row. A binding operation changes the static context, not a
+mutable environment object.
+** Latent evaluation effects
+#+begin_src text
+ValueInfo {
+    value_type:  ValueType,
+    eval_effect: EvalEffect,
+}
+
+EvalEffect = Push(ValueType)
+           | Run(EffectScheme)
+           | EffectVar(EffectVarId)
+           | Opaque
+#+end_src
+
+#+begin_src text
+2:        value_type = Int
+          eval_effect = Push(Int)
+
+[3]:      value_type = Closure(rho -> rho Int)
+          eval_effect = Run(rho -> rho Int)
+
+[2 + 1]:  value_type = Closure(rho Int -> rho Int Int)
+          eval_effect = Run(rho Int -> rho Int Int)
+#+end_src
+
+~^x~ always has the push effect for the value type of ~x~. ~x~ uses
+the latent evaluation effect of ~x~. Where the static type of a
+binding is inert, ~CALL_LOCAL~ and ~PUSH_LOCAL~ denote the same
+operation.
+
+An effect variable is polymorphic, not an error. ~Opaque~ means no
+static effect is available; SIR executes it dynamically, while a later
+pass may require specialization or a fallback ABI.
+
+The generic function ~[$x $y x y +]~ has the schematic effect:
+#+begin_src text
+forall ex ey.
+    x : Value<ex>
+    y : Value<ey>
+    body: ex ; ey ; (rho Int Int -> rho Int)
+#+end_src
+
+For ~[2 + 1] [3] add~, the bindings are ~x = [3]~ and ~y = [2 + 1]~,
+and their effects compose:
+#+begin_src text
+rho         -- [3]   --> rho Int
+rho Int     -- [2+1] --> rho Int Int
+rho Int Int -- Add   --> rho Int
+#+end_src
+
+Neither input closure needs to independently have effect ~rho -> rho
+Int~. Only the composition must satisfy ~Add~.
+** Where branch compatibility is required
+Row compatibility is a property of *joins*, not of ~BRANCH~.
+
+~BRANCH~ is where paths diverge; nothing must agree there. If both
+arms terminate in ~END~ or a tail call, there is no compatibility
+obligation at all — the arms do not merge, each arm's row flows to the
+caller independently, and reconciling them is the caller's problem.
+
+A ~JUMP~ join imposes the obligation:
+#+begin_src text
+b1 : rho -> sigma1     term JUMP(b3)
+b2 : rho -> sigma2     term JUMP(b3)
+-----------------------------------
+sigma1 ~ sigma2 required at entry to b3
+#+end_src
+
+The full check is the open-row unification deferred to the later pass.
+* Part VII: Verification
+The first-pass SIR verifier is structural. It must check:
+
+- all IDs refer to existing module objects;
+- every block terminates with ~END~, ~JUMP~, ~BRANCH~, or a tail call;
+- every successor ~BlockId~ names a block in the same body;
+- tail calls occur only in terminator position;
+- every block is reachable from the body entry block;
+- every local is initialized before every use on every reachable path;
+- every named local is in scope at the point of use;
+- captured slots match the target body's capture layout;
+- captured slots are never written;
+- primitive IDs refer to registered primitives;
+- local and captured calls refer to valid value bindings;
+- instruction and origin vectors are the same length, and every origin
+  is a valid ~SyntaxId~.
+
+The first pass may attach primitive effect metadata but does not
+perform open-row unification.
+** Initialization as a dataflow join
+With arms sharing a frame, initialization is not a linear scan. A
+binding created in one arm has an unwritten slot on the other arm's
+path, so the initialized set at a join block is the *intersection*
+over predecessors, computed to a fixed point.
+
+Scoping should make those slots unnameable after the join, so this
+check should never fire on resolver output. The verifier must still
+compute it that way to be sound, and it is a useful cross-check on the
+resolver. It requires no type information.
+** Partial depth checking
+Net stack depth delta is computable for ~PUSH_DATA~, ~PUSH_PRIMITIVE~,
+~PUSH_LOCAL~, ~PUSH_CAPTURED~, ~POP_LOCAL~, ~MAKE_CLOSURE~,
+~MAKE_RECURSIVE_CLOSURE~, and ~CALL_PRIMITIVE~ with a known
+signature. It is unknown for ~CALL_LOCAL~ and ~CALL_CAPTURED~.
+
+#+begin_src text
+DepthDelta = Known(i64) | Unknown
+#+end_src
+
+Track the delta per block. At a join, if all predecessors are ~Known~,
+require equality. If any is ~Unknown~, mark the join deferred.
+
+This needs no inference machinery, catches a real class of arity
+typos, and degrades honestly rather than claiming a guarantee it
+cannot make.
+*** Coverage for conditionals
+Diagnostic strength for ~if~ falls into three tiers, and the spec
+claims only what each tier delivers:
+
+1. *Recognized* ~if~ — fully diagnosed. Two literal arms are
+   structurally present or they are not; their absence is a
+   parse-shape failure, not a stack question, and needs no depth
+   information.
+2. *Dynamic* ~if~ *with known preceding depth* — diagnosed. ~2 1 eq
+   if~ at the start of a body yields ~Known(1)~ against a required
+   depth of three and is reported statically.
+3. *Dynamic* ~if~ *after an unknown-arity call* — deferred. Any
+   preceding ~CALL_LOCAL~ or ~CALL_CAPTURED~ yields ~Unknown~, and the
+   failure surfaces as the runtime arity error specified for
+   ~Primitive(If)~, with a span.
+
+Tier 1 is the common case and is the point of recognition. Tiers 2 and
+3 are the cost of admitting a dynamic form at all, and are still an
+improvement over the reference interpreter, which after moving ~if~ to
+a stack-based primitive can diagnose neither.
+* Part VIII: SIR evaluator contract
+#+begin_src text
+PUSH_DATA          push the referenced data value
+PUSH_PRIMITIVE     push a primitive value
+PUSH_LOCAL         push a local value
+PUSH_CAPTURED      push a captured value
+POP_LOCAL          pop and initialize a local
+CALL_LOCAL         evaluate a local value
+CALL_CAPTURED      evaluate a captured value
+CALL_PRIMITIVE     execute a primitive directly
+MAKE_CLOSURE       allocate and push a closure
+MAKE_RECURSIVE...  allocate and push a recursive closure
+END                return from the current body
+JUMP               set block, reset pc
+BRANCH             pop condition, set block, reset pc
+TAIL_CALL_*        replace the current frame
+#+end_src
+
+Evaluating a local or capture dispatches as follows:
+#+begin_src text
+Closure value:     execute the closure body
+Primitive value:   execute the primitive
+Any other value:   push the value unchanged
+#+end_src
+
+Entering a closure whose ~mode~ is ~Recursive~ first pushes that
+closure onto the value stack, then enters its body. The push is
+unconditional and the body is free to do anything with the value;
+~$self~ is a convention, not a requirement.
+** Tail calls through dynamic if
+The recognized and unrecognized spellings of ~if~ must agree on frame
+discipline. In the recognized form, an arm is a block, so a tail call
+inside it is a tail call of the enclosing body. The primitive form
+must match:
+
+#+begin_src text
+CALL_PRIMITIVE(If)       -> push a frame for the selected closure
+TAIL_CALL_PRIMITIVE(If)  -> replace the current frame
+#+end_src
+
+Without the second rule the dynamic path leaks a frame per iteration,
+and the two spellings differ in a way that surfaces only as a stack
+overflow in a long-running loop.
+
+The dynamic path still allocates two closures per execution rather
+than zero. That is the honest cost of not knowing the arms statically.
+** Errors
+The evaluator reports stack underflow, invalid primitive arguments,
+vector errors, and other runtime failures with the originating
+instruction span. Unbound names are not a runtime failure mode.
+* Part IX: REPL semantics
+The unit of atomicity is one user input.
+
+Resolution of the entire input completes before any of it
+executes. Since resolution is sequential, ~5 $x x undefined-name~ must
+resolve all four forms against a scratch context, fail, and execute
+nothing. The scratch context is committed to the session only on
+success. Rollback is therefore trivial, because nothing has run.
+
+A failed input does not cascade: prior bindings and prior work
+survive, and the session continues. This matches GHCi's contract.
+
+Runtime failure after successful resolution is different, and the
+contract is deliberate: the session's value stack and bindings are
+left as they stand at the point of failure, and the error is reported
+with its span. The stack is not truncated to its pre-input state.
+
+The alternative — snapshotting depth and binding count, then restoring
+on failure — is a partial illusion. Heap mutation performed before the
+failure cannot be undone, so the heap would stay changed while the
+stack pretended nothing happened. Inconsistent rollback is worse than
+none, and the wreckage is usually the diagnostic information the user
+wants.
+
+The session's value stack and the session frame's locals are permanent
+GC roots that grow monotonically across inputs. The root-scan design
+must treat the session frame explicitly rather than as an ordinary
+frame.
+* First-pass implementation milestones
+1. Source IDs, spans, diagnostics, and symbol interning.
+2. Tokenizer and HIR form parser.
+3. Sequential binding resolution, capture plans, and conditional
+   recognition.
+4. Primitive table and SIR instruction structures.
+5. HIR-to-SIR lowering, including branch-block lowering, with origins.
+6. SIR evaluator and runtime value/heap model.
+7. Structural SIR verifier, including the initialization dataflow and
+   partial depth checking.
+8. Conformance tests for arithmetic, rebinding, closures, boxing,
+   conditionals, recursion, and higher-order calls.
+9. Differential harness against the reference interpreter.
+** Differential testing
+The oracle is the C reference interpreter. It implements the same
+language as the compiler, consumes the same corpus, and can therefore
+be compared directly: run each conformance program through both and
+compare final stacks. This catches resolver and capture-plan bugs far
+more thoroughly than hand-written expectations, and those are the bugs
+most likely to be subtle rather than loud.
+
+Divergences run in both directions, so a single expect-mismatch flag
+is insufficient. Annotate each conformance program:
+#+begin_src text
+;; conformance: both
+;; conformance: compiler-only          <reason>
+;; conformance: interpreter-stricter   <reason>
+;; conformance: compiler-stricter      <reason>
+#+end_src
+
+The rule is that every divergence is enumerated in this document
+before the harness sees it. An unannotated mismatch is a bug in one of
+the implementations, never an expected result.
+
+Known divergences:
+
+- The compiler rejects unresolved names at compile time; the
+  interpreter fails only when the path is taken. A program with a dead
+  reference to an unbound name is a legitimate disagreement.
+
+The interpreter is not a second implementation to be maintained at
+parity. Its remaining job is to be a differential oracle until the
+compiler passes the corpus. Investment in feature parity past that
+point does not earn its cost.
+** The role of forsp.rfp
+~forsp.rfp~ is not an oracle. It is an rForsp program that interprets
+*Forsp*; host and guest are different languages, so a conformance
+program written in rForsp is not valid input to it and "compare final
+stacks" does not typecheck as an idea. It has three other uses.
+
+As a stress program, it is the largest and most closure-heavy rForsp
+program available — deep recursion, higher-order code, nontrivial
+capture. Running it under both implementations and comparing output is
+a strong end-to-end test, with ~forsp.rfp~ as the input rather than
+the judge.
+
+As leverage on a second corpus, it is more interesting. Guest Forsp
+programs are *data* to ~forsp.rfp~ and need not be valid rForsp at
+all. Feeding one guest program to ~forsp.rfp~-under-interpreter and
+~forsp.rfp~-under-compiler exercises the whole rForsp stack
+indirectly, and makes any original Forsp test material usable without
+translation.
+
+As documentation, its cons-alist environment illustrates the binding
+discipline rForsp inherits: each binding conses onto the front and
+closures capture the list head, which is exactly fresh-shadowing,
+old-list-unaffected, resolution-fixed-at-closure-creation.
+Capture-by-value is that structure flattened once, statically. This is
+a readable illustration, not an executable specification.
+
+One hazard for the prefix-to-postfix ~if~ rewrite: ~forsp.rfp~
+contains two ~if~ s. Its own control flow uses rForsp ~if~ and must be
+rewritten; its evaluator also handles the *guest's* ~if~, which is
+guest semantics encoded as data and must not be touched. Skipping
+~'if~ covers it, but that file is the one place both meanings coexist
+and is worth checking by eye.
+
+A true metacircular oracle would be an ~rforsp.rfp~ implementing
+rForsp in rForsp. That is the self-hosting goal, and it is work the
+reference interpreter already covers. It is not a testing strategy.
+* Later-pass stubs
+** Effect inference and specialization
+Open-row unification, effect composition, latent effects on values,
+effect generalization, call-site instantiation with fresh variables,
+and ~Choice~ effects for ~cswap~ and ~Primitive(If)~.
+
+Unify arm rows at join blocks. Specialize polymorphic bodies when the
+callee and latent argument effects are known. Preserve opaque calls
+for a generic runtime fallback.
+** First-class dynamic environments
+If a dynamic-name feature is ever wanted, it must be an explicit data
+structure, not a scope. Nothing about it participates in name
+resolution; the compiler never consults it, and no operation on it can
+introduce a lexical binding.
+
+#+begin_src text
+env-new    : rho                  -> rho Env    ALLOCATES
+env-insert : rho Env Symbol Value -> rho Env    ALLOCATES | WRITES_HEAP
+env-lookup : rho Env Symbol Value -> rho Value  READS_HEAP
+env-has    : rho Env Symbol       -> rho Atom   READS_HEAP
+#+end_src
+
+~env-lookup~ takes a default because the alternative is depth-varying.
+An optional return would produce ~Choice~ over rows of different
+length, which has no join and which the depth checker would correctly
+reject.
+
+Values retrieved this way have ~eval_effect = Opaque~ and are executed
+with ~force~. Anything reached through an ~Env~ is permanently on the
+fallback ABI — correct, and visible in the source, which is the entire
+difference from dynamic scoping.
+
+No operation may reflect the current lexical scope into an ~Env~. A
+~current-env~ primitive would make free-variable analysis undecidable
+again. ~Env~ values are built only by explicit insertion of explicitly
+named keys.
+
+Not to be built yet: ~forsp.rfp~ already implements this pattern with
+cons cells well enough to run a whole interpreter, using existing
+primitives. A dedicated type buys hashing, and only a profiled
+workload should justify it.
+** SSA lowering
+Lower each SIR body to block-parameter SSA. The lowering builder owns
+a compile-time abstract operand stack of SSA value IDs; SIR ~PUSH~ and
+~POP~ become manipulation of builder state rather than runtime
+instructions.
+
+Known stack effects become explicit SSA arguments and results. SIR
+blocks map to SSA blocks directly; ~JUMP~ and ~BRANCH~ map to SSA
+branches, and join blocks acquire block parameters for values live
+across them.  ~CALL_PRIMITIVE~ becomes a primitive SSA operation where
+possible.
+
+Because branch arms are already blocks, no equivalence proof is needed
+to recover a CFG. The control-flow graph is present in SIR.
+** SSA optimization
+Constant folding, dead-code elimination, primitive specialization,
+closure inlining, tail-call recognition, capture elimination, and heap
+alias analysis. Do not remove operations with ~WRITES_HEAP~, ~IO~, or
+~MAY_FAIL~ effects without proving the transformation sound.
+
+Constant propagation subsumes the case for allowing bound branch arms:
+a binding is immutable and single-assignment, so ~[else] $b~ followed
+by ~^b~ inlines back to a literal arm. No language rule is needed to
+enable what the optimizer recovers.
+** Native code generation
+Lower optimized SSA to a target calling convention. Closure values use
+a code pointer plus capture slots. Recursive closures use a hidden
+self receiver. Generic opaque calls use the fallback runtime ABI.
+* Non-goals for the first pass
+- No SSA optimizer.
+- No native code generation.
+- No mutable lexical bindings.
+- No runtime environment chain.
+- No user-visible operand-stack object.
+- No binding hoisting.
+- No local-slot reuse.
+- No open-row unification.
+- No reserved words.
+- No assumption that every bound executable value has a fixed
+  monomorphic stack effect.
+* Revision notes
+Changes from the previous draft:
+
+- Split into HIR and SIR parts, with resolution as an explicit stage
+  between them and a lowering table connecting the two.
+- Added the shared-infrastructure section. ~SymId~ and the source
+  table span both IRs; the primitive registry deliberately does not
+  reach HIR, because primitive identity is a resolution-time fact.
+- ~$x~ and ~^x~ are first-class HIR nodes. Removed the ~quote x pop~ /
+  ~quote x push~ desugar and the ~push~/~pop~ primitives, which have
+  no writable signatures.
+- Conditional argument order is now ~cond [then] [else] if~, matching
+  ~cswap~'s arm order and the Forth/Factor convention. All examples
+  reordered.
+- ~if~ is recognized during resolution, not reserved. Recognition
+  requires both the primordial binding and two literal vector arms.
+  ~$if~, ~^if~, and computed arms all work through ~Primitive(If)~.
+  Documented why the other two argument orders fail.
+- Added the ~TAIL_CALL_PRIMITIVE(If)~ frame-replacement rule, without
+  which the recognized and dynamic spellings disagree.
+- Added the first-class dynamic environment stub with its constraints:
+  data structure not scope, depth-uniform lookup, no scope reflection.
+- Recorded the measured ~env_find~ cost (over 33% of interpreter
+  execution time) as the motivating rationale for capture-by-value.
+- Stated that arms need not be closures, and that restricting them is
+  not implementable: provenance of a closure value is not recoverable
+  at runtime, by design.
+- Required a runtime arity check in ~Primitive(If)~ with a
+  distinguishable error.
+- Renamed ~EvalRef~ to ~CallRef~, matching ~CALL_LOCAL~ and
+  ~CALL_CAPTURED~ and reflecting that a bare name is a call site, with
+  push-if-inert being dispatch rather than a separate mode.
+- Split distinguished symbols into value-identity (~f~) and name
+  pre-filter (~if~, ~self~) categories, and stated the governing rule:
+  identity narrows, resolution decides. No symbol may be dispatched on
+  identity alone. Clarified that primitive names are interned eagerly
+  but are not distinguished.
+- Noted that the primordial environment must exist before the first
+  ~CallRef~ resolution but not before parsing.
+- Extended conditional recognition to immediate arms. An arm form is
+  any ~HirKind~ except ~Bind~, ~LoadRef~, and ~CallRef~; the predicate
+  is per-arm. The justification is analyzability — such programs move
+  from diagnostic tier 3 to tier 1 — rather than cycles saved.
+- Added static ~rec~ recognition on the same pattern, with data
+  operands a compile error rather than a fallback.
+- Removed ~Body.expects_self~. A point-free recursive body that never
+  binds ~$self~ is correct and requires ~Recursive~ entry, so a
+  syntactic classifier reports false on working code. ~Recursive~ is
+  restated as an unconditional calling convention, and the real arity
+  question moves to the effect pass.
+- Corrected the differential-testing section. The oracle is the C
+  reference interpreter, not ~forsp.rfp~, which interprets a different
+  language and cannot consume the corpus. Added bidirectional
+  divergence annotations and a separate section on ~forsp.rfp~'s three
+  actual roles.
+- Replaced the pipeline sketch with a seven-phase reference giving
+  each phase's output and available ~Site~, and added a diagnostics
+  section covering severity, site, per-phase error surfaces, codes,
+  the phase gate, and error caps.
+- Recorded that lowering emits no diagnostics, that verification
+  reports ~Bug~ and ~Error~ from the same pass, and that evaluation is
+  singular and terminal rather than accumulating.
+- Replaced Part VI's tractability justification. The invariant is
+  row-finiteness — every row is a finite ~Extend~ chain over ~Empty~
+  or a single ~RowVar~ — not the absence of ~vswap~, which is one
+  inadmissible signature among several. Added the composition
+  argument, and recorded that the invariant binds the primitive
+  registry but not bodies.
+- Added ~MakesRecursiveClosure~, ~Recursive~, and ~Poison~ to
+  ~Resolution~. Resolution records rather than emits; the operator
+  form of a recognition gets its own entry so that absence of an
+  entry keeps its existing meaning.
+- Restricted the tail-position rule to ~CallRef~ resolved as
+  ~Ref(..)~. A recognized ~if~ or ~rec~ in tail position is not a
+  call site and must not become a ~TAIL_CALL_*~.
+
+Carried forward from the prior revision: block-based branch lowering,
+removal of ~EntryId~, contiguous locals stack, ~Nil~-fill on frame
+push, ~Effect~ as a sum with ~Choice~, join-based row compatibility,
+initialization dataflow, partial depth checking, and REPL atomicity.
+
+Open items:
+
+- Decide whether the ~f~-atom truth test becomes a named runtime
+  predicate.
+- What the effect pass produces for a body whose effect has no
+  row-finite solution, ~drop-n~ and ~cleave~ being the witnesses.
+  ~EvalEffect::Opaque~ exists but nothing licenses inference to
+  produce it as a giving-up move.
+- Termination of the occurs check across the row/effect boundary,
+  where a ~ValueType~ carries a ~Closure~ carrying an ~EffectScheme~
+  carrying further rows.
+- ~effect(x)~ for vector bodies, and whether ~if~-result sum types are
+  structural or nominal, remain open from the type-system work.
+- Confirm the ~Quote~ denotation table against the existing reader,
+  particularly ~Quote(Quote(f))~.

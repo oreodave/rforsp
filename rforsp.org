@@ -43,14 +43,14 @@ The first attempt of the IR compiler will do the following passes:
   Stack-Effect oriented IR (SIR).
 - Pass the SIR into a temporary evaluator.
 
-* IN-PROGRESS Diagnostic layer
+* COMPLETE Diagnostic layer
 We need a unified diagnostics system that handles all the nitty-gritty
 details of collection, severity tracking, and pretty printing.
 
 [[file:docs/agent/ir-design.org::*Diagnostics][Diagnostics]].
 ** DONE Basic structures
 ** DONE Accumulator
-** TODO Renderer
+** DONE Renderer
 ** BACKLOG Make Severity's configurable
 Currently the Severity of a Diagnostic is tied to its Class.  That's
 okay for now, but if we ever want to introduce command line
@@ -58,7 +58,7 @@ configuration then this has to be adjusted.
 
 [[file:src/diagnostics/class.rs::pub const fn severity(self) ->
 Severity {]]
-* PROJ Reader phase
+* IN-PROGRESS Reader phase
 The reader will take raw rForsp source code and generate HIR.
 [[file:docs/agent/ir-design.org::*Part I: HIR][Part I: HIR]]
 ** DONE Sources

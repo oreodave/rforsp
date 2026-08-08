@@ -171,6 +171,31 @@ impl SourceTable {
         let source = self.get_source(origin.source);
         source.span_text(origin.span)
     }
+
+    /// Get the full line of text for the given `line` (1-indexed) within a
+    /// [`SourceId`].
+    #[must_use]
+    pub fn line_text(&self, source: SourceId, line: usize) -> &str {
+        let source = self.get_source(source);
+        source.line_text(line)
+    }
+
+    /// Get the full line of text for the start of the given [`SyntaxOrigin`]
+    /// within a [`SourceId`].
+    #[must_use]
+    pub fn line_text_of(&self, origin: &SyntaxOrigin) -> &str {
+        let source = self.get_source(origin.source);
+        source.line_text_of(origin.span.start as usize)
+    }
+
+    /// Get the line indices for the given [`SyntaxOrigin`].  If the
+    /// [`SyntaxOrigin`] only occurs on a single line, the two indices returned
+    /// should be equivalent.
+    #[must_use]
+    pub fn lines_of(&self, origin: &SyntaxOrigin) -> (usize, usize) {
+        let source = self.get_source(origin.source);
+        source.span_lines(origin.span)
+    }
 }
 
 impl Default for SourceTable {

@@ -141,4 +141,15 @@ impl<'a, W: Write> Renderer<'a, W> {
         writeln!(self.out, "{padding} |")?;
         Ok(())
     }
+
+    /// Render a singular [`Diagnostic`] into the renderer's [`Write`] target.
+    ///
+    /// # Errors
+    /// - Repeated back from `write!`/`writeln!` calls.
+    pub fn render(&mut self, diag: &Diagnostic) -> fmt::Result {
+        self.render_site(diag.site)?;
+        self.render_class(diag.class)?;
+        writeln!(self.out, "{}", diag.message)?;
+        self.render_snippet(diag.site)
+    }
 }

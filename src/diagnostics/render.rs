@@ -152,4 +152,33 @@ impl<'a, W: Write> Renderer<'a, W> {
         writeln!(self.out, "{}", diag.message)?;
         self.render_snippet(diag.site)
     }
+
+    /// Render a collection of [`Diagnostics`] into the renderer's [`Write`]
+    /// target.
+    ///
+    /// # Errors
+    /// - Repeated back from `write!`/`writeln!` calls.
+    pub fn render_all(&mut self, diags: &Diagnostics) -> fmt::Result {
+        for (i, diag) in diags.items().iter().enumerate() {
+            if i > 0 {
+                writeln!(self.out)?;
+            }
+            self.render(diag)?;
+        }
+
+        if diags.suppressed() > 0 {
+            if !diags.items().is_empty() {
+                writeln!(self.out)?;
+            }
+            write!(self.out, "{} ", diags.suppressed())?;
+            if diags.suppressed() == 1 {
+                write!(self.out, "diagnostic")?;
+            } else {
+                write!(self.out, "diagnostics")?;
+            }
+            writeln!(self.out, " suppressed")?;
+        }
+
+        Ok(())
+    }
 }

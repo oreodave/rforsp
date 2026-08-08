@@ -179,6 +179,7 @@ NOTE: This is not complete for each phase, and will be updated.
   - unexpected closing bracket;
   - mismatched bracket kinds;
   - quote at end of input;
+  - nested quote — a quote directly wrapping another (~''x~);
   - quote of a form with nothing to denote — ~'^x~ and ~'$x~.
 - Phase 3 (resolution):
   - unresolved name, on any path including dead ones;
@@ -192,7 +193,9 @@ NOTE: This is not complete for each phase, and will be updated.
   - stack underflow;
   - invalid primitive arguments;
   - vector index out of bounds;
-  - ~Primitive(If)~ called with fewer than three values.
+  - ~Primitive(If)~ called with fewer than three values;
+  - malformed or truncated input to ~read~;
+  - a binding form where ~read~ requires a datum.
 ** Verification reports two categories
 The structural checks — valid IDs, terminated blocks, capture layouts
 matching, initialization dataflow, scope — examine the resolver's and
@@ -428,7 +431,30 @@ chain.
 
 ~'x~ survives untouched as an ordinary atom literal. Only ~'x pop~
 stops being a binding operation.
+** Reader model: structural, not splicing
+The reference interpreter's reader is a splicing macro reader: ~'~,
+~^~, and ~$~ expand into token streams — ~quote~, ~quote x push~,
+~quote x pop~ — uniformly, in code and in data alike, so a binding form
+can sit inside a list as data and ~($x)~ reads as the list ~(quote x
+pop)~.
+
+rForsp's reader is structural. Surface sugar becomes typed HIR nodes:
+~'~ is a prefix wrapping exactly the next form as a single ~Quote~
+node, ~^x~ is ~LoadRef~, ~$x~ is ~Bind~. Nothing is spliced into a
+stream, and ~quote~ is no longer a token — the bare word ~quote~ is an
+ordinary name.
+
+The consequence is that binding forms are code, never data. There is
+no datum denoting a ~Bind~ or a ~LoadRef~ (see [[*Quote denotation]]),
+so they cannot appear where a datum is required: quoted, denoted as an
+element of self-evaluating data, or read at runtime (see [[*Part X:
+Streams and I/O]]). This deliberately supersedes the interpreter;
+programs that relied on splice-desugar into data — notably the guest
+program embedded in ~forsp.rfp~ — do not carry over unchanged. See
+[[*The role of forsp.rfp]] and [[*Differential testing]].
 ** Quote denotation
+~'~ wraps exactly the next form as a single ~Quote~ node; the reader is
+[[*Reader model: structural, not splicing][structural, not splicing]].
 ~Quote(f)~ produces the datum denoted by ~f~:
 #+begin_src text
 Quote(CallRef(x))   -> Atom(x)
@@ -437,16 +463,30 @@ Quote(Bind(x))      -> error: nothing to denote
 Quote(Int(n))       -> Int(n)
 Quote(List(..))     -> a list datum, elements denoted recursively
 Quote(Vector(..))   -> a vector datum, elements denoted recursively
-Quote(Quote(f))     -> the datum denoting a quote of f
+Quote(Quote(f))     -> rejected: nested quote is a parse error
 #+end_src
 
 A quoted vector is data, not code. A parenthesized list is
 self-evaluating data and needs no quote.
+
+A ~Quote~ whose immediate child is itself a ~Quote~ is a parse error.
+This is *direct* adjacency only — two apostrophes with nothing between
+them: ~''x~, ~''[a b]~, ~''(a b)~.  A quote separated from another by a
+bracket is ordinary recursive denotation and stays legal: ~'['x]~ is a
+data vector holding ~Atom(x)~, and ~'('x)~ a list holding ~Atom(x)~.
+
+Nested quote is rejected rather than denoted because it had no agreed
+meaning and no idiomatic use.  The interpreter's ~''x~ was an accident
+of the splicing reader — push ~Atom(quote)~, then evaluate ~x~ — not a
+nested-quote datum, so there is nothing to preserve.  Making it
+unconstructible resolves what ~Quote(Quote(f))~ should denote by
+removing the question, and guards the ~'~-for-~''~ typo.
 ** Parse-time errors
 The parser reports:
 
 - unterminated ~[~, ~(~, or quote;
 - ~$~ or ~^~ not followed by a name;
+- a quote directly wrapping another quote (~''x~);
 - unknown characters.
 
 Everything else is deferred. In particular, the parser does not check
@@ -809,6 +849,10 @@ Block {
 Origins live in a side table parallel to the instruction vector, not
 inline in the instruction encoding. Instructions stay compact;
 diagnostics perform a direct source-table lookup.
+
+The ~entry~ body is the session frame: the top-level form sequence,
+evaluated directly with no wrapping closure (see [[*Part IX: REPL
+semantics]]).
 ** Instructions
 #+begin_src text
 PUSH_DATA(DataId)
@@ -1055,6 +1099,8 @@ Value = Int(i64)
       | Vector(VectorRef)
       | Closure(ClosureRef)
       | Primitive(PrimitiveId)
+      | Stream(StreamRef)     ; an I/O port; see Part X
+      | Eof                   ; the unforgeable end-of-input object
 #+end_src
 ** Quoted data identity
 ~PUSH_DATA~ pushes a body-owned runtime object, preserving its
@@ -1103,7 +1149,8 @@ Add  : rho Int Int          -> rho Int
 Sub  : rho Int Int          -> rho Int
 VGet : rho Vector Int       -> rho Value
 VSet : rho Vector Int Value -> rho Vector    WRITES_HEAP | MAY_FAIL
-Print: rho Value            -> rho           IO | MAY_FAIL
+Read : rho Stream           -> rho Value     IO | MAY_FAIL
+Write: rho Stream Value     -> rho Stream    IO | MAY_FAIL
 #+end_src
 
 Effects compose by unifying the output row of one with the input row
@@ -1374,10 +1421,28 @@ The dynamic path still allocates two closures per execution rather
 than zero. That is the honest cost of not knowing the arms statically.
 ** Errors
 The evaluator reports stack underflow, invalid primitive arguments,
-vector errors, and other runtime failures with the originating
-instruction span. Unbound names are not a runtime failure mode.
+vector errors, malformed ~read~ input, and other runtime failures with
+the originating instruction span. Unbound names are not a runtime
+failure mode.
 * Part IX: REPL semantics
 The unit of atomicity is one user input.
+
+There is no host closure.  The reference interpreter wraps a whole
+program in one outer ~[ ... ]~: the top level *is* a closure body, read
+as a single vector and executed.  That wrapper is a holdover from
+fitting the interpreter in a small C core, not a language requirement,
+and rForsp drops it.  Top-level forms evaluate directly in the session
+frame — the entry ~Body~ of the ~Module~ (see [[*Module structure]]).
+A program is a sequence of top-level forms run in order, not a single
+closure that runs; ~$x~ at top level initialises a session local, and a
+closure written at top level captures from the session frame by the
+ordinary rules.
+
+The consequence to state plainly: a bare top-level ~[...]~ now *pushes
+a closure* and does not run it, exactly as a vector in value position
+does anywhere else (~MAKE_CLOSURE~).  To run top-level code, write the
+forms; to defer it, bracket it.  This is the REPL model — each input
+evaluated in the session — with no special top-level construct.
 
 Resolution of the entire input completes before any of it
 executes. Since resolution is sequential, ~5 $x x undefined-name~ must
@@ -1404,6 +1469,70 @@ The session's value stack and the session frame's locals are permanent
 GC roots that grow monotonically across inputs. The root-scan design
 must treat the session frame explicitly rather than as an ordinary
 frame.
+* Part X: Streams and I/O
+A ~Stream~ is a first-class value: an opaque I/O port over a byte
+source or sink.  It is a runtime value, not a compile-time concept, and
+carries an internal buffer so reads can peek and push back.
+
+Three standard streams are bound in the session environment at startup:
+#+begin_src text
+*stdin*    ; standard input
+*stdout*   ; standard output
+*stderr*   ; diagnostics and faults
+#+end_src
+
+They are process-global constants — pre-interned, never closed, needing
+no finalization.  The earmuff spelling is convention; the lexer reads
+~*stdin*~ as one name, distinct from the ~*~ primitive.
+** Reading
+#+begin_src text
+Read : rho Stream -> rho Value    IO | MAY_FAIL
+#+end_src
+
+~read~ consumes one datum from the stream using the same structural
+reader as the parser (see [[*Reader model: structural, not splicing]]).
+There is one reader and it produces data, so a binding form in the
+input is "nothing to denote" and is rejected exactly as under quote.  Reading is opportunistic: it consumes only as far as one
+complete datum, so ~1~ followed by a space pushes ~Int(1)~ and leaves
+the rest on the stream.
+
+~read~ always pushes exactly one value on the non-fault path, so its
+depth is ~Known(+1)~ and it is never depth-varying.  Its result *value
+type* is dynamic — ~eval_effect = Opaque~ — since it depends on the
+input.
+*** End of input
+EOF is not an error.  At a clean datum boundary with no more input,
+~read~ pushes the ~Eof~ object rather than faulting.  ~Eof~ is
+unforgeable: it is not part of the data grammar, so no input text can
+produce it and it never collides with a legitimately read datum.  Test
+for it with:
+#+begin_src text
+Eof? : rho Value -> rho Atom
+#+end_src
+
+The ~Eof~ object is true under the truth rule (only ~f~ is false), so a
+conditional must test it with ~eof?~ rather than relying on truthiness.
+
+A *truncated* datum at end of input — ~(a b~ then EOF — is a genuine
+parse fault, distinct from clean EOF; this is why ~read~ carries
+~MAY_FAIL~.  ~Eof~ covers only the clean-boundary case.
+** Writing
+#+begin_src text
+Write: rho Stream Value -> rho Stream    IO | MAY_FAIL
+#+end_src
+
+~write~ takes the stream first and the value second, renders the value
+to the stream, and pushes the stream back for chaining — mirroring
+~vset~'s return-the-container shape, so successive ~write~ s compose.
+~print~ is sugar for ~*stdout* swap write~; faults and diagnostics
+render to ~*stderr*~.  The former standalone ~Print~ primitive folds
+into ~write~.
+** Scope
+The three standard streams, ~write~, and ~print~ are first-pass.  ~read~
+reuses the parser over a byte cursor and lands with or after it.
+Creating streams over strings or files needs a string type and is
+deferred; when user streams arrive they bring a lifecycle — open,
+close, GC finalization — that the three constants do not need.
 * First-pass implementation milestones
 1. Source IDs, spans, diagnostics, and symbol interning.
 2. Tokenizer and HIR form parser.
@@ -1411,19 +1540,27 @@ frame.
    recognition.
 4. Primitive table and SIR instruction structures.
 5. HIR-to-SIR lowering, including branch-block lowering, with origins.
-6. SIR evaluator and runtime value/heap model.
+6. SIR evaluator and runtime value/heap model, including the ~Stream~
+   and ~Eof~ value kinds and ~read~/~write~/~print~/~eof?~ over the
+   three standard streams.
 7. Structural SIR verifier, including the initialization dataflow and
    partial depth checking.
 8. Conformance tests for arithmetic, rebinding, closures, boxing,
    conditionals, recursion, and higher-order calls.
 9. Differential harness against the reference interpreter.
 ** Differential testing
-The oracle is the C reference interpreter. It implements the same
-language as the compiler, consumes the same corpus, and can therefore
-be compared directly: run each conformance program through both and
-compare final stacks. This catches resolver and capture-plan bugs far
-more thoroughly than hand-written expectations, and those are the bugs
-most likely to be subtle rather than loud.
+The oracle is the C reference interpreter. It implements a language
+close to the compiler's, but the compiler deliberately diverges (see
+the known divergences below), so the two are no longer the same
+language. The corpus is split accordingly: ~examples/~ tracks the
+compiler's language and an old-syntax archive — as
+~examples/forsp-archive~ already holds pre-rForsp Forsp — tracks the
+interpreter's, each run against its own implementation. Programs that
+avoid the diverging features are valid in both and are compared
+directly: run each through both and compare final stacks. This catches
+resolver and capture-plan bugs far more thoroughly than hand-written
+expectations, and those are the bugs most likely to be subtle rather
+than loud.
 
 Divergences run in both directions, so a single expect-mismatch flag
 is insufficient. Annotate each conformance program:
@@ -1443,6 +1580,16 @@ Known divergences:
 - The compiler rejects unresolved names at compile time; the
   interpreter fails only when the path is taken. A program with a dead
   reference to an unbound name is a legitimate disagreement.
+- Quote is superseded: ~'~ wraps the next form and ~''x~ is a parse
+  error, where the interpreter treats ~'~ as a spliced ~quote~ token.
+  Every multi-quote program diverges by construction; none exists in
+  the corpus today.
+- Binding sugar is not data: ~$x~/~^x~ inside a list are typed nodes
+  with no datum denotation, where the interpreter's splicing reader
+  turns ~($x)~ into the data list ~(quote x pop)~. This is the change
+  that moves ~forsp.rfp~'s guest program off the parse path.
+- The host closure is removed: a bare top-level ~[...]~ runs in the
+  interpreter and pushes a closure in the compiler.
 
 The interpreter is not a second implementation to be maintained at
 parity. Its remaining job is to be a differential oracle until the
@@ -1480,6 +1627,18 @@ rewritten; its evaluator also handles the *guest's* ~if~, which is
 guest semantics encoded as data and must not be touched. Skipping
 ~'if~ covers it, but that file is the one place both meanings coexist
 and is worth checking by eye.
+
+Under the compiler ~forsp.rfp~ changes shape.  Its embedded guest
+program — the trailing ~( ... )~ block — relied on the interpreter's
+splicing reader to desugar guest ~$~/~^~/~'~ into ~quote~/~push~/~pop~
+data in place.  The compiler's reader does not splice and binding forms
+are not data, so that block does not parse.  Instead the guest program
+is fed on ~*stdin*~ and pulled a datum at a time with ~read~ (see
+[[*Part X: Streams and I/O]]).  Until a string type and a guest-owned
+Forsp reader exist, the piped program is explicit-atom data — already
+~quote~/~push~/~pop~ — not raw Forsp syntax; reading raw Forsp is the
+strings-era version.  The host program also loses its outer ~[ ... ]~
+wrapper (see [[*Part IX: REPL semantics]]).
 
 A true metacircular oracle would be an ~rforsp.rfp~ implementing
 rForsp in rForsp. That is the self-hosting goal, and it is work the
@@ -1563,9 +1722,38 @@ self receiver. Generic opaque calls use the fallback runtime ABI.
 - No local-slot reuse.
 - No open-row unification.
 - No reserved words.
+- No splicing reader: surface sugar becomes typed nodes, never spliced
+  into data.
+- No user-created streams: only ~*stdin*~/~*stdout*~/~*stderr*~ exist
+  until a string type lands.
 - No assumption that every bound executable value has a fixed
   monomorphic stack effect.
 * Revision notes
+Changes in the 2026-08-08 compiler revision:
+
+- Quote is superseded: ~'~ is a parser prefix wrapping exactly the next
+  form as a single ~Quote~ node, not the reference interpreter's stream
+  ~quote~ token.  Nested quote (~''x~) is a parse error; a quote
+  separated by a bracket (~'['x]~) stays legal.  This retires the
+  ~Quote(Quote(f))~ open item by making it unconstructible.
+- The reader is structural, not splicing.  Surface sugar ~'~/~^~/~$~
+  becomes typed HIR nodes uniformly; binding forms are code, never
+  data, and have no datum denotation, so they are rejected wherever a
+  datum is required — under quote and in ~read~.
+- I/O goes through explicit stream values.  ~read~ takes a ~Stream~ and
+  reads one datum through the shared reader rather than reading ahead in
+  the program source.  Added the ~Stream~ and ~Eof~ value kinds, the
+  three standard streams, ~write~ (stream-first, chaining like ~vset~,
+  subsuming ~Print~), ~print~ sugar, and ~eof?~.  EOF is the
+  unforgeable ~Eof~ object, not a fault; a truncated datum still faults.
+- The host closure is removed.  Top-level forms evaluate directly in
+  the session frame — the entry ~Body~ — and a bare top-level ~[...]~
+  pushes a closure rather than running.
+- The compiler deliberately diverges from the reference interpreter's
+  language.  The corpus is split rather than kept at parity: ~examples/~
+  tracks the compiler's language, an old-syntax archive tracks the
+  interpreter's, each compared against its own implementation.
+
 Changes from the previous draft:
 
 - Split into HIR and SIR parts, with resolution as an explicit stage
@@ -1659,5 +1847,3 @@ Open items:
   carrying further rows.
 - ~effect(x)~ for vector bodies, and whether ~if~-result sum types are
   structural or nominal, remain open from the type-system work.
-- Confirm the ~Quote~ denotation table against the existing reader,
-  particularly ~Quote(Quote(f))~.

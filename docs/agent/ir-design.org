@@ -460,8 +460,12 @@ place:
 Resolution = Bound(BindingId)                 ; for Bind
            | Ref(Target)                      ; for LoadRef / CallRef
            | MakesClosure(CaptureLayout)      ; for Vector in value position
+           | MakesRecursiveClosure(CaptureLayout)
+                                              ; for Vector recognized as a rec operand
            | BranchArm(ArmRole)               ; for Vector recognized as an arm
            | Conditional                      ; for CallRef(if) recognized
+           | Recursive                        ; for CallRef(rec) recognized
+           | Poison                           ; resolution failed here; walk continued
 
 Target = Local(BindingId)
        | Captured(CaptureId)
@@ -471,6 +475,19 @@ ArmRole = Then | Else
 
 ResolutionMap = Map<SyntaxId, Resolution>
 #+end_src
+
+A recognition records one entry per form it consumes.  The conditional
+records ~BranchArm(ArmRole)~ for each arm and ~Conditional~ for the
+operator; ~rec~ records ~MakesRecursiveClosure~ for the operand and
+~Recursive~ for the operator.  The operator entry is what tells
+lowering the form has already been accounted for.  Leaving it absent
+instead would overload absence, which already means "nothing to
+resolve" — ~Int~, ~Quote~, and ~List~ have no entry at all — so a
+dropped entry would be indistinguishable from a deliberate one.
+
+~Poison~ is recorded for a form whose resolution failed, so the walk
+can continue and report more than one error per input. Lowering must
+never see one.
 
 A side table is required, not merely tidy. REPL atomicity says the
 whole input resolves before any of it executes, and everything is
@@ -742,10 +759,13 @@ forms[i]   is Vector
 forms[i+1] is CallRef(sym), and sym resolves to Primitive(Rec)
 #+end_src
 
-On a match, resolution emits ~MAKE_RECURSIVE_CLOSURE(body, plan)~ and
-advances past both forms. ~$rec~ shadows normally; after shadowing the
-second clause fails and ~rec~ is an ordinary call. Identity narrows,
-resolution decides, exactly as for ~if~.
+On a match, resolution records ~MakesRecursiveClosure(layout)~ for
+~forms[i]~ and ~Recursive~ for ~forms[i+1]~, and advances past both
+forms. Lowering emits ~MAKE_RECURSIVE_CLOSURE(body, plan)~ from the
+first of those; the second lowers to nothing.  ~$rec~ shadows
+normally; after shadowing the second clause fails and ~rec~ is an
+ordinary call. Identity narrows, resolution decides, exactly as for
+~if~.
 
 Two differences from conditional recognition are worth stating.
 
@@ -838,7 +858,8 @@ Quote(f)                        -> PUSH_DATA(d)
 List(..)                        -> PUSH_DATA(d)
 
 Vector(..) with MakesClosure    -> MAKE_CLOSURE(body, plan)
-                                   (or MAKE_RECURSIVE_CLOSURE)
+Vector(..) with MakesRecursiveClosure
+                                -> MAKE_RECURSIVE_CLOSURE(body, plan)
 Vector(..) with BranchArm       -> a block in the enclosing body
 
 Bind(x)                         -> POP_LOCAL(l)
@@ -851,12 +872,28 @@ CallRef with Ref(Local)         -> CALL_LOCAL(l)
 CallRef with Ref(Captured)      -> CALL_CAPTURED(c)
 CallRef with Ref(Primitive)     -> CALL_PRIMITIVE(p)
 CallRef with Conditional        -> BRANCH(b_then, b_else)
+CallRef with Recursive          -> nothing; the instruction was
+                                   emitted at the operand
+
+any form with Poison            -> unreachable; the phase gate
+                                   guarantees lowering never sees one
 #+end_src
 
-A ~CallRef~ in tail position lowers to the corresponding ~TAIL_CALL_*~
-terminator instead of a call instruction. Tail position means the last
-form of a body, or the last form of a branch arm whose join is itself
-in tail position.
+A ~CallRef~ resolved as ~Ref(..)~ in tail position lowers to the
+corresponding ~TAIL_CALL_*~ terminator instead of a call instruction.
+Tail position means the last form of a body, or the last form of a
+branch arm whose join is itself in tail position.
+
+A *recognized* ~CallRef~ — one resolved as ~Conditional~ or
+~Recursive~ — is not a call site and is unaffected by that rule.  A
+recognized ~if~ in tail position lowers to ~BRANCH~, whose arms carry
+the tail position inward; a recognized ~rec~ in tail position lowers
+to nothing, leaving the ~MAKE_RECURSIVE_CLOSURE~ from its operand as
+the body's last instruction.  Neither may become a ~TAIL_CALL_*~.
+
+Lowering that encounters ~Recursive~ without having just emitted
+~MAKE_RECURSIVE_CLOSURE~ is a compiler bug and panics, consistent with
+lowering being total.
 ** Branch lowering
 Branch arms are blocks of the enclosing body. They execute in the
 enclosing frame, so an enclosing local stays a local inside an arm:
@@ -1082,10 +1119,46 @@ Every use of an effect *scheme* must be freshly instantiated before
 unification. The rule above is stated on already-instantiated effects;
 sharing row variables across uses of one scheme is unsound.
 
-Because ~vswap~ is gone, no operation permutes an unbounded stack
-prefix.  Every primitive touches a statically known depth, and row
-variables appear only as an untouched suffix. This is what keeps
-open-row unification tractable.
+Every row in the system is a finite ~Extend~ chain over either ~Empty~
+or a single ~RowVar~.  No row is formed by concatenating two unknown
+rows.  This *row-finiteness* invariant is what keeps unification
+tractable: the structural peel proceeds from the top through known
+elements and terminates at a row variable, so its terminal case is
+always an ordinary binding of that variable to a finite chain over
+another, and no row concatenation operator is required.
+
+Row-finiteness is preserved by composition, which is the property that
+matters, since composition is the operation the language is built on:
+#+begin_src text
+;; equal lengths
+dup : rho1 A       -> rho1 A A
++   : rho2 Int Int -> rho2 Int
+peel A ~ Int, A ~ Int, then rho1 ~ rho2
+  => rho1 Int -> rho1 Int
+
+;; unequal lengths
+1 : rho           -> rho Int
++ : sigma Int Int -> sigma Int
+peel Int ~ Int, then rho ~ sigma Int, so rho := sigma Int
+  => sigma Int -> sigma Int
+#+end_src
+
+In the unequal case the leftover prefix binds into the left scheme's
+variable and the composite's input row grows, which is the correct
+account of partial application against the stack.  Either way the
+result is a finite chain over one variable.
+
+Row-finiteness is an admissibility condition on *primitive
+signatures*.  A primitive relating ~rho~ to a permutation, a reversal,
+or a length of ~rho~ — ~vswap~, ~depth~, ~clear~ — is not admissible,
+and every proposed primitive must be checked against it.
+
+It is *not* a property the language enforces on bodies.  General
+recursion regenerates unbounded stack manipulation directly: ~drop-n~
+consumes a runtime-determined number of values from beneath its
+argument, and ~cleave~ grows the stack by the runtime length of a
+vector, neither of which has a row-finite effect.  What the effect
+pass produces for such a body is an open item.
 ** cswap
 #+begin_src text
 input: rho A B Value
@@ -1554,6 +1627,19 @@ Changes from the previous draft:
 - Recorded that lowering emits no diagnostics, that verification
   reports ~Bug~ and ~Error~ from the same pass, and that evaluation is
   singular and terminal rather than accumulating.
+- Replaced Part VI's tractability justification. The invariant is
+  row-finiteness — every row is a finite ~Extend~ chain over ~Empty~
+  or a single ~RowVar~ — not the absence of ~vswap~, which is one
+  inadmissible signature among several. Added the composition
+  argument, and recorded that the invariant binds the primitive
+  registry but not bodies.
+- Added ~MakesRecursiveClosure~, ~Recursive~, and ~Poison~ to
+  ~Resolution~. Resolution records rather than emits; the operator
+  form of a recognition gets its own entry so that absence of an
+  entry keeps its existing meaning.
+- Restricted the tail-position rule to ~CallRef~ resolved as
+  ~Ref(..)~. A recognized ~if~ or ~rec~ in tail position is not a
+  call site and must not become a ~TAIL_CALL_*~.
 
 Carried forward from the prior revision: block-based branch lowering,
 removal of ~EntryId~, contiguous locals stack, ~Nil~-fill on frame
@@ -1564,6 +1650,13 @@ Open items:
 
 - Decide whether the ~f~-atom truth test becomes a named runtime
   predicate.
+- What the effect pass produces for a body whose effect has no
+  row-finite solution, ~drop-n~ and ~cleave~ being the witnesses.
+  ~EvalEffect::Opaque~ exists but nothing licenses inference to
+  produce it as a giving-up move.
+- Termination of the occurs check across the row/effect boundary,
+  where a ~ValueType~ carries a ~Closure~ carrying an ~EffectScheme~
+  carrying further rows.
 - ~effect(x)~ for vector bodies, and whether ~if~-result sum types are
   structural or nominal, remain open from the type-system work.
 - Confirm the ~Quote~ denotation table against the existing reader,

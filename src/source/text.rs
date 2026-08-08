@@ -578,6 +578,53 @@ mod tests {
     }
 
     #[test]
+    fn span_lines() {
+        let text = SAMPLE_TEXT.to_string();
+        let source = Source::from_contents("", text).expect("Should not fail");
+
+        // A single line, whether whole or partial.
+        assert_eq!(source.span_lines(Span::new(0, SAMPLE_NEWLINES[0])), (1, 1));
+        assert_eq!(
+            source.span_lines(Span::new(
+                SAMPLE_NEWLINES[0] + 1,
+                SAMPLE_NEWLINES[1]
+            )),
+            (2, 2)
+        );
+        assert_eq!(source.span_lines(Span::new(2, 5)), (1, 1));
+
+        // An empty span lies in the single line containing its byte.
+        assert_eq!(source.span_lines(Span::new(2, 2)), (1, 1));
+        assert_eq!(source.span_lines(Span::new(14, 14)), (2, 2));
+
+        // A span ending at a line start includes that line's newline, not the
+        // next line's content, so it stays on the predecessor line.
+        assert_eq!(
+            source.span_lines(Span::new(0, SAMPLE_NEWLINES[0] + 1)),
+            (1, 1)
+        );
+
+        // Multi-line spans report the inclusive line range they touch.
+        assert_eq!(source.span_lines(Span::new(0, 20)), (1, 2));
+        assert_eq!(
+            source.span_lines(Span::new(14, SAMPLE_NEWLINES[2])),
+            (2, 3)
+        );
+
+        // A span running to the end of a newline-terminated source stops at
+        // the last line of text, never the phantom final line.
+        assert_eq!(source.span_lines(Span::new(0, source.len())), (1, 3));
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid")]
+    fn span_lines_invalid_span() {
+        let source = Source::from_contents("", SAMPLE_TEXT.into())
+            .expect("Should not fail");
+        let _ = source.span_lines(Span::new(0, source.len() + 1));
+    }
+
+    #[test]
     #[should_panic(expected = "1-indexed")]
     fn line_text_zero_line() {
         let source = Source::from_contents("", sample_no_trailing_newline())

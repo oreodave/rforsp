@@ -52,4 +52,17 @@ impl<'a, W: Write> Renderer<'a, W> {
         Ok(())
     }
 
+    /// Render the given `class`.
+    fn render_class(&mut self, class: Class) -> fmt::Result {
+        write!(
+            self.out,
+            "{}[{}]: ",
+            match class.severity() {
+                Severity::Note => "note",
+                Severity::Warning => "warning",
+                Severity::Error => "error",
+            },
+            class.as_code()
+        )
+    }
 }

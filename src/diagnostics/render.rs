@@ -182,3 +182,158 @@ impl<'a, W: Write> Renderer<'a, W> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source::{SourceId, Span};
+
+    fn add(t: &mut SourceTable, name: &str, text: &str) -> SourceId {
+        t.add_source_raw(name, text.into()).unwrap()
+    }
+
+    fn diag(t: &SourceTable, site: Site, msg: &str) -> String {
+        let mut s = String::new();
+        Renderer::new(t, &mut s)
+            .render(&Diagnostic::new(Class::SourceTooLarge, site, msg))
+            .unwrap();
+        s
+    }
+
+    fn diags(t: &SourceTable, d: &Diagnostics) -> String {
+        let mut s = String::new();
+        Renderer::new(t, &mut s).render_all(d).unwrap();
+        s
+    }
+
+    #[test]
+    fn site_geometry() {
+        let mut t = SourceTable::new();
+        let a = add(&mut t, "a", "hello\nworld!\n");
+        let b = add(&mut t, "b", "Foo\nbar\n");
+        let em = add(&mut t, "em", "ab\u{1f34e}cd\n");
+        let eof = add(&mut t, "eof", "abc\ndef");
+        let syn = t.add_origin(a, Span::new(0, 5));
+
+        // Site::None - no location prefix.
+        let s = diag(&t, Site::None, "m");
+        assert!(s.contains("error[TOO_LARGE]: m"));
+
+        // Site::Source - name only, no position.
+        let s = diag(&t, Site::Source(b), "m");
+        assert!(s.contains("b: error[TOO_LARGE]: m"));
+
+        // Site::Raw and Site::Syntax for the same span render identically, and
+        // both carry the [CODE] token, error label and a single-line caret.
+        let raw = diag(
+            &t,
+            Site::Raw(SyntaxOrigin {
+                source: a,
+                span: Span::new(0, 5),
+            }),
+            "m",
+        );
+        let syntax = diag(&t, Site::Syntax(syn), "m");
+        assert_eq!(raw, syntax);
+        for s in [&raw, &syntax] {
+            assert!(s.contains("a:1:1: error[TOO_LARGE]: m"));
+            assert!(s.contains("1 | hello"));
+            assert!(s.contains("| ^^^^^"));
+        }
+
+        // Empty span: a single caret at the position.
+        let s = diag(
+            &t,
+            Site::Raw(SyntaxOrigin {
+                source: a,
+                span: Span::new(2, 2),
+            }),
+            "m",
+        );
+        assert!(s.contains("a:1:3: "));
+        assert!(s.contains("|   ^"));
+
+        // Multi-byte codepoint before the span: carets align by character.
+        let s = diag(
+            &t,
+            Site::Raw(SyntaxOrigin {
+                source: em,
+                span: Span::new(6, 8),
+            }),
+            "m",
+        );
+        assert!(s.contains("1 | ab\u{1f34e}cd"));
+        assert!(s.contains("|    ^^"));
+
+        // EOF-touching span.
+        let s = diag(
+            &t,
+            Site::Raw(SyntaxOrigin {
+                source: eof,
+                span: Span::new(4, 7),
+            }),
+            "m",
+        );
+        assert!(s.contains("2 | def"));
+        assert!(s.contains("| ^^^"));
+    }
+
+    #[test]
+    fn multiline() {
+        let mut t = SourceTable::new();
+        let ml = add(&mut t, "ml", "l1\nl2\nl3\nl4\n");
+
+        // Non-adjacent start/end: both lines shown with an elision line.
+        let s = diag(
+            &t,
+            Site::Raw(SyntaxOrigin {
+                source: ml,
+                span: Span::new(0, 12),
+            }),
+            "m",
+        );
+        assert!(s.contains("1 | l1"));
+        assert!(s.contains("4 | l4"));
+        assert_eq!(s.matches("...").count(), 1);
+
+        // Adjacent start/end: both lines shown, no elision.
+        let s = diag(
+            &t,
+            Site::Raw(SyntaxOrigin {
+                source: ml,
+                span: Span::new(0, 6),
+            }),
+            "m",
+        );
+        assert!(s.contains("1 | l1"));
+        assert!(s.contains("2 | l2"));
+        assert_eq!(s.matches("...").count(), 0);
+    }
+
+    #[test]
+    fn render_all() {
+        let t = SourceTable::new();
+
+        // With a cap, overflow diagnostics are suppressed and summarised.
+        let mut acc = Diagnostics::with_cap(1);
+        acc.push(Diagnostic::new(Class::SourceTooLarge, Site::None, "a"));
+        acc.push(Diagnostic::new(Class::SourceTooLarge, Site::None, "b"));
+        acc.push(Diagnostic::new(Class::SourceTooLarge, Site::None, "c"));
+        assert_eq!(acc.items().len(), 1);
+        assert_eq!(acc.suppressed(), 2);
+        let s = diags(&t, &acc);
+        assert!(s.contains("error[TOO_LARGE]: a"));
+        assert!(!s.contains("error[TOO_LARGE]: c"));
+        assert!(s.contains("2 diagnostics suppressed"));
+
+        // With no suppression, items are separated and no summary appears.
+        let mut acc = Diagnostics::new();
+        acc.push(Diagnostic::new(Class::SourceTooLarge, Site::None, "a"));
+        acc.push(Diagnostic::new(Class::SourceTooLarge, Site::None, "b"));
+        let s = diags(&t, &acc);
+
+        assert!(s.contains("error[TOO_LARGE]: a"));
+        assert!(s.contains("error[TOO_LARGE]: b"));
+        assert!(!s.contains("suppressed"));
+    }
+}

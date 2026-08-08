@@ -159,10 +159,7 @@ impl<'a, W: Write> Renderer<'a, W> {
     /// # Errors
     /// - Repeated back from `write!`/`writeln!` calls.
     pub fn render_all(&mut self, diags: &Diagnostics) -> fmt::Result {
-        for (i, diag) in diags.items().iter().enumerate() {
-            if i > 0 {
-                writeln!(self.out)?;
-            }
+        for diag in diags.items() {
             self.render(diag)?;
         }
 
@@ -170,13 +167,16 @@ impl<'a, W: Write> Renderer<'a, W> {
             if !diags.items().is_empty() {
                 writeln!(self.out)?;
             }
-            write!(self.out, "{} ", diags.suppressed())?;
-            if diags.suppressed() == 1 {
-                write!(self.out, "diagnostic")?;
-            } else {
-                write!(self.out, "diagnostics")?;
-            }
-            writeln!(self.out, " suppressed")?;
+            writeln!(
+                self.out,
+                "{} {} suppressed",
+                diags.suppressed(),
+                if diags.suppressed() == 1 {
+                    "diagnostic"
+                } else {
+                    "diagnostics"
+                }
+            )?;
         }
 
         Ok(())

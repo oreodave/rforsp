@@ -241,6 +241,29 @@ impl Source {
         let line = self.line_index(offset);
         self.line_text(line + 1)
     }
+
+    /// Convert a [Span] into a tuple of two line indices (l1, l2) - these are
+    /// 1-indexed.
+    ///
+    /// l1 and l2 do NOT match the inclusive-exclusive nature of [Span]; l2 is
+    /// the line of `span.end - 1` so [l1, l2] represent all the lines the given
+    /// [Span] covers.
+    ///
+    /// If the span is "empty" i.e. `span.start == span.end`, the same line is
+    /// returned twice.
+    ///
+    /// # Panics
+    /// - if the given span is "invalid" (see [`Source::valid_span`])
+    #[must_use]
+    pub fn span_lines(&self, span: Span) -> (usize, usize) {
+        assert!(self.valid_span(span), "{span:?} is invalid for this source");
+        let start_line = self.line_index(span.start) + 1;
+        if span.start == span.end {
+            (start_line, start_line)
+        } else {
+            (start_line, self.line_index(span.end - 1) + 1)
+        }
+    }
 }
 
 #[cfg(test)]

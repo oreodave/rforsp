@@ -20,6 +20,17 @@ pub struct Renderer<'a, W: Write> {
     out: &'a mut W,
 }
 
+/// Different types of snippet lines to render.
+#[derive(Copy, Clone)]
+enum LineRole {
+    /// This is the only line in the snippet.
+    Only,
+    /// This is the first line in the snippet.
+    First,
+    /// This is the last line in the snippet.
+    Last,
+}
+
 /// Convert a given [`Site`] to a possible [`SyntaxOrigin`].
 fn site_to_origin(table: &SourceTable, site: Site) -> Option<SyntaxOrigin> {
     match site {
@@ -64,5 +75,70 @@ impl<'a, W: Write> Renderer<'a, W> {
             },
             class.as_code()
         )
+    }
+
+    /// Render the source snippet for a diagnostic: the lines of source the span
+    /// lies in, with carets marking the span.
+    ///
+    /// Only [`Site::Raw`] / [`Site::Syntax`] sites produce a snippet;
+    /// [`Site::None`] and source-wide [`Site::Source`] render nothing.
+    ///
+    /// A span crossing adjacent lines renders them separately, but a span
+    /// crossing several lines renders its start and end lines joined by an
+    /// elision line.
+    fn render_snippet(&mut self, site: Site) -> fmt::Result {
+        let Some(origin) = site_to_origin(self.table, site) else {
+            return Ok(());
+        };
+
+        let (start_line, end_line) = self.table.lines_of(&origin);
+        let location = self.table.location_of(&origin);
+        let gutter_width = end_line.to_string().len();
+        let padding = " ".repeat(gutter_width);
+
+        let lines = if start_line == end_line {
+            vec![(start_line, LineRole::Only)]
+        } else {
+            vec![(start_line, LineRole::First), (end_line, LineRole::Last)]
+        };
+
+        writeln!(self.out, "{padding} |")?;
+        for (i, &(line, role)) in lines.iter().enumerate() {
+            let text = self.table.line_text(origin.source, line);
+
+            // Write the text
+            writeln!(self.out, "{line:>gutter_width$} | {text}")?;
+
+            // We now need to compute what to highlight - we derive this from
+            // the LineRole.
+            let line_end = text.chars().count() + 1;
+            let end_col = if location.end.line == line {
+                location.end.col
+            } else {
+                line_end
+            };
+
+            let (from, to) = match role {
+                LineRole::Only => (location.start.col, end_col),
+                LineRole::First => (location.start.col, line_end),
+                LineRole::Last => (1, end_col),
+            };
+            let col = from - 1;
+            let width = to.saturating_sub(from).max(1);
+            let spaces = " ".repeat(col);
+            let carets = "^".repeat(width);
+
+            // Write the carets highlighting the text
+            writeln!(self.out, "{padding} | {spaces}{carets}")?;
+
+            // Write a continuation line ("...") if and only if the start and
+            // end lines are not adjacent.
+            if i == 0 && start_line + 1 < end_line {
+                writeln!(self.out, "{padding} | ...")?;
+            }
+        }
+
+        writeln!(self.out, "{padding} |")?;
+        Ok(())
     }
 }

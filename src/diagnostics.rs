@@ -18,6 +18,6 @@ mod accumulator;
 pub use accumulator::{DEFAULT_DIAGNOSTIC_CAP, Diagnostics};
 
 mod render;
-pub use render::Renderer;
+pub use render::render_diagnostics;
 
 pub mod conv;

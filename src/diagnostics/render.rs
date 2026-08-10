@@ -9,6 +9,40 @@ use crate::{
     source::{SourceTable, SyntaxOrigin},
 };
 
+/// Render a collection of [`Diagnostics`] related to a [`SourceTable`] into
+/// `out`.
+///
+/// # Errors
+/// - Repeated back from `write!`/`writeln!` calls.
+pub fn render_diagnostics(
+    diags: &Diagnostics,
+    table: &SourceTable,
+    out: &mut impl fmt::Write,
+) -> fmt::Result {
+    let mut renderer = Renderer::new(table, out);
+    for diag in diags.items() {
+        renderer.render(diag)?;
+    }
+
+    if diags.suppressed() > 0 {
+        if !diags.items().is_empty() {
+            writeln!(out)?;
+        }
+        writeln!(
+            out,
+            "{} {} suppressed",
+            diags.suppressed(),
+            if diags.suppressed() == 1 {
+                "diagnostic"
+            } else {
+                "diagnostics"
+            }
+        )?;
+    }
+
+    Ok(())
+}
+
 /// Renderer state - used to make rendering process easier.
 ///
 /// Holds both the [`SourceTable`] diagnostics refer to and the [`Write`]
@@ -43,7 +77,7 @@ fn site_to_origin(table: &SourceTable, site: Site) -> Option<SyntaxOrigin> {
 impl<'a, W: Write> Renderer<'a, W> {
     /// Construct a new Render state using the given [`SourceTable`] as backing,
     /// rendering into the given [`Write`] target.
-    pub const fn new(table: &'a SourceTable, out: &'a mut W) -> Self {
+    const fn new(table: &'a SourceTable, out: &'a mut W) -> Self {
         Self { table, out }
     }
 
@@ -146,40 +180,11 @@ impl<'a, W: Write> Renderer<'a, W> {
     ///
     /// # Errors
     /// - Repeated back from `write!`/`writeln!` calls.
-    pub fn render(&mut self, diag: &Diagnostic) -> fmt::Result {
+    fn render(&mut self, diag: &Diagnostic) -> fmt::Result {
         self.render_site(diag.site)?;
         self.render_class(diag.class)?;
         writeln!(self.out, "{}", diag.message)?;
         self.render_snippet(diag.site)
-    }
-
-    /// Render a collection of [`Diagnostics`] into the renderer's [`Write`]
-    /// target.
-    ///
-    /// # Errors
-    /// - Repeated back from `write!`/`writeln!` calls.
-    pub fn render_all(&mut self, diags: &Diagnostics) -> fmt::Result {
-        for diag in diags.items() {
-            self.render(diag)?;
-        }
-
-        if diags.suppressed() > 0 {
-            if !diags.items().is_empty() {
-                writeln!(self.out)?;
-            }
-            writeln!(
-                self.out,
-                "{} {} suppressed",
-                diags.suppressed(),
-                if diags.suppressed() == 1 {
-                    "diagnostic"
-                } else {
-                    "diagnostics"
-                }
-            )?;
-        }
-
-        Ok(())
     }
 }
 
@@ -202,7 +207,7 @@ mod tests {
 
     fn diags(t: &SourceTable, d: &Diagnostics) -> String {
         let mut s = String::new();
-        Renderer::new(t, &mut s).render_all(d).unwrap();
+        render_diagnostics(d, t, &mut s).unwrap();
         s
     }
 

@@ -19,15 +19,14 @@ pub enum Class {
     /// File could not be read due to IO error.  Mirrors
     /// [`Io`][crate::source::SourceTableError::Io].
     SourceReadError,
-    // TODO: Lex errors
     /// Encountered an unknown character during lexing.  Mirrors
-    /// [`UnknownCharacter`][crate::lex::LexError::UnknownCharacter]
+    /// [`UnknownCharacter`][crate::lexer::LexErrorKind::UnknownCharacter]
     LexUnknownCharacter,
     /// Use of BIND operator ($) was invalid.  Mirrors
-    /// [`BindInvalid`][crate::lex::LexError::BindInvalid]
+    /// [`BindInvalid`][crate::lexer::LexErrorKind::BindInvalid]
     LexBindInvalid,
     /// Use of LOAD operator (^) was invalid.  Mirrors
-    /// [`LoadInvalid`][crate::lex::LexError::LoadInvalid]
+    /// [`LoadInvalid`][crate::lexer::LexErrorKind::LoadInvalid]
     LexLoadInvalid,
 }
 

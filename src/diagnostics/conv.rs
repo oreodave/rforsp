@@ -43,9 +43,13 @@ impl From<LexError> for Diagnostic {
             LexErrorKind::LoadInvalid => Class::LexLoadInvalid,
         };
         let message = match e.kind {
-            LexErrorKind::UnknownCharacter => "",
-            LexErrorKind::BindInvalid => "Expected Symbol after Bind ($)",
-            LexErrorKind::LoadInvalid => "Expected Symbol after Load ($)",
+            LexErrorKind::UnknownCharacter => "Unrecognised character",
+            LexErrorKind::BindInvalid => {
+                "Expected Symbol immediately after Bind ($)"
+            }
+            LexErrorKind::LoadInvalid => {
+                "Expected Symbol immediately after Load (^)"
+            }
         };
 
         Self::new(class, site, message)

@@ -4,3 +4,5 @@
 pub mod diagnostics;
 pub mod interner;
 pub mod source;
+
+pub mod lexer;

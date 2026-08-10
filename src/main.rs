@@ -31,18 +31,19 @@ fn report_errors(table: &SourceTable, diagnostics: &Diagnostics) -> bool {
 }
 
 fn main() -> ExitCode {
-    if std::env::args().len() == 1 {
+    let args = std::env::args().skip(1).collect::<Vec<_>>();
+    if args.is_empty() {
         usage(std::io::stderr());
         return ExitCode::FAILURE;
     }
 
     let mut diagnostics = Diagnostics::new();
     let mut table = SourceTable::new();
-    let sources = std::env::args()
-        .skip(1)
-        .map_while(|filename| {
+    let sources = args
+        .iter()
+        .filter_map(|filename| {
             table
-                .add_source_file(&filename)
+                .add_source_file(filename)
                 .map_err(|e| {
                     diagnostics.push(e.into());
                 })

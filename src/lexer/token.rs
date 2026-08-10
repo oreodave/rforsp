@@ -3,15 +3,8 @@
 use crate::source::Span;
 
 /// Kinds of Tokens
-pub enum Kind {
-    /// Numeric token
-    Number,
-    /// Any generic symbol
-    Symbol,
-    /// $<Symbol>
-    Bind,
-    /// ^<Symbol>
-    Load,
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum TokenKind {
     /// [
     VecStart,
     /// ]
@@ -20,12 +13,23 @@ pub enum Kind {
     ListStart,
     /// )
     ListEnd,
+    /// '
+    Quote,
+    /// Numeric token
+    Number,
+    /// Any generic symbol
+    Symbol,
+    /// `$<Symbol>`
+    Bind,
+    /// `^<Symbol>`
+    Load,
 }
 
 /// Token type
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct Token {
     /// Kind of token
-    kind: Kind,
+    pub kind: TokenKind,
     /// Span within source of Token.
-    span: Span,
+    pub span: Span,
 }

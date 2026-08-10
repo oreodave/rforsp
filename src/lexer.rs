@@ -1,3 +1,9 @@
 //! First stage lexer
 
-pub mod token;
+mod token;
+pub use token::{Token, TokenKind};
+
+mod error;
+pub use error::{LexError, LexErrorKind};
+
+mod tokeniser;

@@ -47,7 +47,7 @@ pub fn render_diagnostics(
 ///
 /// Holds both the [`SourceTable`] diagnostics refer to and the [`Write`]
 /// target they are rendered into.
-pub struct Renderer<'a, W: Write> {
+struct Renderer<'a, W: Write> {
     /// [`SourceTable`] that [`Diagnostics`] refer to.
     table: &'a SourceTable,
     /// Destination that diagnostics are rendered into.
@@ -79,6 +79,17 @@ impl<'a, W: Write> Renderer<'a, W> {
     /// rendering into the given [`Write`] target.
     const fn new(table: &'a SourceTable, out: &'a mut W) -> Self {
         Self { table, out }
+    }
+
+    /// Render a singular [`Diagnostic`] into the renderer's [`Write`] target.
+    ///
+    /// # Errors
+    /// - Repeated back from `write!`/`writeln!` calls.
+    fn render(&mut self, diag: &Diagnostic) -> fmt::Result {
+        self.render_site(diag.site)?;
+        self.render_class(diag.class)?;
+        writeln!(self.out, "{}", diag.message)?;
+        self.render_snippet(diag.site)
     }
 
     /// Render the location represented by [`Site`].
@@ -174,17 +185,6 @@ impl<'a, W: Write> Renderer<'a, W> {
 
         writeln!(self.out, "{padding} |")?;
         Ok(())
-    }
-
-    /// Render a singular [`Diagnostic`] into the renderer's [`Write`] target.
-    ///
-    /// # Errors
-    /// - Repeated back from `write!`/`writeln!` calls.
-    fn render(&mut self, diag: &Diagnostic) -> fmt::Result {
-        self.render_site(diag.site)?;
-        self.render_class(diag.class)?;
-        writeln!(self.out, "{}", diag.message)?;
-        self.render_snippet(diag.site)
     }
 }
 

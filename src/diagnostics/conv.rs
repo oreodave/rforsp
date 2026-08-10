@@ -5,6 +5,7 @@
 
 use crate::{
     diagnostics::{Class, Diagnostic, Site},
+    lexer::{LexError, LexErrorKind},
     source::{SourceError, SourceTableError},
 };
 
@@ -30,6 +31,24 @@ impl From<SourceTableError> for Diagnostic {
                 format!("{name}: {err}"),
             ),
         }
+    }
+}
+
+impl From<LexError> for Diagnostic {
+    fn from(e: LexError) -> Self {
+        let site = Site::Raw(e.origin);
+        let class = match e.kind {
+            LexErrorKind::UnknownCharacter => Class::LexUnknownCharacter,
+            LexErrorKind::BindInvalid => Class::LexBindInvalid,
+            LexErrorKind::LoadInvalid => Class::LexLoadInvalid,
+        };
+        let message = match e.kind {
+            LexErrorKind::UnknownCharacter => "",
+            LexErrorKind::BindInvalid => "Expected Symbol after Bind ($)",
+            LexErrorKind::LoadInvalid => "Expected Symbol after Load ($)",
+        };
+
+        Self::new(class, site, message)
     }
 }
 

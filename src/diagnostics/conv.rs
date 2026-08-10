@@ -72,7 +72,6 @@ mod tests {
         let err = io::Error::from(io::ErrorKind::NotFound);
         let diag = Diagnostic::from(SourceTableError::Io { name, err });
         assert_eq!(diag.class, Class::SourceReadError);
-        println!("{}", diag.message);
         assert!(diag.message.contains("hello"));
     }
 }

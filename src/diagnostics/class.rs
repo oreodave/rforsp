@@ -19,6 +19,16 @@ pub enum Class {
     /// File could not be read due to IO error.  Mirrors
     /// [`Io`][crate::source::SourceTableError::Io].
     SourceReadError,
+    // TODO: Lex errors
+    /// Encountered an unknown character during lexing.  Mirrors
+    /// [`UnknownCharacter`][crate::lex::LexError::UnknownCharacter]
+    LexUnknownCharacter,
+    /// Use of BIND operator ($) was invalid.  Mirrors
+    /// [`BindInvalid`][crate::lex::LexError::BindInvalid]
+    LexBindInvalid,
+    /// Use of LOAD operator (^) was invalid.  Mirrors
+    /// [`LoadInvalid`][crate::lex::LexError::LoadInvalid]
+    LexLoadInvalid,
 }
 
 /// How serious a diagnostic is.
@@ -42,6 +52,9 @@ impl Class {
     pub const fn phase(&self) -> Phase {
         match self {
             Self::SourceTooLarge | Self::SourceReadError => Phase::Source,
+            Self::LexUnknownCharacter
+            | Self::LexBindInvalid
+            | Self::LexLoadInvalid => Phase::Lex,
         }
     }
 
@@ -49,7 +62,11 @@ impl Class {
     #[must_use]
     pub const fn severity(&self) -> Severity {
         match self {
-            Self::SourceTooLarge | Self::SourceReadError => Severity::Error,
+            Self::SourceTooLarge
+            | Self::SourceReadError
+            | Self::LexUnknownCharacter
+            | Self::LexBindInvalid
+            | Self::LexLoadInvalid => Severity::Error,
         }
     }
 
@@ -59,6 +76,9 @@ impl Class {
         match self {
             Self::SourceTooLarge => "TOO_LARGE",
             Self::SourceReadError => "I/O_ERROR",
+            Self::LexUnknownCharacter => "UNKNOWN_CHARACTER",
+            Self::LexBindInvalid => "BIND_INVALID",
+            Self::LexLoadInvalid => "LOAD_INVALID",
         }
     }
 }

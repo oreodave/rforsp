@@ -112,12 +112,13 @@ impl<'a, W: Write> Renderer<'a, W> {
     fn render_class(&mut self, class: Class) -> fmt::Result {
         write!(
             self.out,
-            "{}[{}]: ",
+            "{}[{}::{}]: ",
             match class.severity() {
                 Severity::Note => "note",
                 Severity::Warning => "warning",
                 Severity::Error => "error",
             },
+            class.phase().as_str(),
             class.as_code()
         )
     }

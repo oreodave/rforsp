@@ -223,11 +223,11 @@ mod tests {
 
         // Site::None - no location prefix.
         let s = diag(&t, Site::None, "m");
-        assert!(s.contains("error[TOO_LARGE]: m"));
+        assert!(s.contains("error[source::TOO_LARGE]: m"));
 
         // Site::Source - name only, no position.
         let s = diag(&t, Site::Source(b), "m");
-        assert!(s.contains("b: error[TOO_LARGE]: m"));
+        assert!(s.contains("b: error[source::TOO_LARGE]: m"));
 
         // Site::Raw and Site::Syntax for the same span render identically, and
         // both carry the [CODE] token, error label and a single-line caret.
@@ -242,7 +242,7 @@ mod tests {
         let syntax = diag(&t, Site::Syntax(syn), "m");
         assert_eq!(raw, syntax);
         for s in [&raw, &syntax] {
-            assert!(s.contains("a:1:1: error[TOO_LARGE]: m"));
+            assert!(s.contains("a:1:1: error[source::TOO_LARGE]: m"));
             assert!(s.contains("1 | hello"));
             assert!(s.contains("| ^^^^^"));
         }
@@ -328,8 +328,8 @@ mod tests {
         assert_eq!(acc.items().len(), 1);
         assert_eq!(acc.suppressed(), 2);
         let s = diags(&t, &acc);
-        assert!(s.contains("error[TOO_LARGE]: a"));
-        assert!(!s.contains("error[TOO_LARGE]: c"));
+        assert!(s.contains("error[source::TOO_LARGE]: a"));
+        assert!(!s.contains("error[source::TOO_LARGE]: c"));
         assert!(s.contains("2 diagnostics suppressed"));
 
         // With no suppression, items are separated and no summary appears.
@@ -338,8 +338,8 @@ mod tests {
         acc.push(Diagnostic::new(Class::SourceTooLarge, Site::None, "b"));
         let s = diags(&t, &acc);
 
-        assert!(s.contains("error[TOO_LARGE]: a"));
-        assert!(s.contains("error[TOO_LARGE]: b"));
+        assert!(s.contains("error[source::TOO_LARGE]: a"));
+        assert!(s.contains("error[source::TOO_LARGE]: b"));
         assert!(!s.contains("suppressed"));
     }
 }

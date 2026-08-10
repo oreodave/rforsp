@@ -3,6 +3,7 @@
 use crate::source::SyntaxOrigin;
 
 /// Possible types of errors that may arise during Lexing.
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum LexErrorKind {
     /// Character is not known
     UnknownCharacter,
@@ -13,6 +14,7 @@ pub enum LexErrorKind {
 }
 
 /// Lexing error type
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct LexError {
     /// Point of origin for error.
     pub origin: SyntaxOrigin,

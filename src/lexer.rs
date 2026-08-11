@@ -7,3 +7,4 @@ mod error;
 pub use error::{LexError, LexErrorKind};
 
 mod tokeniser;
+pub use tokeniser::tokenise;

@@ -286,3 +286,205 @@ impl<'a> Tokeniser<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::diagnostics::{Class, Site};
+    use TokenKind::{
+        Bind, ListEnd, ListStart, Load, Number, Quote, Symbol, VecEnd, VecStart,
+    };
+
+    /// A collection of test cases: token, or a diagnostic, paired with the text
+    /// its span should cover.
+    type Spanned<T> = Vec<(T, String)>;
+
+    /// Lex `text` as its own source, resolving every span back to the text it
+    /// covers.
+    ///
+    /// A diagnostic sited anywhere but [`Site::Raw`] resolves to a marker
+    /// rather than its text, so it fails the comparison in the caller.
+    fn lex(text: &str) -> (Spanned<TokenKind>, Spanned<Class>) {
+        let mut table = SourceTable::new();
+        let id = table
+            .add_source_raw("t", text.into())
+            .expect("within bound");
+        let mut d = Diagnostics::new();
+        let tokens = tokenise_all(id, &table, &mut d);
+
+        let source = table.get_source(id);
+        let text_of = |span| source.span_text(span).to_string();
+        let diags = d
+            .items()
+            .iter()
+            .map(|diag| {
+                let site = match diag.site {
+                    Site::Raw(origin) => text_of(origin.span),
+                    site => format!("<expected a Raw site, got {site:?}>"),
+                };
+                (diag.class, site)
+            })
+            .collect();
+        (
+            tokens.iter().map(|t| (t.kind, text_of(t.span))).collect(),
+            diags,
+        )
+    }
+
+    /// Assert `text` lexes to exactly `expected`, reporting nothing.
+    fn assert_tokens(text: &str, expected: &[(TokenKind, &str)]) {
+        let (tokens, diags) = lex(text);
+        assert!(diags.is_empty(), "{text:?} unexpectedly raised {diags:?}");
+        let got: Vec<_> =
+            tokens.iter().map(|(k, s)| (*k, s.as_str())).collect();
+        assert_eq!(got, expected, "tokenising {text:?}");
+    }
+
+    /// Assert lexing `text` reports exactly `expected`, as (class, span text).
+    fn assert_errors(text: &str, expected: &[(Class, &str)]) {
+        let (_, diags) = lex(text);
+        let got: Vec<_> = diags.iter().map(|(c, s)| (*c, s.as_str())).collect();
+        assert_eq!(got, expected, "tokenising {text:?}");
+    }
+
+    #[test]
+    fn tokens_and_spans() {
+        // Empty and whitespace begets empty
+        assert_tokens("", &[]);
+        assert_tokens("  \n\t ", &[]);
+
+        // All the one-byte tokens should parse 1-1
+        assert_tokens(
+            "[](')",
+            &[
+                (VecStart, "["),
+                (VecEnd, "]"),
+                (ListStart, "("),
+                (Quote, "'"),
+                (ListEnd, ")"),
+            ],
+        );
+
+        // Symbols are contiguous
+        assert_tokens(
+            "abc[def]",
+            &[
+                (Symbol, "abc"),
+                (VecStart, "["),
+                (Symbol, "def"),
+                (VecEnd, "]"),
+            ],
+        );
+
+        // Bind and Load eat up the next symbol.
+        assert_tokens("$x ^y", &[(Bind, "$x"), (Load, "^y")]);
+
+        // Complex symbol construction with whitespace
+        assert_tokens(
+            concat!("\t∀x:\n", "\tx≡0mod2\n", "⇔\n", "\t∃k:\n", "\tx=2k"),
+            &[
+                (Symbol, "∀x:"),
+                (Symbol, "x≡0mod2"),
+                (Symbol, "⇔"),
+                (Symbol, "∃k:"),
+                (Symbol, "x=2k"),
+            ],
+        );
+    }
+
+    #[test]
+    fn integers_vs_symbols() {
+        // A run is a Number only if it matches `-?[0-9]+` entirely; a digit
+        // merely occurring in the run is not enough.
+        for (text, kind) in [
+            ("12", Number),
+            ("0", Number),
+            ("-12", Number),
+            ("-", Symbol),
+            ("1abc", Symbol),
+            ("abc1", Symbol),
+            ("12-", Symbol),
+        ] {
+            assert_tokens(text, &[(kind, text)]);
+        }
+    }
+
+    #[test]
+    fn trivia_skipped() {
+        // Empty is empty
+        assert_tokens(";", &[]);
+
+        // Newlines separate the herd
+        assert_tokens(
+            concat!("a ; comment [ $ ) \n", "b"),
+            &[(Symbol, "a"), (Symbol, "b")],
+        );
+        assert_tokens(
+            concat!(";one\n", " ;two\n", "\n", ";three\n", "a"),
+            &[(Symbol, "a")],
+        );
+
+        // End of file doesn't matter for comments.
+        assert_tokens("a ;trailing", &[(Symbol, "a")]);
+    }
+
+    #[test]
+    fn binding_operators() {
+        // Any non symbol scalar operand gets consumed in the diagnostic.
+        assert_errors("$12", &[(Class::LexBindInvalid, "$12")]);
+        assert_errors("^12", &[(Class::LexLoadInvalid, "^12")]);
+
+        // If there's no scalar at all, then the `$` is the only thing that
+        // matters.
+        for text in ["$", "$ x", "$\n", "$;comment", "$["] {
+            let (_, diags) = lex(text);
+            assert_eq!(diags, vec![(Class::LexBindInvalid, "$".to_string())]);
+        }
+
+        // Invalid binds/loads accumulate.
+        assert_errors(
+            "$1 ^2 $3",
+            &[
+                (Class::LexBindInvalid, "$1"),
+                (Class::LexLoadInvalid, "^2"),
+                (Class::LexBindInvalid, "$3"),
+            ],
+        );
+    }
+
+    #[test]
+    fn lex_recovery() {
+        // The operand is consumed, so no stray Number survives it...
+        let (tokens, diags) = lex("$12");
+        assert!(tokens.is_empty(), "expected no tokens, got {tokens:?}");
+        assert_eq!(diags.len(), 1);
+
+        // ...but a bracket is left for the dispatch, so its vector still lexes.
+        let (tokens, diags) = lex("$[xyz]");
+        assert_eq!(diags.len(), 1);
+        let got: Vec<_> =
+            tokens.iter().map(|(k, s)| (*k, s.as_str())).collect();
+        assert_eq!(got, [(VecStart, "["), (Symbol, "xyz"), (VecEnd, "]")]);
+    }
+
+    #[test]
+    fn the_gate_follows_this_phase_only() {
+        // `Diagnostics` is session-global, so a failure recorded against one
+        // source must not abort a later source that lexed cleanly.
+        let mut table = SourceTable::new();
+        let bad = table
+            .add_source_raw("bad", "$12".into())
+            .expect("within bound");
+        let good = table
+            .add_source_raw("good", "[$x ^x] 12".into())
+            .expect("within bound");
+
+        let mut d = Diagnostics::new();
+        assert!(tokenise(bad, &table, &mut d).is_err());
+
+        let tokens =
+            tokenise(good, &table, &mut d).expect("good source is clean");
+        let kinds: Vec<_> = tokens.iter().map(|t| t.kind).collect();
+        assert_eq!(kinds, [VecStart, Bind, Load, VecEnd, Number]);
+    }
+}

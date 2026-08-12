@@ -1,7 +1,7 @@
 //! Main tokeniser runtime
 
 use crate::{
-    diagnostics::{Aborted, Diagnostics, Phase},
+    diagnostics::Diagnostics,
     lexer::{LexError, LexErrorKind, Token, TokenKind},
     source::{Source, SourceId, SourceTable, Span, SyntaxOrigin},
 };
@@ -54,38 +54,17 @@ fn is_integer(text: &str) -> bool {
 }
 
 /// Tokenise a source given by [`SourceId`] in a [`SourceTable`], returning the
-/// token stream as a [`Vec<Token>`] if no errors arise.
+/// token stream as a [`Vec<Token>`] if no errors arise, otherwise [`None`].
 ///
-/// Accumulates [`Diagnostic`][crate::diagnostics::Diagnostic]s into the given
-/// [`Diagnostics`] object.
-///
-/// # Errors
-/// - If any errors arise during lexing.
+/// This constructs its own [`Diagnostics`] which is always passed back to the
+/// caller.
+#[must_use]
 pub fn tokenise(
     source_id: SourceId,
     table: &SourceTable,
-    diagnostics: &mut Diagnostics,
-) -> Result<Vec<Token>, Aborted> {
-    let before = diagnostics.error_count();
-    let tokens = tokenise_all(source_id, table, diagnostics);
-    (diagnostics.error_count() == before)
-        .then_some(tokens)
-        .ok_or_else(|| Aborted::new(Phase::Lex))
-}
-
-/// Tokenise a source given by [`SourceId`] in a [`SourceTable`], returning the
-/// token stream as a [`Vec<Token>`].
-///
-/// NOTE: Errors are accumulated into a [`Diagnostics`] as
-/// [`Diagnostic`][crate::diagnostics::Diagnostic] objects; the returned stream
-/// is only correct if there were no
-/// [`Diagnostic`][crate::diagnostics::Diagnostic] pushed.
-fn tokenise_all(
-    source_id: SourceId,
-    table: &SourceTable,
-    diagnostics: &mut Diagnostics,
-) -> Vec<Token> {
-    let mut tokeniser = Tokeniser::new(source_id, table, diagnostics);
+) -> (Option<Vec<Token>>, Diagnostics) {
+    let mut diagnostics = Diagnostics::new();
+    let mut tokeniser = Tokeniser::new(source_id, table, &mut diagnostics);
     let mut tokens = Vec::new();
 
     tokeniser.skip_trivia();
@@ -97,7 +76,8 @@ fn tokenise_all(
         tokeniser.skip_trivia();
     }
 
-    tokens
+    let tokens = (!diagnostics.has_errors()).then_some(tokens);
+    (tokens, diagnostics)
 }
 
 /// Tokeniser state structure.

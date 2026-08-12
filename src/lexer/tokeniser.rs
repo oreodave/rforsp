@@ -294,12 +294,17 @@ mod tests {
         let id = table
             .add_source_raw("t", text.into())
             .expect("within bound");
-        let mut d = Diagnostics::new();
-        let tokens = tokenise_all(id, &table, &mut d);
-
+        let (tokens, diags) = tokenise(id, &table);
         let source = table.get_source(id);
         let text_of = |span| source.span_text(span).to_string();
-        let diags = d
+
+        let tokens = tokens
+            .unwrap_or_default()
+            .iter()
+            .map(|t| (t.kind, text_of(t.span)))
+            .collect();
+
+        let diags = diags
             .items()
             .iter()
             .map(|diag| {
@@ -310,10 +315,7 @@ mod tests {
                 (diag.class, site)
             })
             .collect();
-        (
-            tokens.iter().map(|t| (t.kind, text_of(t.span))).collect(),
-            diags,
-        )
+        (tokens, diags)
     }
 
     /// Assert `text` lexes to exactly `expected`, reporting nothing.
@@ -416,20 +418,11 @@ mod tests {
     #[test]
     fn control_characters_are_errors() {
         // A control character is not symbol material.  It is reported on its
-        // own one-character span, and it terminates the run it sits in rather
-        // than being absorbed into it - so the symbols either side survive.
+        // own one-character span.
         for control in ['\u{0}', '\u{b}', '\u{c}', '\u{1b}', '\u{7f}'] {
             let text = format!("a{control}b");
-            let (tokens, diags) = lex(&text);
-
-            let got: Vec<_> =
-                tokens.iter().map(|(k, s)| (*k, s.as_str())).collect();
-            assert_eq!(got, [(Symbol, "a"), (Symbol, "b")], "lexing {text:?}");
-            assert_eq!(
-                diags,
-                vec![(Class::LexUnknownCharacter, control.to_string())],
-                "lexing {text:?}"
-            );
+            let control = control.to_string();
+            assert_errors(&text, &[(Class::LexUnknownCharacter, &control)]);
         }
 
         // Each one is its own diagnostic, so they accumulate.
@@ -443,7 +436,10 @@ mod tests {
 
         // The exclusion is control characters MINUS the recognised
         // whitespace; `\n` and `\t` are both, and stay trivia.
-        assert_tokens("a\tb\nc", &[(Symbol, "a"), (Symbol, "b"), (Symbol, "c")]);
+        assert_tokens(
+            "a\tb\nc",
+            &[(Symbol, "a"), (Symbol, "b"), (Symbol, "c")],
+        );
 
         // Comments are not symbols, so nothing renders back to the user out of
         // one, and it stays liberal in what it swallows.
@@ -479,37 +475,43 @@ mod tests {
 
     #[test]
     fn lex_recovery() {
-        // The operand is consumed, so no stray Number survives it...
-        let (tokens, diags) = lex("$12");
-        assert!(tokens.is_empty(), "expected no tokens, got {tokens:?}");
-        assert_eq!(diags.len(), 1);
+        // Consider these two diagnostics:
+        assert_errors("$12", &[(Class::LexBindInvalid, "$12")]);
+        assert_errors("$[xyz]", &[(Class::LexBindInvalid, "$")]);
 
-        // ...but a bracket is left for the dispatch, so its vector still lexes.
-        let (tokens, diags) = lex("$[xyz]");
-        assert_eq!(diags.len(), 1);
-        let got: Vec<_> =
-            tokens.iter().map(|(k, s)| (*k, s.as_str())).collect();
-        assert_eq!(got, [(VecStart, "["), (Symbol, "xyz"), (VecEnd, "]")]);
+        // If both of these errors are present in a stream, we get two
+        // diagnostics:
+        assert_errors(
+            "$12 $[xyz]",
+            &[(Class::LexBindInvalid, "$12"), (Class::LexBindInvalid, "$")],
+        );
+
+        // This is the same for any other type of error we pick - we can mix and
+        // match:
+        assert_errors(
+            "$a\0b ^[x y z]",
+            &[
+                (Class::LexUnknownCharacter, "\0"),
+                (Class::LexLoadInvalid, "^"),
+            ],
+        );
     }
 
     #[test]
-    fn diagnostics_across_lexes() {
-        // `Diagnostics` is session-global, so a failure recorded against one
-        // source must not abort a later source that lexed cleanly.
-        let mut table = SourceTable::new();
-        let bad = table
-            .add_source_raw("bad", "$12".into())
-            .expect("within bound");
-        let good = table
-            .add_source_raw("good", "[$x ^x] 12".into())
-            .expect("within bound");
+    fn adjacent_sigils() {
+        // Adjacent sigils will always report an error
+        assert_errors("^^x", &[(Class::LexLoadInvalid, "^")]);
 
-        let mut d = Diagnostics::new();
-        assert!(tokenise(bad, &table, &mut d).is_err());
-
-        let tokens =
-            tokenise(good, &table, &mut d).expect("good source is clean");
-        let kinds: Vec<_> = tokens.iter().map(|t| t.kind).collect();
-        assert_eq!(kinds, [VecStart, Bind, Load, VecEnd, Number]);
+        // Generally binding will fail the moment the next character isn't part
+        // of a symbol.
+        assert_errors(
+            "^^ $$",
+            &[
+                (Class::LexLoadInvalid, "^"),
+                (Class::LexLoadInvalid, "^"),
+                (Class::LexBindInvalid, "$"),
+                (Class::LexBindInvalid, "$"),
+            ],
+        );
     }
 }

@@ -3,9 +3,9 @@
 use std::process::ExitCode;
 
 use rforsp::{
-    diagnostics::{Aborted, Diagnostics, render_diagnostics},
-    drivers::{lex_sources, sources_from_files},
-    source::SourceTable,
+    context::Compilation,
+    diagnostics::{Diagnostics, render_diagnostics},
+    drivers::compile,
 };
 
 /// Print usage to the given [`Write`] target.
@@ -19,35 +19,6 @@ fn usage(mut out: impl std::io::Write) {
     );
 }
 
-/// Compile a set of `filenames`.
-fn compile(
-    filenames: &[String],
-    table: &mut SourceTable,
-    diagnostics: &mut Diagnostics,
-) -> Result<(), Aborted> {
-    // FIXME: Wire in parsing, resolution, lowering, verification.
-    let sources = sources_from_files(filenames, table, diagnostics)?;
-    let lexes = lex_sources(&sources, table, diagnostics)?;
-
-    for (&id, lex_stream) in sources.iter().zip(lexes) {
-        let source = table.get_source(id);
-        println!(
-            "{}: {} bytes => {} tokens",
-            source.name,
-            source.len(),
-            lex_stream.len()
-        );
-        for token in &lex_stream {
-            let kind = token.kind;
-            let text = source.span_text(token.span);
-            print!("{kind:?}({text}), ");
-        }
-        println!();
-    }
-
-    Ok(())
-}
-
 fn main() -> ExitCode {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     if args.is_empty() {
@@ -55,16 +26,17 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
+    let mut ctx = Compilation::new();
     let mut diagnostics = Diagnostics::new();
-    let mut table = SourceTable::new();
 
-    let compile_result = compile(&args, &mut table, &mut diagnostics);
+    let compile_result = compile(&args, &mut ctx, &mut diagnostics);
 
     match compile_result {
         Err(e) => {
             eprintln!("{e}");
             let mut error_buf = String::new();
-            let _ = render_diagnostics(&diagnostics, &table, &mut error_buf);
+            let _ =
+                render_diagnostics(&diagnostics, &ctx.table, &mut error_buf);
             eprint!("{error_buf}");
             ExitCode::FAILURE
         }

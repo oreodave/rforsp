@@ -1,12 +1,45 @@
 //! Generalised drivers for each phase of the compiler.
 
 use crate::{
+    context::Compilation,
     diagnostics::{
         Aborted, Class, Diagnostic, Diagnostics, Phase, Site, conv::ice,
     },
     lexer::{Token, tokenise},
-    source::{SourceId, SourceTable},
+    source::SourceId,
 };
+
+/// Compile a set of `filenames`.
+///
+/// # Errors
+/// - If a compilation phase fails
+pub fn compile(
+    filenames: &[String],
+    ctx: &mut Compilation,
+    diagnostics: &mut Diagnostics,
+) -> Result<(), Aborted> {
+    // FIXME: Wire in parsing, resolution, lowering, verification.
+    let sources = sources_from_files(filenames, ctx, diagnostics)?;
+    let lexes = lex_sources(&sources, ctx, diagnostics)?;
+
+    for (&id, lex_stream) in sources.iter().zip(lexes) {
+        let source = ctx.table.get_source(id);
+        println!(
+            "{}: {} bytes => {} tokens",
+            source.name,
+            source.len(),
+            lex_stream.len()
+        );
+        for token in &lex_stream {
+            let kind = token.kind;
+            let text = source.span_text(token.span);
+            print!("{kind:?}({text}), ");
+        }
+        println!();
+    }
+
+    Ok(())
+}
 
 /// The gate that ensures that the results of a compiler phase only pass through
 /// if the local [`Diagnostics`] of that phase has no errors.
@@ -23,20 +56,20 @@ fn gate<T>(
         .ok_or_else(|| Aborted::new(phase))
 }
 
-/// Add a set of files to the given [`SourceTable`].
+/// Add a set of files to the given [`SourceTable`][crate::source::SourceTable].
 ///
 /// # Errors
 /// - If any error [`Diagnostic`]s are created while adding files to the table.
 pub fn sources_from_files(
     filenames: &[String],
-    source_table: &mut SourceTable,
+    ctx: &mut Compilation,
     diagnostics: &mut Diagnostics,
 ) -> Result<Vec<SourceId>, Aborted> {
     let mut local = Diagnostics::new();
     let sources = filenames
         .iter()
         .filter_map(|filename| {
-            source_table
+            ctx.table
                 .add_source_file(filename)
                 .map_err(|e| local.push(e.into()))
                 .ok()
@@ -52,14 +85,14 @@ pub fn sources_from_files(
 /// - If any error [`Diagnostic`]s are created while lexing the given sources.
 pub fn lex_sources(
     source_ids: &[SourceId],
-    source_table: &SourceTable,
+    ctx: &Compilation,
     diagnostics: &mut Diagnostics,
 ) -> Result<Vec<Vec<Token>>, Aborted> {
     let mut local = Diagnostics::new();
     let tokens_set = source_ids
         .iter()
         .filter_map(|&id| {
-            let (tokens, mut lexer_diags) = tokenise(id, source_table);
+            let (tokens, mut lexer_diags) = tokenise(id, &ctx.table);
             if tokens.is_none() && !lexer_diags.has_errors() {
                 lexer_diags.push(ice(Diagnostic::new(
                     Class::ICEDroppedOutput,
@@ -130,12 +163,12 @@ mod tests {
 
     #[test]
     fn sources_attempts_all_files() {
-        let mut table = SourceTable::new();
+        let mut ctx = Compilation::new();
         let mut diags = Diagnostics::new();
         let files = ["/nonexistent/a".to_owned(), "/nonexistent/b".to_owned()];
 
         assert_eq!(
-            sources_from_files(&files, &mut table, &mut diags),
+            sources_from_files(&files, &mut ctx, &mut diags),
             Err(Aborted::new(Phase::Source))
         );
         assert_eq!(
@@ -147,24 +180,26 @@ mod tests {
 
     #[test]
     fn lex_attempts_all_sources() {
-        let mut table = SourceTable::new();
-        let good = table
+        let mut ctx = Compilation::new();
+        let good = ctx
+            .table
             .add_source_raw("good", "1 2 add".to_owned())
             .expect("raw source");
-        let bad = table
+        let bad = ctx
+            .table
             .add_source_raw("bad", "^ $".to_owned())
             .expect("raw source");
 
         // A clean source's tokens are discarded because a sibling failed.
         let mut diags = Diagnostics::new();
         assert_eq!(
-            lex_sources(&[good, bad], &table, &mut diags),
+            lex_sources(&[good, bad], &ctx, &mut diags),
             Err(Aborted::new(Phase::Lex))
         );
         assert_eq!(diags.error_count(), 2);
 
         let mut diags = Diagnostics::new();
-        let tokens = lex_sources(&[good], &table, &mut diags)
+        let tokens = lex_sources(&[good], &ctx, &mut diags)
             .expect("a clean source passes");
         assert_eq!(tokens[0].len(), 3);
         assert!(!diags.has_errors());

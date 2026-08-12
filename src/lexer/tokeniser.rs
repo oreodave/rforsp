@@ -498,6 +498,27 @@ mod tests {
     }
 
     #[test]
+    fn sigil_tokens_always_carry_a_name() {
+        // `Token::symbol_span` steps one byte past the sigil, and
+        // `Span::from_u32` asserts an ordered range, so a `Bind`/`Load`
+        // spanning its sigil alone would panic.  That is unreachable only
+        // because a bare sigil is an error and never becomes a token; this
+        // pins the invariant at the producer.
+        for text in ["$x ^y", "^^x", "$a$b", "$ ^", "^^", "$", "'$x", "[$x]"] {
+            let (tokens, _) = lex(text);
+            for (kind, span) in
+                tokens.iter().filter(|(k, _)| matches!(*k, Bind | Load))
+            {
+                assert!(
+                    span.len() >= 2,
+                    "{text:?} produced a {kind:?} spanning {span:?}, \
+                     which has no name after its sigil"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn adjacent_sigils() {
         // Adjacent sigils will always report an error
         assert_errors("^^x", &[(Class::LexLoadInvalid, "^")]);

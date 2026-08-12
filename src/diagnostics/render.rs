@@ -29,6 +29,11 @@ pub fn render_diagnostics(
 /// Render a collection of [`Diagnostics`] related to a [`SourceTable`] into
 /// `out`.  `cap` decides how many are suppressed.
 ///
+/// [`Severity::Bug`] is exempt from `cap` and rendered as a trailing section:
+/// a bug is the compiler's fault rather than the user's, so losing one behind
+/// a screenful of user errors would hide the only diagnostic they cannot act
+/// on.  The cap therefore counts, and suppresses, ordinary diagnostics alone.
+///
 /// # Errors
 /// - Repeated back from `write!`/`writeln!` calls.
 fn render_diagnostics_with_cap(
@@ -37,29 +42,29 @@ fn render_diagnostics_with_cap(
     cap: usize,
     out: &mut impl fmt::Write,
 ) -> fmt::Result {
-    let mut renderer = Renderer::new(table, out);
-    let total = diags.items().len();
-    let to_render = total.min(cap);
-    let suppressed = total.saturating_sub(cap);
+    let items = diags.items();
+    let ordinary = items
+        .iter()
+        .filter(|diag| diag.class.severity() != Severity::Bug);
+    let len = ordinary.clone().count();
+    let to_render = len.min(cap);
+    let suppressed = len.saturating_sub(cap);
 
-    for diag in diags.items().iter().take(to_render) {
+    let mut renderer = Renderer::new(table, out);
+    for diag in ordinary.take(to_render) {
         renderer.render(diag)?;
     }
 
+    let mut written = to_render > 0;
     if suppressed > 0 {
-        if to_render > 0 {
-            writeln!(out)?;
-        }
-        writeln!(
-            out,
-            "{} {} suppressed",
-            suppressed,
-            if suppressed == 1 {
-                "diagnostic"
-            } else {
-                "diagnostics"
-            }
-        )?;
+        renderer.render_suppressed(suppressed, written)?;
+        written = true;
+    }
+
+    // Everything that is not ordinary is a bug, so the count settles whether
+    // there are any without a second scan.
+    if items.len() > len {
+        renderer.render_bugs(items, written)?;
     }
 
     Ok(())
@@ -114,6 +119,53 @@ impl<'a, W: Write> Renderer<'a, W> {
         self.render_snippet(diag.site)
     }
 
+    /// Render the count of diagnostics dropped by the rendering cap.
+    ///
+    /// `separate` inserts a blank line first, and is set when something has
+    /// already been rendered above.
+    fn render_suppressed(
+        &mut self,
+        count: usize,
+        separate: bool,
+    ) -> fmt::Result {
+        if separate {
+            writeln!(self.out)?;
+        }
+        writeln!(
+            self.out,
+            "{count} {} suppressed",
+            if count == 1 {
+                "diagnostic"
+            } else {
+                "diagnostics"
+            }
+        )
+    }
+
+    /// Render every [`Severity::Bug`] among `items` as a trailing section.
+    ///
+    /// These are never suppressed, so this runs after the cap has been applied
+    /// to everything else and renders whatever it finds.
+    ///
+    /// `separate` inserts a blank line first, and is set when something has
+    /// already been rendered above.
+    fn render_bugs(
+        &mut self,
+        items: &[Diagnostic],
+        separate: bool,
+    ) -> fmt::Result {
+        if separate {
+            writeln!(self.out)?;
+        }
+        for diag in items
+            .iter()
+            .filter(|diag| diag.class.severity() == Severity::Bug)
+        {
+            self.render(diag)?;
+        }
+        writeln!(self.out, "this is a bug in rforsp; please report it")
+    }
+
     /// Render the location represented by [`Site`].
     fn render_site(&mut self, site: Site) -> fmt::Result {
         if let Site::Source(id) = site {
@@ -139,6 +191,7 @@ impl<'a, W: Write> Renderer<'a, W> {
                 Severity::Note => "note",
                 Severity::Warning => "warning",
                 Severity::Error => "error",
+                Severity::Bug => "bug",
             },
             class.phase().as_str(),
             class.as_code()
@@ -368,5 +421,35 @@ mod tests {
         assert!(s.contains("error[source::TOO_LARGE]: a"));
         assert!(s.contains("error[source::TOO_LARGE]: b"));
         assert!(!s.contains("suppressed"));
+    }
+
+    #[test]
+    fn render_bugs() {
+        let t = SourceTable::new();
+        let mut acc = Diagnostics::new();
+
+        // A bug alone: nothing precedes it, so no stray leading blank line.
+        acc.push(Diagnostic::new(Class::ICEDroppedOutput, Site::None, "ice"));
+        let s = diags(&t, &acc);
+        assert!(s.starts_with("bug[ice::DROPPED_OUTPUT]: ice"), "{s}");
+        assert!(!s.contains("suppressed"), "{s}");
+
+        // Pushed last, so under a cap of one it would be the first thing lost
+        // were it subject to the cap at all.
+        let mut acc = Diagnostics::new();
+        acc.push(Diagnostic::new(Class::SourceTooLarge, Site::None, "a"));
+        acc.push(Diagnostic::new(Class::SourceTooLarge, Site::None, "b"));
+        acc.push(Diagnostic::new(Class::SourceTooLarge, Site::None, "c"));
+        acc.push(Diagnostic::new(Class::ICEDroppedOutput, Site::None, "ice"));
+
+        let s = diags_with_cap(&t, &acc, 1);
+        assert!(s.contains("bug[ice::DROPPED_OUTPUT]: ice"), "{s}");
+        assert!(s.contains("this is a bug in rforsp"), "{s}");
+
+        // The cap applies to ordinary diagnostics alone, so the bug neither
+        // occupies a slot nor counts towards the suppressed total.
+        assert!(s.contains("error[source::TOO_LARGE]: a"), "{s}");
+        assert!(!s.contains("error[source::TOO_LARGE]: b"), "{s}");
+        assert!(s.contains("2 diagnostics suppressed"), "{s}");
     }
 }

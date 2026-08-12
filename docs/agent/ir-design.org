@@ -61,14 +61,40 @@ SIR
 Resolution is a separate phase between the two IRs, not part of
 either.  It reads HIR and produces a side table; SIR construction
 reads both.
+
+The pipeline is *N-wide through parsing and 1-wide after*.  Phases 0
+through 2 run once per source; parsing's output is the join, where the
+form sequences concatenate into one.  Everything from resolution
+onwards sees a single input.  See [[*Multiple sources]].
 ** Phase 0: source acquisition
 Reads bytes, checks length against the source-length bound, computes
 line starts, and registers the text with the [[*Source table][source
 table]], which assigns a ~SourceId~.  Nothing before this point has a
 location to report against.
+
+Every named source is attempted, and every one that fails is reported,
+before the phase gates.  A user who mistyped two paths should learn
+both on the first run rather than one per run.
 ** Phase 1: lexing
 Bytes to spanned tokens. Skips whitespace and comments. Produces
 ~Vec<Token>~ where a token is a kind plus a ~Span~.
+
+Tokens classify by shape and carry no computed payload. An integer
+literal is a shape — a run matching ~-?[0-9]+~ — so converting it, and
+therefore detecting that it does not fit an ~i64~, belongs to phase 2.
+Range is not recoverable from shape, and a digit-count proxy is a
+different predicate.
+
+Symbols are otherwise liberal — a maximal run of characters outside the
+restricted set — with one exclusion: a C0 control character or ~DEL~
+that is not recognised whitespace is an error rather than part of a
+name.  ~VT~ and ~FF~ fall on the error side.  The reason is diagnostic
+integrity rather than language surface.  Admitting them would let a
+stray ~NUL~ from a corrupt file lex as part of an ordinary symbol,
+survive to resolution, and produce an unbound-name report whose name
+renders as nothing — the diagnostic corrupted by the thing it is
+reporting.  Which *printable* characters may appear in a symbol is a
+separate and larger question, and is not settled here.
 
 Recovery is straightforward — record the error, skip one character,
 resume — so error accumulation is genuinely useful here rather than
@@ -82,6 +108,10 @@ the form tree becomes discardable once lowering completes.
 
 Bracket matching lives here rather than in the lexer: the lexer emits
 brackets as ordinary tokens and has no unterminated case.
+
+The parser accumulates. Recovery is local — no error requires unwinding
+more than one level — so there is no poison ~HirKind~ and no second
+error channel. See [[*Recovery and partial output]].
 ** Phase 3: resolution
 See: [[*Part II: Binding resolution][Part II: Binding resolution]].
 
@@ -121,6 +151,36 @@ single runtime fault.
 
 Unlike phases 1 through 3, evaluation does not accumulate: it stops at
 the first fault. Runtime errors are therefore singular and terminal.
+** Multiple sources
+The driver accepts several files.  They are *one compilation*: the form
+sequences produced by phase 2 concatenate, in command-line order, into
+the single top-level sequence that resolution, lowering, verification,
+and evaluation then see.  There is one entry ~Body~ and one gate per
+phase, so nothing is evaluated until every file has been parsed.
+
+The invariant that ties this to the language is that *~SourceId~ order
+is command-line order is scope order*.  Phase 0 assigns IDs in argument
+order and the concatenation preserves it, which is what makes a binding
+in the first file visible in the second and not the reverse.
+
+Concatenation happens at the *form* level and never at the text or
+token level.  Lexing and parsing stay per-source, so a ~[~ opened in
+one file cannot be closed in another.  The alternative — joining the
+text and lexing once — would make one file's parse depend on the
+previous file's brackets and would render ~SourceId~ pointless.
+
+There is no scope barrier at a file boundary.  This is not a
+convenience: sequential scope, with no hoisting and each ~$x~ visible
+only to subsequent forms, is the deepest invariant in the design, and a
+file boundary that introduced a barrier would be the only
+non-sequential boundary in the language.  The cost, stated plainly, is
+that file order is semantically significant, and any later module
+system has to displace an idiom users will already have.
+
+The unit of atomicity remains one user input; several files given in
+one invocation *are* one input.  The REPL is the same rule with less
+foresight — it cannot gate over inputs it has not seen yet, so its
+atom is the line.  See [[*Part IX: REPL semantics]].
 * Diagnostics
 Every phase reports through one ~Diagnostic~ type. Phases do not
 render; they accumulate, and rendering happens once at the driver,
@@ -139,6 +199,12 @@ compiler's own output rather than the user's program, and reporting
 those as user errors would be a lie. ~Bug~ renders as an internal
 compiler error naming the violated invariant, and must not be
 suppressible.
+
+Only ~Error~ and ~Bug~ gate. A ~Warning~ is by definition a program
+that was accepted, and a ~Note~ is context attached to something else,
+so neither may stop a phase boundary. The whole gating discipline rests
+on that distinction, which is why it is stated rather than left to
+follow from the severity names.
 ** Site
 #+begin_src text
 Site = None                   ; no location: missing file, bad argument
@@ -164,32 +230,47 @@ give.
 The general rule: typed error at the leaf, ~Diagnostic~ at the
 reporting layer, and an accumulator only where recovery exists.
 ** Per-phase error surfaces
-NOTE: This is not complete for each phase, and will be updated.
+This is a *non-normative index*. The authoritative enumeration is the
+diagnostic-construction module, which holds one named constructor per
+code and so is complete, greppable, and incapable of drifting from what
+the compiler actually emits. A list maintained here could only ever be
+a stale shadow of it.
+
+What this document does pin is narrower and does not live in the code:
+*which conditions are rejected*, since that defines the accepted
+program set and is where the divergences from the reference interpreter
+are, and *which phase owns each*, since that is a boundary fact.
+Wording, ordering, and presentation are neither, and the ~code~
+mechanism exists precisely so that improving a message breaks nothing.
+
+Phases 0 through 2 are settled. Phases 3 through 6 are marked TODO:
+they sketch the intent of phases not yet built, and an omission there
+is not a decision.
 
 - Phase 0 (source):
   - file could not be read;
   - source exceeds ~MAX_SOURCE_LEN~;
   - contents are not valid UTF-8.
 - Phase 1 (lexing):
-  - unknown character;
-  - ~$~ or ~^~ not followed by a name;
-  - integer literal outside ~i64~.
+  - control character outside the recognised whitespace;
+  - ~$~ or ~^~ not followed by a name.
 - Phase 2 (parsing):
   - unterminated ~[~ or ~(~;
   - unexpected closing bracket;
   - mismatched bracket kinds;
   - quote at end of input;
   - nested quote — a quote directly wrapping another (~''x~);
-  - quote of a form with nothing to denote — ~'^x~ and ~'$x~.
-- Phase 3 (resolution):
+  - quote of a form with nothing to denote — ~'^x~ and ~'$x~;
+  - integer literal outside ~i64~.
+- TODO Phase 3 (resolution):
   - unresolved name, on any path including dead ones;
   - data operand to a recognized ~rec~.
-- Phase 4 (lowering):
+- TODO Phase 4 (lowering):
   - None. Lowering is total given a successful resolution.
-- Phase 5 (verification):
+- TODO Phase 5 (verification):
   - See [[*Verification reports two categories][below]]; the split
     matters more than the list.
-- Phase 6 (evaluation):
+- TODO Phase 6 (evaluation):
   - stack underflow;
   - invalid primitive arguments;
   - vector index out of bounds;
@@ -260,14 +341,53 @@ returning. Verification returns no data, so its ~Ok~ is permission to
 proceed rather than a value. Evaluation does not accumulate, so its
 failure is a typed error carrying its own data rather than a sentinel.
 
+*The gate is per phase, not per source.* Where a phase runs once per
+source — 0 through 2 — every source is attempted, the failures are
+accumulated together, and the gate fires once at the phase boundary.
+Two sources are independent inputs to the same phase, so a lex error in
+one says nothing about the other's tokens, and A-008's rationale for
+accumulating within a phase applies unchanged.
+
+Crossing a phase boundary with a reduced source set is the tempting
+alternative and is wrong. A missing file is not like a lex error: it
+changes what the later phases operate on, so resolution would report
+unbound names for everything the absent file defined. Those are derived
+errors — exactly what the gate exists to suppress — and they would bury
+the diagnostic the user actually needs.
+
+Diagnostics accumulate into a value that merges, not into one shared
+sink. Each call to a phase collects into its own accumulator, which is
+merged into the caller's once the call returns; a phase therefore
+decides its own result by asking whether *it* produced errors, with no
+arithmetic against a shared total. This matters as soon as a phase runs
+per source: if the question were asked of a shared accumulator, the
+first failing source would poison every source after it, discarding
+their output while the diagnostics still looked correct.
+
+The merge is unconditional. A source that succeeded may still have
+produced ~Warning~ s, and only the return value decides whether its
+*output* is kept. Merging is lossless because every ~Diagnostic~
+already carries a ~Site~ and a phase-namespaced ~code~, so flattening
+discards no provenance that the nesting would have encoded.
+
 Each phase also exposes an ungated entry point returning its output
-unconditionally. Tests use these to inspect partial recovery — the
-token stream after a lex error, the tree after a bracket mismatch —
-which the gated form necessarily discards.
+unconditionally; the gated form is that entry point plus the gate.
+Tests reach the ungated form to assert on what recovery produced — the
+token stream after a lex error, which forms survived a parse error —
+though the diagnostics rather than the output are usually the thing
+worth asserting on.
 ** Error caps
 Accumulation without a cap turns one mistake into a flood. A limit of
 roughly twenty diagnostics per input, with a trailing count of those
 suppressed, is enough to keep output readable.
+
+The cap is a *rendering* policy, applied once at the driver over the
+merged set, not a limit on collection. Per-call accumulators would
+otherwise fragment it, giving every source its own twenty. Unbounded
+collection is safe because the input already bounds it: the lexer emits
+at most one diagnostic per byte and the parser at most one per token,
+and ~MAX_SOURCE_LEN~ bounds both. Under one-invocation-is-one-input,
+"per input" is then well defined for a multi-file run.
 * Shared infrastructure
 A small amount of state is shared across every stage and outlives both
 IRs. It is session-scoped, not module-scoped.
@@ -482,16 +602,64 @@ nested-quote datum, so there is nothing to preserve.  Making it
 unconstructible resolves what ~Quote(Quote(f))~ should denote by
 removing the question, and guards the ~'~-for-~''~ typo.
 ** Parse-time errors
-The parser reports:
-
-- unterminated ~[~, ~(~, or quote;
-- ~$~ or ~^~ not followed by a name;
-- a quote directly wrapping another quote (~''x~);
-- unknown characters.
+What the parser rejects is listed once, in [[*Per-phase error
+surfaces]].  Part I states each rule where it is argued — nested quote
+and nothing-to-denote under [[*Quote denotation]], bracket handling
+under [[*Recovery and partial output]] — and does not re-enumerate
+them here.
 
 Everything else is deferred. In particular, the parser does not check
 arity, does not check that ~if~ has arms, and does not reject unbound
 names. Those require resolution.
+** Recovery and partial output
+The parser reports every error it can reach in one pass.  Nothing
+downstream reads the tree produced on an error path, since the phase
+gate discards it, so recovery optimises for the number of errors found
+rather than for the fidelity of the tree.
+
+~parse_form~ yields ~Option<HirForm>~, and ~None~ means an error was
+reported at or below that node.  Containers poison upward: a container
+with a ~None~ child is itself ~None~.  What this buys is that every
+~HirForm~ which exists is well-formed, so no consumer has to ask
+whether a vector quietly lost a child — malformation is represented by
+absence alone, and absence appears only in the top-level sequence.
+
+There is no poison ~HirKind~ variant.  ~Resolution~ is the obvious
+precedent and a misleading one: resolution walks a tree that already
+exists and must key an entry for every form it passes over, whereas the
+parser *constructs* the tree and can simply decline to construct.
+
+Three rules make recovery total:
+- every ~parse_form~ call consumes at least one token, so the loop
+  cannot hang;
+- an error path parses the construct to its natural end before choosing
+  a return value, because the diagnostics inside it are found by that
+  parse and nothing is gained by returning early;
+- every ~None~ has a reported error behind it.
+
+The last is checkable rather than merely intended.  The ungated entry
+point returns ~Vec<Option<HirForm>>~ and the gated one collects it into
+~Vec<HirForm>~ when the accumulator is clean; a failed collect against
+a clean accumulator is a compiler bug, reported as ~ice::~ rather than
+as a user error.  The accumulator, not the ~Option~, is the authority
+on whether the phase failed — an unterminated bracket is an error whose
+enclosing form may still be absent for an unrelated reason.
+
+Bracket errors resolve locally.  A closer that does not match the
+innermost open container closes it anyway and reports; a closer with no
+open container is reported and skipped; an unterminated bracket is
+detected at end of input, by which point there is no remaining input to
+cascade into.  Reading a mismatched closer as a typo for the right one
+is correct more often than reading it as an omitted inner closer, and
+it is the only reading needing no unwinding.  Several brackets left
+open at end of input report one ~Error~ each, which tells the user how
+deep they are and falls out of the unwind rather than needing a rule.
+
+What makes this cheap is a property of the grammar rather than a
+general truth about parsers: rForsp has no statement terminators and no
+keywords whose absence desynchronises the reader, so a missing bracket
+nests deeper without making the following tokens unparseable.  A
+C-like grammar would not support the same argument.
 * Part II: Binding resolution
 Resolution walks HIR left to right, per body, carrying a scope
 context.  It produces a side table rather than annotating HIR in
@@ -1425,7 +1593,11 @@ vector errors, malformed ~read~ input, and other runtime failures with
 the originating instruction span. Unbound names are not a runtime
 failure mode.
 * Part IX: REPL semantics
-The unit of atomicity is one user input.
+The unit of atomicity is one user input.  For a batch run, that input
+is the whole invocation rather than each file in it, which is what
+[[*Multiple sources]] means by one compilation.  The REPL is the same
+rule applied with less foresight: it cannot gate over inputs it has not
+seen, so its atom is the line.
 
 There is no host closure.  The reference interpreter wraps a whole
 program in one outer ~[ ... ]~: the top level *is* a closure body, read
@@ -1729,6 +1901,48 @@ self receiver. Generic opaque calls use the fallback runtime ABI.
 - No assumption that every bound executable value has a fixed
   monomorphic stack effect.
 * Revision notes
+Changes in the 2026-08-12 revision:
+
+- The parser accumulates, and its recovery contract is stated in Part
+  I's new =Recovery and partial output=.  ~parse_form~ yields
+  ~Option<HirForm>~ where ~None~ means an error at or below that node,
+  containers poison upward, and there is no poison ~HirKind~ variant.
+  Phase 2's entry gains a pointer to it.
+- Corrected the justification for the ungated entry points.  They exist
+  because the gated form is built from them; test inspection of
+  recovered output is a use rather than the reason, and diagnostics are
+  the better assertion target.
+- Integer conversion belongs to phase 2.  Tokens classify by shape and
+  carry no computed payload, so ~i64~ overflow moves off the Phase 1
+  error surface and onto Phase 2's, namespaced ~parse::~.
+- Several files given in one invocation are one compilation.  Added
+  =Multiple sources=: form-level concatenation in command-line order,
+  one entry ~Body~, ~SourceId~ order as scope order, no scope barrier
+  at a file boundary, and the invocation rather than the file as the
+  unit of atomicity.  The pipeline is N-wide through parsing and 1-wide
+  after.
+- The gate is per phase, not per source.  Phases 0 through 2 attempt
+  every source and gate once at the boundary; crossing a boundary with
+  a reduced source set is rejected because the resulting resolution
+  errors are derived.
+- Diagnostics accumulate into a value that merges rather than one
+  shared sink, so a phase decides its result from the errors it
+  produced.  Without this the first failing source poisons the rest.
+  Only ~Error~ and ~Bug~ gate, and the error cap becomes a rendering
+  policy applied once over the merged set.
+- Part I's =Parse-time errors= no longer enumerates.  The list
+  duplicated two lexer-owned entries and a third copy of the bracket
+  rules; the error surface is listed once, under =Per-phase error
+  surfaces=.
+- The unknown-character error is given content: a C0 control character
+  or ~DEL~ outside the recognised whitespace, rejected for diagnostic
+  integrity rather than to restrict the language surface.
+- =Per-phase error surfaces= is a non-normative index; the
+  diagnostic-construction module is the authoritative enumeration.
+  What the document pins is which conditions are rejected and which
+  phase owns each, not the inventory.  Phases 3 through 6 are marked
+  TODO rather than carrying a blanket incompleteness note.
+
 Changes in the 2026-08-08 compiler revision:
 
 - Quote is superseded: ~'~ is a parser prefix wrapping exactly the next

@@ -41,6 +41,11 @@ const _: () = {
     }
 };
 
+/// Check if a given [`char`] is a valid character to be part of a symbol.
+fn is_valid_sym_char(c: char) -> bool {
+    !RESTRICTED_CHARS.contains(c) && !c.is_ascii_control()
+}
+
 /// Check if the given [`&str`] contains only numeric digits, excluding a
 /// possible sign at the start.
 fn is_integer(text: &str) -> bool {
@@ -196,7 +201,7 @@ impl<'a> Tokeniser<'a> {
     /// Returns `None` when there is no run at all - the cursor sits on a
     /// restricted character or at end-of-source.
     fn scan_scalar(&self) -> Option<(TokenKind, usize)> {
-        let len = self.run_len(|c| !RESTRICTED_CHARS.contains(c));
+        let len = self.run_len(is_valid_sym_char);
         if len == 0 {
             None
         } else if is_integer(&self.rest()[..len]) {
@@ -429,6 +434,46 @@ mod tests {
     }
 
     #[test]
+    fn control_characters_are_errors() {
+        // A control character is not symbol material.  It is reported on its
+        // own one-character span, and it terminates the run it sits in rather
+        // than being absorbed into it - so the symbols either side survive.
+        for control in ['\u{0}', '\u{b}', '\u{c}', '\u{1b}', '\u{7f}'] {
+            let text = format!("a{control}b");
+            let (tokens, diags) = lex(&text);
+
+            let got: Vec<_> =
+                tokens.iter().map(|(k, s)| (*k, s.as_str())).collect();
+            assert_eq!(got, [(Symbol, "a"), (Symbol, "b")], "lexing {text:?}");
+            assert_eq!(
+                diags,
+                vec![(Class::LexUnknownCharacter, control.to_string())],
+                "lexing {text:?}"
+            );
+        }
+
+        // Each one is its own diagnostic, so they accumulate.
+        assert_errors(
+            "\u{0}\u{7f}",
+            &[
+                (Class::LexUnknownCharacter, "\u{0}"),
+                (Class::LexUnknownCharacter, "\u{7f}"),
+            ],
+        );
+
+        // The exclusion is control characters MINUS the recognised
+        // whitespace; `\n` and `\t` are both, and stay trivia.
+        assert_tokens("a\tb\nc", &[(Symbol, "a"), (Symbol, "b"), (Symbol, "c")]);
+
+        // Comments are not symbols, so nothing renders back to the user out of
+        // one, and it stays liberal in what it swallows.
+        assert_tokens(
+            concat!("a ;com\u{0}ment\n", "b"),
+            &[(Symbol, "a"), (Symbol, "b")],
+        );
+    }
+
+    #[test]
     fn binding_operators() {
         // Any non symbol scalar operand gets consumed in the diagnostic.
         assert_errors("$12", &[(Class::LexBindInvalid, "$12")]);
@@ -468,7 +513,7 @@ mod tests {
     }
 
     #[test]
-    fn the_gate_follows_this_phase_only() {
+    fn diagnostics_across_lexes() {
         // `Diagnostics` is session-global, so a failure recorded against one
         // source must not abort a later source that lexed cleanly.
         let mut table = SourceTable::new();

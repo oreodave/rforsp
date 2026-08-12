@@ -12,7 +12,7 @@ pub enum Phase {
 }
 
 /// Error value for an Aborted [`Phase`].
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct Aborted(pub Phase);
 
 impl Phase {

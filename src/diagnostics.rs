@@ -15,9 +15,9 @@ mod diagnostic;
 pub use diagnostic::{Diagnostic, Site};
 
 mod accumulator;
-pub use accumulator::{DEFAULT_DIAGNOSTIC_CAP, Diagnostics};
+pub use accumulator::Diagnostics;
 
 mod render;
-pub use render::render_diagnostics;
+pub use render::{DEFAULT_RENDERING_CAP, render_diagnostics};
 
 pub mod conv;

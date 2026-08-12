@@ -9,6 +9,10 @@ use crate::{
     source::{SourceTable, SyntaxOrigin},
 };
 
+/// The default number of diagnostics that are rendered, after which diagnostics
+/// are "suppressed" instead.
+pub const DEFAULT_RENDERING_CAP: usize = 20;
+
 /// Render a collection of [`Diagnostics`] related to a [`SourceTable`] into
 /// `out`.
 ///
@@ -19,20 +23,38 @@ pub fn render_diagnostics(
     table: &SourceTable,
     out: &mut impl fmt::Write,
 ) -> fmt::Result {
+    render_diagnostics_with_cap(diags, table, DEFAULT_RENDERING_CAP, out)
+}
+
+/// Render a collection of [`Diagnostics`] related to a [`SourceTable`] into
+/// `out`.  `cap` decides how many are suppressed.
+///
+/// # Errors
+/// - Repeated back from `write!`/`writeln!` calls.
+fn render_diagnostics_with_cap(
+    diags: &Diagnostics,
+    table: &SourceTable,
+    cap: usize,
+    out: &mut impl fmt::Write,
+) -> fmt::Result {
     let mut renderer = Renderer::new(table, out);
-    for diag in diags.items() {
+    let total = diags.items().len();
+    let to_render = total.min(cap);
+    let suppressed = total.saturating_sub(cap);
+
+    for diag in diags.items().iter().take(to_render) {
         renderer.render(diag)?;
     }
 
-    if diags.suppressed() > 0 {
-        if !diags.items().is_empty() {
+    if suppressed > 0 {
+        if to_render > 0 {
             writeln!(out)?;
         }
         writeln!(
             out,
             "{} {} suppressed",
-            diags.suppressed(),
-            if diags.suppressed() == 1 {
+            suppressed,
+            if suppressed == 1 {
                 "diagnostic"
             } else {
                 "diagnostics"
@@ -212,6 +234,12 @@ mod tests {
         s
     }
 
+    fn diags_with_cap(t: &SourceTable, d: &Diagnostics, cap: usize) -> String {
+        let mut s = String::new();
+        render_diagnostics_with_cap(d, t, cap, &mut s).unwrap();
+        s
+    }
+
     #[test]
     fn site_geometry() {
         let mut t = SourceTable::new();
@@ -321,13 +349,12 @@ mod tests {
         let t = SourceTable::new();
 
         // With a cap, overflow diagnostics are suppressed and summarised.
-        let mut acc = Diagnostics::with_cap(1);
+        let mut acc = Diagnostics::new();
         acc.push(Diagnostic::new(Class::SourceTooLarge, Site::None, "a"));
         acc.push(Diagnostic::new(Class::SourceTooLarge, Site::None, "b"));
         acc.push(Diagnostic::new(Class::SourceTooLarge, Site::None, "c"));
-        assert_eq!(acc.items().len(), 1);
-        assert_eq!(acc.suppressed(), 2);
-        let s = diags(&t, &acc);
+
+        let s = diags_with_cap(&t, &acc, 1);
         assert!(s.contains("error[source::TOO_LARGE]: a"));
         assert!(!s.contains("error[source::TOO_LARGE]: c"));
         assert!(s.contains("2 diagnostics suppressed"));

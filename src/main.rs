@@ -1,6 +1,6 @@
 //! Entrypoint for rForsp compiler
 
-use std::{io::Write, process::ExitCode};
+use std::process::ExitCode;
 
 use rforsp::{
     diagnostics::{Aborted, Diagnostics, render_diagnostics},
@@ -25,6 +25,7 @@ fn compile(
     table: &mut SourceTable,
     diagnostics: &mut Diagnostics,
 ) -> Result<(), Aborted> {
+    // FIXME: Wire in parsing, resolution, lowering, verification.
     let sources = sources_from_files(filenames, table, diagnostics)?;
     let lexes = lex_sources(&sources, table, diagnostics)?;
 
@@ -60,11 +61,11 @@ fn main() -> ExitCode {
     let compile_result = compile(&args, &mut table, &mut diagnostics);
 
     match compile_result {
-        Err(Aborted(phase)) => {
-            eprintln!("Compilation failed during {} phase", phase.as_str());
+        Err(e) => {
+            eprintln!("{e}");
             let mut error_buf = String::new();
             let _ = render_diagnostics(&diagnostics, &table, &mut error_buf);
-            let _ = std::io::stderr().write_all(error_buf.as_bytes());
+            eprint!("{error_buf}");
             ExitCode::FAILURE
         }
         Ok(()) => ExitCode::SUCCESS,

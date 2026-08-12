@@ -7,10 +7,11 @@
 //! named constructor per [`Class`].  Construction lives in one module so that
 //! every user-facing string in the compiler has a single home.
 
+use std::fmt;
 use std::fmt::Write as _;
 
 use crate::{
-    diagnostics::{Class, Diagnostic, Phase, Site},
+    diagnostics::{Aborted, Class, Diagnostic, Phase, Site},
     lexer::{LexError, LexErrorKind},
     source::{SourceError, SourceTableError},
 };
@@ -59,6 +60,12 @@ impl From<LexError> for Diagnostic {
         };
 
         Self::new(class, site, message)
+    }
+}
+
+impl fmt::Display for Aborted {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Compilation failed during the {} phase", self.0.as_str())
     }
 }
 

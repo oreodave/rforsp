@@ -2,9 +2,15 @@
 //!
 //! Each compiler phase's internal error type which we expect to eventually
 //! report to the user should have a conversion here into Diagnostic.
+//!
+//! Diagnostics with no error type behind them are constructed here too, by a
+//! named constructor per [`Class`].  Construction lives in one module so that
+//! every user-facing string in the compiler has a single home.
+
+use std::fmt::Write as _;
 
 use crate::{
-    diagnostics::{Class, Diagnostic, Site},
+    diagnostics::{Class, Diagnostic, Phase, Site},
     lexer::{LexError, LexErrorKind},
     source::{SourceError, SourceTableError},
 };
@@ -56,6 +62,30 @@ impl From<LexError> for Diagnostic {
     }
 }
 
+/// Tag a compiler bug with the location in the *compiler's* source that
+/// detected it.
+///
+/// Call this directly at the point of detection.  If it is ever wrapped in a
+/// per-class constructor, that constructor needs `#[track_caller]` too, or the
+/// location reported is the wrapper's.
+///
+/// # Panics
+/// - If `diag` is not a [`Phase::ICE`] diagnostic, since nothing else has a
+///   detection site to report.
+#[must_use]
+#[track_caller]
+pub fn ice(mut diag: Diagnostic) -> Diagnostic {
+    assert_eq!(
+        diag.class.phase(),
+        Phase::ICE,
+        "only a compiler bug carries a detection site"
+    );
+
+    let location = std::panic::Location::caller();
+    let _ = write!(diag.message, ", detected at {location}");
+    diag
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -74,6 +104,7 @@ mod tests {
         let source_error = sample_source_error();
         let diag = Diagnostic::from(source_error);
         assert_eq!(diag.class, Class::SourceTooLarge);
+        assert_eq!(diag.class.phase(), Phase::Source);
         assert!(diag.message.contains("hello"));
         assert!(diag.message.contains("contains 1000"));
         assert!(diag.message.contains("limit is 100"));
@@ -84,6 +115,7 @@ mod tests {
         let source_error = sample_source_error();
         let diag = Diagnostic::from(SourceTableError::from(source_error));
         assert_eq!(diag.class, Class::SourceTooLarge);
+        assert_eq!(diag.class.phase(), Phase::Source);
         assert!(diag.message.contains("hello"));
         assert!(diag.message.contains("contains 1000"));
         assert!(diag.message.contains("limit is 100"));
@@ -96,6 +128,7 @@ mod tests {
         let err = io::Error::from(io::ErrorKind::NotFound);
         let diag = Diagnostic::from(SourceTableError::Io { name, err });
         assert_eq!(diag.class, Class::SourceReadError);
+        assert_eq!(diag.class.phase(), Phase::Source);
         assert!(diag.message.contains("hello"));
     }
 
@@ -117,8 +150,33 @@ mod tests {
         ] {
             let diag = Diagnostic::from(LexError { origin, kind });
             assert_eq!(diag.class, class);
+            assert_eq!(
+                diag.class.phase(),
+                Phase::Lex,
+                "{kind:?} escaped its phase"
+            );
             assert_eq!(diag.site, Site::Raw(origin));
             assert!(!diag.message.is_empty(), "{kind:?} needs a message");
         }
+    }
+
+    #[test]
+    fn ice_reports_its_call_site() {
+        // Without `#[track_caller]` the location would be `ice`'s own line
+        // rather than this one, so pinning the line is what checks the
+        // attribute is in effect.
+        let line = line!() + 1;
+        let diag = ice(Diagnostic::new(
+            Class::ICEDroppedOutput,
+            Site::None,
+            "lex discarded output from a call that reported nothing",
+        ));
+
+        assert!(
+            diag.message
+                .contains(&format!(", detected at {}:{line}:", file!())),
+            "{}",
+            diag.message
+        );
     }
 }

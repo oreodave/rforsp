@@ -3,7 +3,8 @@
 use std::{io::Write, process::ExitCode};
 
 use rforsp::{
-    diagnostics::{Diagnostics, render_diagnostics},
+    diagnostics::{Aborted, Diagnostics, render_diagnostics},
+    drivers::sources_from_files,
     source::SourceTable,
 };
 
@@ -18,16 +19,23 @@ fn usage(mut out: impl std::io::Write) {
     );
 }
 
-/// Report errors from [`Diagnostics`] to [`std::io::stderr`] if there are any.
-fn report_errors(table: &SourceTable, diagnostics: &Diagnostics) -> bool {
-    if diagnostics.has_errors() {
-        let mut error_buf = String::new();
-        let _ = render_diagnostics(diagnostics, table, &mut error_buf);
-        let _ = std::io::stderr().write_all(error_buf.as_bytes());
-        true
-    } else {
-        false
+fn compile(
+    filenames: &[String],
+    table: &mut SourceTable,
+    diagnostics: &mut Diagnostics,
+) -> Result<(), Aborted> {
+    let sources = sources_from_files(filenames, table, diagnostics)?;
+
+    // TODO: Fit in lex phase driver here.
+    for source in sources.iter().map(|&id| table.get_source(id)) {
+        println!(
+            concat!("SOURCE[{}]:\n", "<start>\n", "{}", "<end>\n"),
+            source.name,
+            source.text()
+        );
     }
+
+    Ok(())
 }
 
 fn main() -> ExitCode {
@@ -39,32 +47,17 @@ fn main() -> ExitCode {
 
     let mut diagnostics = Diagnostics::new();
     let mut table = SourceTable::new();
-    let sources = args
-        .iter()
-        .filter_map(|filename| {
-            table
-                .add_source_file(filename)
-                .map_err(|e| {
-                    diagnostics.push(e.into());
-                })
-                .ok()
-        })
-        .collect::<Vec<_>>();
 
-    if diagnostics.has_errors() {
-        // FIXME: Make this phase generic
-        eprintln!("Compilation failed during Source phase.");
-        report_errors(&table, &diagnostics);
-        ExitCode::FAILURE
-    } else {
-        for source in sources.iter().map(|&id| table.get_source(id)) {
-            println!(
-                concat!("SOURCE[{}]:\n", "<start>\n", "{}", "<end>\n"),
-                source.name,
-                source.text()
-            );
+    let compile_result = compile(&args, &mut table, &mut diagnostics);
+
+    match compile_result {
+        Err(Aborted(phase)) => {
+            eprintln!("Compilation failed during {} phase", phase.as_str());
+            let mut error_buf = String::new();
+            let _ = render_diagnostics(&diagnostics, &table, &mut error_buf);
+            let _ = std::io::stderr().write_all(error_buf.as_bytes());
+            ExitCode::FAILURE
         }
-
-        ExitCode::SUCCESS
+        Ok(()) => ExitCode::SUCCESS,
     }
 }

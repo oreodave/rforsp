@@ -74,7 +74,7 @@ impl Class {
     pub const fn as_code(&self) -> &'static str {
         match self {
             Self::SourceTooLarge => "TOO_LARGE",
-            Self::SourceReadError => "I/O_ERROR",
+            Self::SourceReadError => "IO_ERROR",
             Self::LexUnknownCharacter => "UNKNOWN_CHARACTER",
             Self::LexBindInvalid => "BIND_INVALID",
             Self::LexLoadInvalid => "LOAD_INVALID",

@@ -26,24 +26,6 @@ impl Diagnostics {
         }
     }
 
-    /// The stored diagnostics in report order.
-    #[must_use]
-    pub fn items(&self) -> &[Diagnostic] {
-        &self.items
-    }
-
-    /// Whether any [`Severity::Error`]s has been reported.
-    #[must_use]
-    pub const fn has_errors(&self) -> bool {
-        self.errors > 0
-    }
-
-    /// The number of fatal diagnostics reported.
-    #[must_use]
-    pub const fn error_count(&self) -> usize {
-        self.errors
-    }
-
     /// Record a diagnostic.
     ///
     /// [`Severity::Error`] count toward
@@ -62,6 +44,38 @@ impl Diagnostics {
         self.items.clear();
         self.errors = 0;
     }
+
+    /// Merge the given [`Diagnostics`] into the current set.
+    ///
+    /// The merge is unconditional: a call that succeeded may still have
+    /// produced diagnostics worth keeping, and only its return value decides
+    /// whether its *output* is kept.
+    ///
+    /// The error count crosses with the items.  [`push`][Diagnostics::push] is
+    /// the only way in and counts an error exactly when it stores one, so the
+    /// counts agree on both sides and adding them preserves that.
+    pub fn merge(&mut self, diagnostics: Self) {
+        self.errors += diagnostics.errors;
+        self.items.extend(diagnostics.items);
+    }
+
+    /// The stored diagnostics in report order.
+    #[must_use]
+    pub fn items(&self) -> &[Diagnostic] {
+        &self.items
+    }
+
+    /// Whether any [`Severity::Error`]s has been reported.
+    #[must_use]
+    pub const fn has_errors(&self) -> bool {
+        self.errors > 0
+    }
+
+    /// The number of fatal diagnostics reported.
+    #[must_use]
+    pub const fn error_count(&self) -> usize {
+        self.errors
+    }
 }
 
 #[cfg(test)]
@@ -78,6 +92,31 @@ mod tests {
         d.push(Diagnostic::new(Class::SourceReadError, SITE, "x"));
         assert!(d.has_errors());
         assert_eq!(d.error_count(), 2);
+    }
+
+    #[test]
+    fn merge_carries_items_and_errors() {
+        // A merged-in error must gate the receiver.  Carrying the items but
+        // not the count would leave the gate open on diagnostics that render
+        // perfectly well, which is the failure that is hardest to notice.
+        let mut into = Diagnostics::new();
+        let mut from = Diagnostics::new();
+        from.push(Diagnostic::new(Class::SourceReadError, SITE, "a"));
+        from.push(Diagnostic::new(Class::SourceReadError, SITE, "b"));
+
+        into.merge(from);
+        assert!(into.has_errors(), "a merged error must gate the receiver");
+        assert_eq!(into.error_count(), 2);
+
+        // Merging accumulates onto what is already there, in report order.
+        let mut more = Diagnostics::new();
+        more.push(Diagnostic::new(Class::SourceTooLarge, SITE, "c"));
+        into.merge(more);
+        assert_eq!(into.error_count(), 3);
+
+        let messages: Vec<&str> =
+            into.items().iter().map(|d| d.message.as_str()).collect();
+        assert_eq!(messages, ["a", "b", "c"], "merge appends in report order");
     }
 
     #[test]

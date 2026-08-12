@@ -28,11 +28,10 @@ impl Diagnostics {
 
     /// Record a diagnostic.
     ///
-    /// [`Severity::Error`] count toward
+    /// [`Severity::Error`] and [`Severity::Bug`] count toward
     /// [`error_count`][Diagnostics::error_count].
     pub fn push(&mut self, diag: Diagnostic) {
-        let severity = diag.class.severity();
-        if severity == Severity::Error {
+        if matches!(diag.class.severity(), Severity::Error | Severity::Bug) {
             self.errors += 1;
         }
 
@@ -65,7 +64,8 @@ impl Diagnostics {
         &self.items
     }
 
-    /// Whether any [`Severity::Error`]s has been reported.
+    /// Whether any [`Severity::Error`]s or [`Severity::Bug`]s have been
+    /// reported.
     #[must_use]
     pub const fn has_errors(&self) -> bool {
         self.errors > 0

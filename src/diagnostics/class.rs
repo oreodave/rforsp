@@ -10,26 +10,6 @@
 
 use crate::diagnostics::phase::Phase;
 
-/// Classification of diagnostics.
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub enum Class {
-    /// Source is too large.  Mirrors
-    /// [`TooLarge`][crate::source::SourceError::TooLarge].
-    SourceTooLarge,
-    /// File could not be read due to IO error.  Mirrors
-    /// [`Io`][crate::source::SourceTableError::Io].
-    SourceReadError,
-    /// Encountered an unknown character during lexing.  Mirrors
-    /// [`UnknownCharacter`][crate::lexer::LexErrorKind::UnknownCharacter]
-    LexUnknownCharacter,
-    /// Use of BIND operator ($) was invalid.  Mirrors
-    /// [`BindInvalid`][crate::lexer::LexErrorKind::BindInvalid]
-    LexBindInvalid,
-    /// Use of LOAD operator (^) was invalid.  Mirrors
-    /// [`LoadInvalid`][crate::lexer::LexErrorKind::LoadInvalid]
-    LexLoadInvalid,
-}
-
 /// How serious a diagnostic is.
 ///
 /// Only [`Severity::Error`] is fatal; a stage may complete successfully while
@@ -45,50 +25,141 @@ pub enum Severity {
     Error,
 }
 
-impl Class {
-    /// Get the [`Phase`] for this [`Class`].
-    #[must_use]
-    pub const fn phase(&self) -> Phase {
-        match self {
-            Self::SourceTooLarge | Self::SourceReadError => Phase::Source,
-            Self::LexUnknownCharacter
-            | Self::LexBindInvalid
-            | Self::LexLoadInvalid => Phase::Lex,
+/// Declare [`Class`] together with every table a class must populate.
+///
+/// One row per class - documentation, variant, owning [`Phase`], [`Severity`],
+/// and stable code - generating the enum, [`Class::ALL`], and the three
+/// lookups.  A class therefore cannot exist without all four, so the tables
+/// cannot fall out of step with the variant set.
+macro_rules! classes {
+    ($(
+        $(#[$meta:meta])*
+        $variant:ident => $phase:ident, $severity:ident, $code:literal;
+    )*) => {
+        /// Classification of diagnostics.
+        #[derive(Debug, PartialEq, Eq, Copy, Clone)]
+        pub enum Class {
+            $($(#[$meta])* $variant,)*
         }
-    }
 
-    /// Get the [`Severity`] for this [`Class`]
-    #[must_use]
-    pub const fn severity(&self) -> Severity {
-        match self {
-            Self::SourceTooLarge
-            | Self::SourceReadError
-            | Self::LexUnknownCharacter
-            | Self::LexBindInvalid
-            | Self::LexLoadInvalid => Severity::Error,
-        }
-    }
+        impl Class {
+            /// Every [`Class`], in declaration order.
+            ///
+            /// This is the compiler's full error surface, enumerable rather
+            /// than merely greppable.  It is generated from the same rows as
+            /// the enum, so it cannot omit a variant.
+            pub const ALL: &'static [Self] = &[$(Self::$variant,)*];
 
-    /// Convert Class to a stable diagnostic code.
-    #[must_use]
-    pub const fn as_code(&self) -> &'static str {
-        match self {
-            Self::SourceTooLarge => "TOO_LARGE",
-            Self::SourceReadError => "IO_ERROR",
-            Self::LexUnknownCharacter => "UNKNOWN_CHARACTER",
-            Self::LexBindInvalid => "BIND_INVALID",
-            Self::LexLoadInvalid => "LOAD_INVALID",
+            /// Get the [`Phase`] for this [`Class`].
+            #[must_use]
+            pub const fn phase(&self) -> Phase {
+                match self {
+                    $(Self::$variant => Phase::$phase,)*
+                }
+            }
+
+            /// Get the [`Severity`] for this [`Class`]
+            #[must_use]
+            pub const fn severity(&self) -> Severity {
+                match self {
+                    $(Self::$variant => Severity::$severity,)*
+                }
+            }
+
+            /// Convert Class to a stable diagnostic code.
+            ///
+            /// The code is bare; the renderer namespaces it with
+            /// [`Class::phase`].
+            #[must_use]
+            pub const fn as_code(&self) -> &'static str {
+                match self {
+                    $(Self::$variant => $code,)*
+                }
+            }
         }
-    }
+    };
+}
+
+classes! {
+    /// Source is too large.  Mirrors
+    /// [`TooLarge`][crate::source::SourceError::TooLarge].
+    SourceTooLarge => Source, Error, "TOO_LARGE";
+
+    /// File could not be read due to IO error.  Mirrors
+    /// [`Io`][crate::source::SourceTableError::Io].
+    SourceReadError => Source, Error, "IO_ERROR";
+
+    /// Encountered an unknown character during lexing.  Mirrors
+    /// [`UnknownCharacter`][crate::lexer::LexErrorKind::UnknownCharacter]
+    LexUnknownCharacter => Lex, Error, "UNKNOWN_CHARACTER";
+
+    /// Use of BIND operator ($) was invalid.  Mirrors
+    /// [`BindInvalid`][crate::lexer::LexErrorKind::BindInvalid]
+    LexBindInvalid => Lex, Error, "BIND_INVALID";
+
+    /// Use of LOAD operator (^) was invalid.  Mirrors
+    /// [`LoadInvalid`][crate::lexer::LexErrorKind::LoadInvalid]
+    LexLoadInvalid => Lex, Error, "LOAD_INVALID";
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// A class's code as the renderer spells it, namespaced by owning phase.
+    fn qualified(class: Class) -> String {
+        format!("{}::{}", class.phase().as_str(), class.as_code())
+    }
+
     #[test]
     fn severity_ordering() {
         assert!(Severity::Note < Severity::Warning);
         assert!(Severity::Warning < Severity::Error);
+    }
+
+    #[test]
+    fn codes_are_unique() {
+        // Two classes sharing a code cannot be told apart by a test asserting
+        // on the class of a diagnostic, which is what codes exist for.
+        let mut codes: Vec<String> =
+            Class::ALL.iter().copied().map(qualified).collect();
+        let declared = codes.len();
+        codes.sort_unstable();
+        codes.dedup();
+        assert_eq!(
+            codes.len(),
+            declared,
+            "two classes share a diagnostic code: {codes:?}"
+        );
+    }
+
+    #[test]
+    fn codes_are_greppable() {
+        // Codes are meant to be greppable and to render inside `error[..]`,
+        // so they stay UPPER_SNAKE and nothing else.
+        for &class in Class::ALL {
+            let code = class.as_code();
+            assert!(!code.is_empty(), "{class:?} has an empty code");
+            assert!(
+                code.bytes().all(|b| b.is_ascii_uppercase()
+                    || b.is_ascii_digit()
+                    || b == b'_'),
+                "{class:?} has a code that is not UPPER_SNAKE: {code}"
+            );
+        }
+    }
+
+    #[test]
+    fn no_phase_emits_another_phases_codes() {
+        // The variant name is the only place a class's phase is written down
+        // twice, so it is the only available cross-check on `phase`.
+        for &class in Class::ALL {
+            let name = format!("{class:?}").to_lowercase();
+            let phase = class.phase().as_str();
+            assert!(
+                name.starts_with(phase),
+                "{class:?} belongs to phase {phase} and must be named for it"
+            );
+        }
     }
 }

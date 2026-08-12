@@ -5,18 +5,21 @@
 pub enum Phase {
     /// Source phase.
     Source,
+    /// Lexing phase
+    Lex,
 }
 
 /// Error value for an Aborted [`Phase`].
 #[derive(Debug, Copy, Clone)]
-pub struct Aborted(Phase);
+pub struct Aborted(pub Phase);
 
 impl Phase {
     /// Convert Phase to a `str`.
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
-            Self::Source => "Source",
+            Self::Source => "source",
+            Self::Lex => "lex",
         }
     }
 }

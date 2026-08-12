@@ -52,6 +52,8 @@ fn main() -> ExitCode {
         .collect::<Vec<_>>();
 
     if diagnostics.has_errors() {
+        // FIXME: Make this phase generic
+        eprintln!("Compilation failed during Source phase.");
         report_errors(&table, &diagnostics);
         ExitCode::FAILURE
     } else {

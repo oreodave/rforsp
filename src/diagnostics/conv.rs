@@ -5,6 +5,7 @@
 
 use crate::{
     diagnostics::{Class, Diagnostic, Site},
+    lexer::{LexError, LexErrorKind},
     source::{SourceError, SourceTableError},
 };
 
@@ -33,9 +34,32 @@ impl From<SourceTableError> for Diagnostic {
     }
 }
 
+impl From<LexError> for Diagnostic {
+    fn from(e: LexError) -> Self {
+        let site = Site::Raw(e.origin);
+        let class = match e.kind {
+            LexErrorKind::UnknownCharacter => Class::LexUnknownCharacter,
+            LexErrorKind::BindInvalid => Class::LexBindInvalid,
+            LexErrorKind::LoadInvalid => Class::LexLoadInvalid,
+        };
+        let message = match e.kind {
+            LexErrorKind::UnknownCharacter => "Unrecognised character",
+            LexErrorKind::BindInvalid => {
+                "Expected Symbol immediately after Bind ($)"
+            }
+            LexErrorKind::LoadInvalid => {
+                "Expected Symbol immediately after Load (^)"
+            }
+        };
+
+        Self::new(class, site, message)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::source::{SourceTable, Span, SyntaxOrigin};
 
     fn sample_source_error() -> SourceError {
         SourceError::TooLarge {
@@ -72,7 +96,29 @@ mod tests {
         let err = io::Error::from(io::ErrorKind::NotFound);
         let diag = Diagnostic::from(SourceTableError::Io { name, err });
         assert_eq!(diag.class, Class::SourceReadError);
-        println!("{}", diag.message);
         assert!(diag.message.contains("hello"));
+    }
+
+    #[test]
+    fn lex_err() {
+        let mut table = SourceTable::new();
+        let source = table
+            .add_source_raw("t", "$12".into())
+            .expect("within bound");
+        let origin = SyntaxOrigin {
+            source,
+            span: Span::new(0, 3),
+        };
+
+        for (kind, class) in [
+            (LexErrorKind::UnknownCharacter, Class::LexUnknownCharacter),
+            (LexErrorKind::BindInvalid, Class::LexBindInvalid),
+            (LexErrorKind::LoadInvalid, Class::LexLoadInvalid),
+        ] {
+            let diag = Diagnostic::from(LexError { origin, kind });
+            assert_eq!(diag.class, class);
+            assert_eq!(diag.site, Site::Raw(origin));
+            assert!(!diag.message.is_empty(), "{kind:?} needs a message");
+        }
     }
 }

@@ -9,6 +9,8 @@
 pub mod diagnostics;
 pub mod interner;
 
+pub mod context;
+
 pub mod lexer;
 pub mod source;
 

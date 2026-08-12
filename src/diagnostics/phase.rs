@@ -3,6 +3,8 @@
 /// Phase of the compiler diagnostics may originate from.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Phase {
+    /// Internal Compiler Error
+    ICE,
     /// Source phase.
     Source,
     /// Lexing phase
@@ -18,6 +20,7 @@ impl Phase {
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
+            Self::ICE => "ice",
             Self::Source => "source",
             Self::Lex => "lex",
         }

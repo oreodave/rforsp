@@ -12,17 +12,22 @@ use crate::diagnostics::phase::Phase;
 
 /// How serious a diagnostic is.
 ///
-/// Only [`Severity::Error`] is fatal; a stage may complete successfully while
-/// carrying [`Severity::Note`] and [`Severity::Warning`] diagnostics.  Ordering
-/// runs from least to most severe.
+/// Only [`Severity::Error`] and [`Severity::Bug`] are fatal; a stage may
+/// complete successfully while carrying [`Severity::Note`] and
+/// [`Severity::Warning`] diagnostics.
+///
+/// Ordering runs from least to most severe.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub enum Severity {
     /// Additional context attached to another diagnostic.
     Note,
-    /// The program is accepted, but something is likely wrong.
+    /// The program is accepted; something may be wrong.
     Warning,
     /// The program is rejected; this is the user's fault.
     Error,
+    /// An invariant in the compiler was broken; this is the compiler author's
+    /// fault.
+    Bug,
 }
 
 /// Declare [`Class`] together with every table a class must populate.
@@ -100,6 +105,10 @@ classes! {
     /// Use of LOAD operator (^) was invalid.  Mirrors
     /// [`LoadInvalid`][crate::lexer::LexErrorKind::LoadInvalid]
     LexLoadInvalid => Lex, Error, "LOAD_INVALID";
+
+    /// Poisoned/dropped output from a compiler phase despite no new Diagnostics
+    /// generated in a phase.
+    ICEDroppedOutput => ICE, Bug, "DROPPED_OUTPUT";
 }
 
 #[cfg(test)]
@@ -115,6 +124,7 @@ mod tests {
     fn severity_ordering() {
         assert!(Severity::Note < Severity::Warning);
         assert!(Severity::Warning < Severity::Error);
+        assert!(Severity::Error < Severity::Bug);
     }
 
     #[test]

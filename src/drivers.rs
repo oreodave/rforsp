@@ -9,6 +9,15 @@ use crate::{
     source::SourceId,
 };
 
+/// Level of logs from [`compile`].
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum Log {
+    /// no logs.
+    None,
+    /// print a log of the tokens
+    Tokens,
+}
+
 /// Compile a set of `filenames`.
 ///
 /// # Errors
@@ -17,26 +26,14 @@ pub fn compile(
     filenames: &[String],
     ctx: &mut Compilation,
     diagnostics: &mut Diagnostics,
+    log: Log,
+    log_out: &mut impl std::fmt::Write,
 ) -> Result<(), Aborted> {
     // FIXME: Wire in parsing, resolution, lowering, verification.
     let sources = sources_from_files(filenames, ctx, diagnostics)?;
     let lexes = lex_sources(&sources, ctx, diagnostics)?;
 
-    for (&id, lex_stream) in sources.iter().zip(lexes) {
-        let source = ctx.table.get_source(id);
-        println!(
-            "{}: {} bytes => {} tokens",
-            source.name,
-            source.len(),
-            lex_stream.len()
-        );
-        for token in &lex_stream {
-            let kind = token.kind;
-            let text = source.span_text(token.span);
-            print!("{kind:?}({text}), ");
-        }
-        println!();
-    }
+    let _ = log_tokens(ctx, &sources, &lexes, log, log_out);
 
     Ok(())
 }
@@ -60,7 +57,7 @@ fn gate<T>(
 ///
 /// # Errors
 /// - If any error [`Diagnostic`]s are created while adding files to the table.
-pub fn sources_from_files(
+fn sources_from_files(
     filenames: &[String],
     ctx: &mut Compilation,
     diagnostics: &mut Diagnostics,
@@ -83,7 +80,7 @@ pub fn sources_from_files(
 ///
 /// # Errors
 /// - If any error [`Diagnostic`]s are created while lexing the given sources.
-pub fn lex_sources(
+fn lex_sources(
     source_ids: &[SourceId],
     ctx: &Compilation,
     diagnostics: &mut Diagnostics,
@@ -106,6 +103,35 @@ pub fn lex_sources(
         .collect::<Vec<_>>();
 
     gate(diagnostics, local, tokens_set, Phase::Lex)
+}
+
+/// Log tokens if and only if `log` == [`Log::Tokens`].
+fn log_tokens(
+    ctx: &Compilation,
+    sources: &[SourceId],
+    lexes: &[Vec<Token>],
+    log: Log,
+    log_out: &mut impl std::fmt::Write,
+) -> std::fmt::Result {
+    if log == Log::Tokens {
+        for (&id, lex_stream) in sources.iter().zip(lexes) {
+            let source = ctx.table.get_source(id);
+            writeln!(
+                log_out,
+                "{}: {} bytes => {} tokens",
+                source.name,
+                source.len(),
+                lex_stream.len()
+            )?;
+            for token in lex_stream {
+                let kind = token.kind;
+                let text = source.span_text(token.span);
+                write!(log_out, "{kind:?}({text}), ")?;
+            }
+            writeln!(log_out)?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -179,7 +205,7 @@ mod tests {
     }
 
     #[test]
-    fn lex_attempts_all_sources() {
+    fn lex_gates_per_source() {
         let mut ctx = Compilation::new();
         let good = ctx
             .table

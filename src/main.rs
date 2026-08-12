@@ -4,7 +4,7 @@ use std::{io::Write, process::ExitCode};
 
 use rforsp::{
     diagnostics::{Aborted, Diagnostics, render_diagnostics},
-    drivers::sources_from_files,
+    drivers::{lex_sources, sources_from_files},
     source::SourceTable,
 };
 
@@ -19,20 +19,29 @@ fn usage(mut out: impl std::io::Write) {
     );
 }
 
+/// Compile a set of `filenames`.
 fn compile(
     filenames: &[String],
     table: &mut SourceTable,
     diagnostics: &mut Diagnostics,
 ) -> Result<(), Aborted> {
     let sources = sources_from_files(filenames, table, diagnostics)?;
+    let lexes = lex_sources(&sources, table, diagnostics)?;
 
-    // TODO: Fit in lex phase driver here.
-    for source in sources.iter().map(|&id| table.get_source(id)) {
+    for (&id, lex_stream) in sources.iter().zip(lexes) {
+        let source = table.get_source(id);
         println!(
-            concat!("SOURCE[{}]:\n", "<start>\n", "{}", "<end>\n"),
+            "{}: {} bytes => {} tokens",
             source.name,
-            source.text()
+            source.len(),
+            lex_stream.len()
         );
+        for token in &lex_stream {
+            let kind = token.kind;
+            let text = source.span_text(token.span);
+            print!("{kind:?}({text}), ");
+        }
+        println!();
     }
 
     Ok(())

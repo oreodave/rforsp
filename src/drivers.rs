@@ -1,13 +1,15 @@
 //! Generalised drivers for each phase of the compiler.
 
 use crate::{
-    diagnostics::{Aborted, Diagnostics, Phase},
+    diagnostics::{
+        Aborted, Class, Diagnostic, Diagnostics, Phase, Site, conv::ice,
+    },
     lexer::{Token, tokenise},
     source::{SourceId, SourceTable},
 };
 
 /// The gate that ensures that the results of a compiler phase only pass through
-/// if the [`Diagnostics`] of that phase have no errors.
+/// if the local [`Diagnostics`] of that phase has no errors.
 fn gate<T>(
     global_diags: &mut Diagnostics,
     local_diags: Diagnostics,
@@ -24,8 +26,7 @@ fn gate<T>(
 /// Add a set of files to the given [`SourceTable`].
 ///
 /// # Errors
-/// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created
-///   while adding files to the table.
+/// - If any error [`Diagnostic`]s are created while adding files to the table.
 pub fn sources_from_files(
     filenames: &[String],
     source_table: &mut SourceTable,
@@ -48,8 +49,7 @@ pub fn sources_from_files(
 /// Lex a sequence of [`SourceId`] into Token Streams.
 ///
 /// # Errors
-/// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created
-///   while lexing the given sources.
+/// - If any error [`Diagnostic`]s are created while lexing the given sources.
 pub fn lex_sources(
     source_ids: &[SourceId],
     source_table: &SourceTable,
@@ -59,8 +59,15 @@ pub fn lex_sources(
     let tokens_set = source_ids
         .iter()
         .filter_map(|&id| {
-            let (tokens, local_1) = tokenise(id, source_table);
-            local.merge(local_1);
+            let (tokens, mut lexer_diags) = tokenise(id, source_table);
+            if tokens.is_none() && !lexer_diags.has_errors() {
+                lexer_diags.push(ice(Diagnostic::new(
+                    Class::ICEDroppedOutput,
+                    Site::Source(id),
+                    "lexing produced no tokens",
+                )));
+            }
+            local.merge(lexer_diags);
             tokens
         })
         .collect::<Vec<_>>();

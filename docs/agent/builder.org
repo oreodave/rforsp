@@ -35,7 +35,11 @@ not amend it.  That escalation goes to the architect, via
    is next.  Read this first, every session.
 2) [[file:ir-design.org]] - consult the sections covering the phase
    you are touching.  Authoritative on what a phase must do and
-   report.
+   report.  Its =Revision notes= are dated and grouped: read every
+   group newer than your last handover, whichever phase you are
+   touching.  An amendment can land on a phase you consider finished,
+   and =status.org= cannot tell you so - it derives from the code, and
+   a specification change is not in the code.
 3) [[file:questions.org]] - open design questions.  Check whether the
    area you are about to touch is design-blocked before proposing an
    approach that presumes an answer.

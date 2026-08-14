@@ -64,6 +64,15 @@ When asked to "handover":
 3) Where a resolved question unblocks implementation work, say so in
    the log entry.  The builder folds that into =status.org=; you do
    not.
+4) Where an amendment changes a phase that is *already built*, say so
+   in the log entry and again in the handover message, and record the
+   change in [[file:ir-design.org]]'s dated =Revision notes= group.
+   Those notes are the builder's only discovery mechanism for a
+   specification change: =status.org= derives from the code and cannot
+   carry one, and a log is read when something looks arbitrary rather
+   than to find out what moved.  An amendment that precedes a phase is
+   found by the builder reading that phase; one that follows a phase is
+   found only if you say so.
 
 You write =logs/architect.org= and =questions.org=.  You do not write
 =status.org=, =logs/builder.org= or =ir-design.org=.  =status.org=

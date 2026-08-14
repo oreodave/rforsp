@@ -86,15 +86,55 @@ Range is not recoverable from shape, and a digit-count proxy is a
 different predicate.
 
 Symbols are otherwise liberal — a maximal run of characters outside the
-restricted set — with one exclusion: a C0 control character or ~DEL~
-that is not recognised whitespace is an error rather than part of a
-name.  ~VT~ and ~FF~ fall on the error side.  The reason is diagnostic
-integrity rather than language surface.  Admitting them would let a
-stray ~NUL~ from a corrupt file lex as part of an ordinary symbol,
+restricted set — with two exclusions.  A control character (Unicode
+~Cc~ — C0 and C1, including ~DEL~) that is not recognised whitespace is
+an error rather than part of a name; ~VT~ and ~FF~ fall on the error
+side.  A format character (Unicode ~Cf~ — zero-width characters,
+bidirectional overrides, the BOM) is an error wherever it appears, with
+one positional exception given below.
+
+Both exclusions are diagnostic integrity rather than language surface.
+Admitting them would let a stray ~NUL~ from a corrupt file, or a
+zero-width space from an editor, lex as part of an ordinary symbol,
 survive to resolution, and produce an unbound-name report whose name
 renders as nothing — the diagnostic corrupted by the thing it is
-reporting.  Which *printable* characters may appear in a symbol is a
-separate and larger question, and is not settled here.
+reporting.  ~Cf~ is the class that renders as nothing by definition, so
+it settles on the same argument as ~Cc~ and needs no separate one.
+
+Recognised whitespace is exactly four characters:
+#+begin_src text
+U+0009  tab
+U+000A  line feed
+U+000D  carriage return
+U+0020  space
+#+end_src
+
+The set is normative — it is the carve-out in the control-character
+rule, so it decides acceptance — which is why it is enumerated here
+rather than left to an implementation constant.  It is narrower than
+Unicode ~White_Space~, so a C1 control that Unicode classifies as
+whitespace — notably NEL, U+0085 — is an error rather than skipped
+trivia; the predicate is "is a control character *and* is not in this
+set", never ~is_control && !is_whitespace~.
+
+~CR~ is in the set so that a CRLF-terminated source lexes.  It is
+skipped as trivia and is *not* a line terminator: line and column
+mapping stays LF-only, and a source using lone ~CR~ terminators is one
+long line as far as diagnostics are concerned.
+
+The positional exception is the BOM.  A ~U+FEFF~ at offset 0 is skipped
+as trivia, being an artefact of the editor rather than program text; it
+is skipped rather than stripped so that byte offsets continue to agree
+with the file on disk.  A ~U+FEFF~ anywhere else is an error like any
+other ~Cf~.
+
+Which *printable* characters may appear in a symbol is not restricted,
+and no normalisation is performed when a name is interned.  Two
+spellings that render identically are therefore two names.  This is
+revisitable at one site: every consumer of a ~SymId~ compares by
+identity, so a normalisation policy would change the interner and
+nothing else, and it would only ever merge names rather than split
+them.
 
 Recovery is straightforward — record the error, skip one character,
 resume — so error accumulation is genuinely useful here rather than
@@ -252,15 +292,15 @@ is not a decision.
   - source exceeds ~MAX_SOURCE_LEN~;
   - contents are not valid UTF-8.
 - Phase 1 (lexing):
-  - control character outside the recognised whitespace;
+  - a control or format character not admitted as trivia;
   - ~$~ or ~^~ not followed by a name.
 - Phase 2 (parsing):
   - unterminated ~[~ or ~(~;
   - unexpected closing bracket;
   - mismatched bracket kinds;
-  - quote at end of input;
+  - a quote with no following form;
   - nested quote — a quote directly wrapping another (~''x~);
-  - quote of a form with nothing to denote — ~'^x~ and ~'$x~;
+  - a binding form in datum position — ~'^x~, ~'[^x]~, ~(^x)~;
   - integer literal outside ~i64~.
 - TODO Phase 3 (resolution):
   - unresolved name, on any path including dead ones;
@@ -313,17 +353,28 @@ The reason is not tidiness: a lex failure means the tokens are
 unknown, so parse errors derived from them would be noise generated
 from garbage.
 
-Every phase that can fail returns ~Result<T, Aborted>~, where
+Every phase *driver* that can fail returns ~Result<T, Aborted>~, where
 ~Aborted~ is an empty sentinel carrying no data — the details are in
-the accumulator. The gate is then enforced by the type system rather
-than by convention, and the phase sequence lives in one driver
+the accumulator. The rule binds the driver entry point, not every
+fallible function in the phase's implementation. The per-source form
+of an N-wide phase returns ~(Option<T>, Diagnostics)~: its output
+alongside its own accumulator, ~None~ meaning a gating severity was
+reported for that source and its output is to be discarded, the
+accumulator returned unconditionally so that warnings on success
+survive the merge. The gate is then enforced by the type system
+rather than by convention, and the phase sequence lives in one driver
 function where ~?~ performs the gating:
 #+begin_src text
-let tokens      = lex(source, interner, diags)?;
-let forms       = parse(&tokens, table, diags)?;
+let (tokens, diags) = lex_all(&sources, interner, diags)?;
+let (forms,  diags) = parse_all(&tokens,  table,   diags)?;
 let resolutions = resolve(&forms, diags)?;
 verify(&module, diags)?;
 #+end_src
+
+Here ~lex_all~ and ~parse_all~ are the N-wide drivers: each folds the
+per-source ~(Option<T>, Diagnostics)~ form, extends on ~Some~, merges
+diagnostics unconditionally, and gates once at the end; ~resolve~ and
+~verify~ are 1-wide.
 
 Not every phase takes this shape:
 | # | Phase        | Returns                     |
@@ -565,7 +616,7 @@ stream, and ~quote~ is no longer a token — the bare word ~quote~ is an
 ordinary name.
 
 The consequence is that binding forms are code, never data. There is
-no datum denoting a ~Bind~ or a ~LoadRef~ (see [[*Quote denotation]]),
+no datum denoting a ~Bind~ or a ~LoadRef~ (see [[*Datum position]]),
 so they cannot appear where a datum is required: quoted, denoted as an
 element of self-evaluating data, or read at runtime (see [[*Part X:
 Streams and I/O]]). This deliberately supersedes the interpreter;
@@ -589,6 +640,11 @@ Quote(Quote(f))     -> rejected: nested quote is a parse error
 A quoted vector is data, not code. A parenthesized list is
 self-evaluating data and needs no quote.
 
+Denotation is a function and it recurses, so it applies to a list's
+elements uniformly: ~('x)~ and ~(x)~ denote the same datum, a list
+holding ~Atom(x)~.  Where it reaches a ~Bind~ or a ~LoadRef~ it is
+undefined, which is the subject of [[*Datum position]].
+
 A ~Quote~ whose immediate child is itself a ~Quote~ is a parse error.
 This is *direct* adjacency only — two apostrophes with nothing between
 them: ~''x~, ~''[a b]~, ~''(a b)~.  A quote separated from another by a
@@ -601,12 +657,55 @@ of the splicing reader — push ~Atom(quote)~, then evaluate ~x~ — not a
 nested-quote datum, so there is nothing to preserve.  Making it
 unconstructible resolves what ~Quote(Quote(f))~ should denote by
 removing the question, and guards the ~'~-for-~''~ typo.
+** Datum position
+A form is in *datum position* when it is built beneath a ~Quote~ or a
+~List~.  The property passes to every form built beneath one of those
+and is never cleared: a ~Vector~ in datum position is a vector datum
+rather than a closure body, and its elements are in datum position in
+turn.  It only ever accumulates because nothing in datum position is
+ever executed — a vector datum is a ~Vector~ value and not a ~Closure~,
+so the dispatch rule pushes it unchanged, and no operation turns a
+datum back into code.
+
+*A ~Bind~ or a ~LoadRef~ in datum position is a parse error.*  This is
+one condition, not a family, and adjacency to ~'~ has nothing to do
+with it:
+#+begin_src text
+'^x        ; error
+'[^x]      ; error
+'(a $x)    ; error
+(^x)       ; error - no quote appears anywhere in it
+([$y])     ; error
+[(^x)]     ; error - the list is data though the vector around it is code
+#+end_src
+
+The last three are the ones the denotation table never reaches, since
+it is written about ~Quote(f)~ alone.  A parenthesized list is
+self-evaluating data wherever it appears, so it puts its contents in
+datum position without a quote and even when it is reached from code.
+
+The rule is forced by lowering rather than chosen.  Every ~Quote~ and
+every ~List~ lowers to ~PUSH_DATA~, which has no failure path, and
+lowering is total given a successful resolution.  A tree the denotation
+function is undefined at would leave lowering with an element it has no
+~Value~ for, so a parser that admits one has made a phase that emits no
+diagnostics responsible for a user error.
+
+Phase 2 owns the check because it is the earliest phase that can take
+it: datum position follows from nesting and ~HirKind~ alone, with no
+environment.  Resolution could not take it cheaply, since it
+deliberately does not descend into data — ~Int~, ~Quote~ and ~List~
+have no ~ResolutionMap~ entry at all — and would need a traversal whose
+only product is errors.
+
+How the property is carried is not specified, only that it is
+carried inward as forms are built and never carried back out.
 ** Parse-time errors
 What the parser rejects is listed once, in [[*Per-phase error
 surfaces]].  Part I states each rule where it is argued — nested quote
-and nothing-to-denote under [[*Quote denotation]], bracket handling
-under [[*Recovery and partial output]] — and does not re-enumerate
-them here.
+under [[*Quote denotation]], binding forms in data under [[*Datum
+position]], bracket handling under [[*Recovery and partial output]] —
+and does not re-enumerate them here.
 
 Everything else is deferred. In particular, the parser does not check
 arity, does not check that ~if~ has arms, and does not reject unbound
@@ -617,12 +716,13 @@ downstream reads the tree produced on an error path, since the phase
 gate discards it, so recovery optimises for the number of errors found
 rather than for the fidelity of the tree.
 
-~parse_form~ yields ~Option<HirForm>~, and ~None~ means an error was
-reported at or below that node.  Containers poison upward: a container
-with a ~None~ child is itself ~None~.  What this buys is that every
-~HirForm~ which exists is well-formed, so no consumer has to ask
-whether a vector quietly lost a child — malformation is represented by
-absence alone, and absence appears only in the top-level sequence.
+A form that fails to parse is simply absent from the output.
+Malformation is represented by absence alone.  On an error path the
+output is partial: a container whose child failed to parse may be
+yielded without that child, and no well-formedness contract attaches
+to it, because the phase gate discards the tree and nothing downstream
+reads it.  On a *clean* accumulator the output is complete and
+well-formed, and that is the property that is load-bearing.
 
 There is no poison ~HirKind~ variant.  ~Resolution~ is the obvious
 precedent and a misleading one: resolution walks a tree that already
@@ -630,20 +730,22 @@ exists and must key an entry for every form it passes over, whereas the
 parser *constructs* the tree and can simply decline to construct.
 
 Three rules make recovery total:
-- every ~parse_form~ call consumes at least one token, so the loop
+- every parse step consumes at least one token, so the loop
   cannot hang;
 - an error path parses the construct to its natural end before choosing
-  a return value, because the diagnostics inside it are found by that
-  parse and nothing is gained by returning early;
-- every ~None~ has a reported error behind it.
+  whether to yield it, because the diagnostics inside it are found by
+  that parse and nothing is gained by returning early;
+- every form absent from the output has a reported error behind it.
 
-The last is checkable rather than merely intended.  The ungated entry
-point returns ~Vec<Option<HirForm>>~ and the gated one collects it into
-~Vec<HirForm>~ when the accumulator is clean; a failed collect against
-a clean accumulator is a compiler bug, reported as ~ice::~ rather than
-as a user error.  The accumulator, not the ~Option~, is the authority
-on whether the phase failed — an unterminated bracket is an error whose
-enclosing form may still be absent for an unrelated reason.
+The last is checkable rather than merely intended.  Every ~HirForm~ is
+introduced by exactly one token (~Number~, ~Symbol~, ~Bind~, ~Load~,
+~Quote~, ~VecStart~, ~ListStart~) and a closer introduces none, so on
+a clean accumulator the form count must equal the token count minus the
+closer count.  A shortfall against a clean accumulator is a compiler
+bug, reported as ~ice::DROPPED_OUTPUT~ rather than as a user error.
+The accumulator, not the output, is the authority on whether the phase
+failed — an unterminated bracket is an error whose enclosing form may
+still be absent for an unrelated reason.
 
 Bracket errors resolve locally.  A closer that does not match the
 innermost open container closes it anyway and reports; a closer with no
@@ -653,7 +755,8 @@ cascade into.  Reading a mismatched closer as a typo for the right one
 is correct more often than reading it as an omitted inner closer, and
 it is the only reading needing no unwinding.  Several brackets left
 open at end of input report one ~Error~ each, which tells the user how
-deep they are and falls out of the unwind rather than needing a rule.
+deep they are and falls out of draining the open-container stack
+rather than needing a rule.
 
 What makes this cheap is a property of the grammar rather than a
 general truth about parsers: rForsp has no statement terminators and no
@@ -1661,12 +1764,22 @@ no finalization.  The earmuff spelling is convention; the lexer reads
 Read : rho Stream -> rho Value    IO | MAY_FAIL
 #+end_src
 
-~read~ consumes one datum from the stream using the same structural
-reader as the parser (see [[*Reader model: structural, not splicing]]).
-There is one reader and it produces data, so a binding form in the
-input is "nothing to denote" and is rejected exactly as under quote.  Reading is opportunistic: it consumes only as far as one
-complete datum, so ~1~ followed by a space pushes ~Int(1)~ and leaves
-the rest on the stream.
+~read~ consumes one datum from the stream.  It shares the parser's
+grammar and the lexer's character classification, but it is a separate
+reader (see [[*Reader model: structural, not splicing]]).  Its product
+is a ~Value~ and never a form, so the denotation table read as a
+production *is* its grammar, and a binding form in the input has
+nothing to denote and is rejected exactly as under quote (see
+[[*Datum position]]).  Reading is opportunistic: it consumes only as
+far as one complete datum, so ~1~ followed by a space pushes ~Int(1)~
+and leaves the rest on the stream.
+
+Sharing the parser itself is rejected.  The parser consumes a complete,
+bounded, immutable ~Source~ with precomputed line starts, and a stream
+has none of those properties, so one reader over both would push
+incrementality into phase 0 and an IO effect into phase 1.  What must
+not diverge is the grammar, so the conformance corpus is read through
+both.
 
 ~read~ always pushes exactly one value on the non-fault path, so its
 depth is ~Known(+1)~ and it is never depth-varying.  Its result *value
@@ -1701,7 +1814,8 @@ render to ~*stderr*~.  The former standalone ~Print~ primitive folds
 into ~write~.
 ** Scope
 The three standard streams, ~write~, and ~print~ are first-pass.  ~read~
-reuses the parser over a byte cursor and lands with or after it.
+is a separate datum reader over a byte cursor and lands with or after
+the parser.
 Creating streams over strings or files needs a string type and is
 deferred; when user streams arrive they bring a lifecycle — open,
 close, GC finalization — that the three constants do not need.
@@ -1901,6 +2015,58 @@ self receiver. Generic opaque calls use the fallback runtime ABI.
 - No assumption that every bound executable value has a fixed
   monomorphic stack effect.
 * Revision notes
+Changes in the 2026-08-14 revision:
+
+- Part I gains =Datum position=.  Nothing-to-denote is a property of the
+  denotation function, which recurses, rather than of adjacency to ~'~:
+  a form beneath a ~Quote~ or a ~List~ is in datum position, the
+  property passes inward and is never cleared, and a ~Bind~ or
+  ~LoadRef~ there is a parse error.  ~(^x)~ and ~[(^x)]~ are rejected
+  though no quote appears in either.  Phase 2 owns the check; the
+  phase-2 bullet widens from "quote of a form with nothing to denote" to
+  "a binding form in datum position".
+- ~read~ shares the parser's grammar and the lexer's character
+  classification but is a *separate reader*, its product being a
+  ~Value~ rather than a form.  Part X no longer claims one reader over
+  both: the parser consumes a complete, bounded, immutable ~Source~ and
+  a stream is none of those, so sharing would push incrementality into
+  phase 0 and an IO effect into phase 1.  The grammar must not diverge,
+  so the conformance corpus is read through both readers.
+- Phase 1 enumerates the recognised whitespace set — tab, line feed,
+  carriage return, space — since A-038 made it decide acceptance.  ~CR~
+  is in it, so a CRLF source lexes; it is trivia and not a line
+  terminator, and line mapping stays LF-only.
+- Phase 1 excludes format characters (Unicode ~Cf~) from symbols on the
+  same diagnostic-integrity argument as ~Cc~, with a leading BOM the one
+  positional exception, skipped as trivia rather than stripped.
+  Printable characters stay unrestricted and interning does not
+  normalise.
+
+Changes in the 2026-08-13 revision:
+
+- =Recovery and partial output= is restated formulation-neutrally.  The
+  ~parse_form~/~Option<HirForm>~ and poison-upward contract is
+  withdrawn: it was a consequence of the recursive formulation, not a
+  requirement, and phase 2 is built as an explicit stack (see
+  [[file:logs/builder.org][B-045]]).  A failed form is absent from the
+  output; error-path output is partial and carries no well-formedness
+  contract; clean-path output is complete.  The collect-based ICE is
+  replaced by the ~forms == tokens - closers~ bijection, reported as
+  ~ice::DROPPED_OUTPUT~.
+- =The phase gate= binds phase *drivers*, not every fallible function.
+  The per-source form of an N-wide phase returns ~(Option<T>,
+  Diagnostics)~ — output alongside its own accumulator, ~None~ meaning
+  a gating severity was reported — and the worked sketch is rewritten
+  to the N-wide/1-wide split.
+- The phase-2 error surface widens "quote at end of input" to "a quote
+  with no following form", covering a ~Quote~ discharged by a closer
+  with no intervening form.
+- The Phase 1 unknown-character exclusion widens from C0 and ~DEL~ to
+  all Unicode ~Cc~ control characters (C0 and C1, including ~DEL~),
+  with a note that recognised whitespace is narrower than Unicode
+  ~White_Space~, so a C1 control classified as whitespace (NEL,
+  U+0085) is an error rather than skipped trivia.
+
 Changes in the 2026-08-12 revision:
 
 - The parser accumulates, and its recovery contract is stated in Part

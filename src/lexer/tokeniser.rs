@@ -108,7 +108,9 @@ impl<'a> Tokeniser<'a> {
             source_id,
             source,
             diagnostics,
-            cursor: 0,
+            // Phase 0 has already accounted for a leading byte order mark, so
+            // every character from here on is program text.
+            cursor: source.content_start(),
         }
     }
 
@@ -492,6 +494,27 @@ mod tests {
             let format = format.to_string();
             assert_errors(&text, &[(Class::LexUnknownCharacter, &format)]);
         }
+    }
+
+    #[test]
+    fn leading_byte_order_mark() {
+        // Phase 0 accounts for a leading mark, so lexing never sees one: a
+        // marked source yields exactly what its unmarked twin does.  Spans
+        // stay file-absolute and so differ by the mark's three bytes, which is
+        // why this compares the text they cover rather than the offsets.
+        let program = "[$x ^x] 'a 12";
+        assert_eq!(lex(&format!("\u{feff}{program}")), lex(program));
+
+        // Only the first is consumed, so a second is program text and is
+        // rejected as the format character it is.
+        assert_errors(
+            "\u{feff}\u{feff}x",
+            &[(Class::LexUnknownCharacter, "\u{feff}")],
+        );
+
+        // A source that is only a mark has no program text, which is an empty
+        // token stream rather than an error.
+        assert_tokens("\u{feff}", &[]);
     }
 
     #[test]

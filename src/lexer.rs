@@ -5,6 +5,8 @@
 //! [`Span`][crate::source::Span]s within a specific
 //! [`Source`][crate::source::Source] with a type attached.
 
+mod charclass;
+
 mod token;
 pub use token::{Token, TokenKind};
 

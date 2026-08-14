@@ -2,7 +2,7 @@
 
 use crate::{
     diagnostics::Diagnostics,
-    lexer::{LexError, LexErrorKind, Token, TokenKind},
+    lexer::{LexError, LexErrorKind, Token, TokenKind, charclass::is_format},
     source::{Source, SourceId, SourceTable, Span, SyntaxOrigin},
 };
 
@@ -41,8 +41,13 @@ const _: () = {
 };
 
 /// Check if a given [`char`] is a valid character to be part of a symbol.
+///
+/// Two classes are excluded beyond the restricted set, both because they
+/// render as nothing: control characters (`Cc`) and format characters (`Cf`).
+/// A name containing either would report back to the reader as a name they
+/// cannot see.
 fn is_valid_sym_char(c: char) -> bool {
-    !RESTRICTED_CHARS.contains(c) && !c.is_control()
+    !RESTRICTED_CHARS.contains(c) && !c.is_control() && !is_format(c)
 }
 
 /// Check if the given [`&str`] contains only numeric digits, excluding a
@@ -477,6 +482,16 @@ mod tests {
             concat!("a ;com\u{0}ment\n", "b"),
             &[(Symbol, "a"), (Symbol, "b")],
         );
+
+        // Format characters are excluded on the same grounds, so they report
+        // identically.  A BOM is the mundane way in - an editor writes one and
+        // the name it lands in renders as nothing - and the bidirectional
+        // overrides are the adversarial way.
+        for format in ['\u{feff}', '\u{200b}', '\u{200d}', '\u{202e}'] {
+            let text = format!("a{format}b");
+            let format = format.to_string();
+            assert_errors(&text, &[(Class::LexUnknownCharacter, &format)]);
+        }
     }
 
     #[test]

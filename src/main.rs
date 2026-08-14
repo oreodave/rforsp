@@ -30,33 +30,29 @@ fn parse_cli() -> Result<CliConfig, CliExit> {
         log: Log::None,
         files: Vec::new(),
     };
-    let mut exit = None;
     let mut args = std::env::args().skip(1).peekable();
 
-    while args.peek().is_some_and(|arg| arg.starts_with("--")) {
+    while let Some(arg) = args.peek()
+        && arg.starts_with("--")
+    {
         match args.next().unwrap_or_default().as_str() {
             "--log-tokens" => config.log = Log::Tokens,
             "--help" => {
                 usage(std::io::stdout());
-                exit = Some(CliExit::Success);
-                break;
+                return Err(CliExit::Success);
             }
             "--version" => {
                 println!("rforsp v0.0.0");
-                exit = Some(CliExit::Success);
-                break;
+                return Err(CliExit::Success);
             }
             unknown => {
                 eprintln!("Unknown argument `{unknown}`.");
-                exit = Some(CliExit::Failure);
-                break;
+                return Err(CliExit::Failure);
             }
         }
     }
 
-    if let Some(exit) = exit {
-        Err(exit)
-    } else if args.len() == 0 {
+    if args.len() == 0 {
         Err(CliExit::Failure)
     } else {
         config.files = args.collect();

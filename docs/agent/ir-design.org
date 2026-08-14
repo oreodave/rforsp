@@ -67,10 +67,35 @@ through 2 run once per source; parsing's output is the join, where the
 form sequences concatenate into one.  Everything from resolution
 onwards sees a single input.  See [[*Multiple sources]].
 ** Phase 0: source acquisition
-Reads bytes, checks length against the source-length bound, computes
-line starts, and registers the text with the [[*Source table][source
+Reads bytes, checks length against the source-length bound, validates
+UTF-8, determines where the source's content begins, computes line
+starts, and registers the text with the [[*Source table][source
 table]], which assigns a ~SourceId~.  Nothing before this point has a
 location to report against.
+
+A source may begin with a byte order mark, which an editor writes and
+the user cannot see.  It carries no information in UTF-8, so phase 0
+records where the content begins and leaves the text alone:
+#+begin_src text
+content_start: usize   ; 3 if the source begins with U+FEFF, else 0
+#+end_src
+
+The mark is recorded rather than stripped so that byte offsets
+continue to agree with the file on disk.  A leading mark is never an
+error, and phase 0's error surface is unchanged by it.
+
+The *first* line start is ~content_start~ rather than 0.  This is what
+makes the rule cost nothing downstream: columns on line 1 are computed
+as though the mark were absent, and the renderer's slice for line 1
+does not begin with an invisible character.  A source beginning with a
+mark therefore reports the same line and column for every token as the
+same source without one, though its byte offsets differ by three.
+Position lookup clamps offsets below ~content_start~ to line 1, column
+1, so the mapper stays total for a malformed span on the ~Bug~ path.
+
+A mark elsewhere is not phase 0's concern; see [[*Phase 1: lexing]].
+Encodings other than UTF-8 need no rule of their own, since a UTF-16
+or UTF-32 mark is not valid UTF-8 and fails as such.
 
 Every named source is attempted, and every one that fails is reported,
 before the phase gates.  A user who mistyped two paths should learn
@@ -90,8 +115,7 @@ restricted set — with two exclusions.  A control character (Unicode
 ~Cc~ — C0 and C1, including ~DEL~) that is not recognised whitespace is
 an error rather than part of a name; ~VT~ and ~FF~ fall on the error
 side.  A format character (Unicode ~Cf~ — zero-width characters,
-bidirectional overrides, the BOM) is an error wherever it appears, with
-one positional exception given below.
+bidirectional overrides, the BOM) is an error wherever it appears.
 
 Both exclusions are diagnostic integrity rather than language surface.
 Admitting them would let a stray ~NUL~ from a corrupt file, or a
@@ -122,11 +146,13 @@ skipped as trivia and is *not* a line terminator: line and column
 mapping stays LF-only, and a source using lone ~CR~ terminators is one
 long line as far as diagnostics are concerned.
 
-The positional exception is the BOM.  A ~U+FEFF~ at offset 0 is skipped
-as trivia, being an artefact of the editor rather than program text; it
-is skipped rather than stripped so that byte offsets continue to agree
-with the file on disk.  A ~U+FEFF~ anywhere else is an error like any
-other ~Cf~.
+There is no positional exception.  Lexing begins at the source's
+~content_start~, so a leading byte order mark has already been
+accounted for by [[*Phase 0: source acquisition]] and every character
+phase 1 sees is program text.  A ~U+FEFF~ the lexer encounters is
+therefore an error like any other ~Cf~, including the second of two
+consecutive marks, and the classification of a character never depends
+on where it occurs.
 
 Which *printable* characters may appear in a symbol is not restricted,
 and no normalisation is performed when a name is interned.  Two
@@ -2037,10 +2063,19 @@ Changes in the 2026-08-14 revision:
   is in it, so a CRLF source lexes; it is trivia and not a line
   terminator, and line mapping stays LF-only.
 - Phase 1 excludes format characters (Unicode ~Cf~) from symbols on the
-  same diagnostic-integrity argument as ~Cc~, with a leading BOM the one
-  positional exception, skipped as trivia rather than stripped.
-  Printable characters stay unrestricted and interning does not
-  normalise.
+  same diagnostic-integrity argument as ~Cc~, an error wherever they
+  appear.  Printable characters stay unrestricted and interning does
+  not normalise.
+- *Phases 0 and 1, both built.*  The byte order mark moves to phase 0
+  as a decoding concern and phase 1 loses its one positional rule.
+  Phase 0 gains ~content_start~ — 3 if the source begins with
+  ~U+FEFF~, else 0 — records it rather than stripping, sets the
+  *first* line start to it, and clamps position lookup below it to
+  line 1, column 1.  Phase 1 begins its cursor there, so a ~U+FEFF~ it
+  sees is an ordinary ~Cf~ error.  Columns on line 1 of a marked
+  source were otherwise off by one and the caret line began with an
+  invisible character, which phase 1 cannot fix from downstream of the
+  line-start table.
 
 Changes in the 2026-08-13 revision:
 

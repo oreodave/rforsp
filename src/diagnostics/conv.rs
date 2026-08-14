@@ -81,16 +81,17 @@ impl fmt::Display for Aborted {
 ///   detection site to report.
 #[must_use]
 #[track_caller]
-pub fn ice(mut diag: Diagnostic) -> Diagnostic {
+pub fn ice(class: Class, site: Site, message: impl Into<String>) -> Diagnostic {
     assert_eq!(
-        diag.class.phase(),
+        class.phase(),
         Phase::ICE,
         "only a compiler bug carries a detection site"
     );
 
+    let mut message: String = message.into();
     let location = std::panic::Location::caller();
-    let _ = write!(diag.message, ", detected at {location}");
-    diag
+    let _ = write!(message, ", detected at {location}");
+    Diagnostic::new(class, site, message)
 }
 
 #[cfg(test)]
@@ -173,11 +174,11 @@ mod tests {
         // rather than this one, so pinning the line is what checks the
         // attribute is in effect.
         let line = line!() + 1;
-        let diag = ice(Diagnostic::new(
+        let diag = ice(
             Class::ICEDroppedOutput,
             Site::None,
             "lex discarded output from a call that reported nothing",
-        ));
+        );
 
         assert!(
             diag.message

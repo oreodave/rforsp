@@ -140,9 +140,12 @@ impl<'a> Tokeniser<'a> {
     /// Trivia is liberal in what it swallows, deliberately.  Nothing within it
     /// becomes a name, a token or a span, so a character that could not appear
     /// in a symbol - a control character, say - is skipped happily here rather
-    /// than reported.  The exclusions applied to symbol material exist to stop
-    /// a diagnostic being corrupted by the very thing it names, and trivia
-    /// names nothing, so applying them here would buy nothing.
+    /// than reported.  The exclusions on symbol material exist to stop a
+    /// diagnostic being corrupted by the very thing it names, and trivia names
+    /// nothing.
+    ///
+    /// Trivia is still *displayed*, though, which is where the liberality
+    /// stops: see [`Tokeniser::skip_comment`].
     ///
     /// NOTE: We do NOT count `\r` as a valid newline starter, only `\n`.  A
     /// carriage return is simply counted as trivia.
@@ -150,10 +153,55 @@ impl<'a> Tokeniser<'a> {
         loop {
             self.cursor += self.run_len(|c| WHITESPACE_CHARS.contains(c));
             if self.peek() == Some(COMMENT_START) {
-                self.cursor += self.run_len(|c| c != '\n');
+                self.skip_comment();
             } else {
                 return;
             }
+        }
+    }
+
+    /// Skip a comment, from the cursor to the end of its line, reporting any
+    /// format character within it.
+    ///
+    /// A comment is not program text and nothing in it becomes a name, so it
+    /// swallows control characters without complaint.  Format characters are
+    /// the exception because they attack the *rendering* rather than the name:
+    /// a bidirectional override reorders the display of the code around it,
+    /// including in the snippet this compiler prints, so what the reader sees
+    /// and what the compiler read diverge.
+    ///
+    /// Every format character is non-ASCII, so an all-ASCII comment cannot
+    /// hold one and the common case stays a single bulk scan.
+    fn skip_comment(&mut self) {
+        let len = self.run_len(|c| c != '\n');
+        if !self.rest()[..len].is_ascii() {
+            self.report_format_chars(len);
+        }
+        self.cursor += len;
+    }
+
+    /// Locate and report every format character in the `len` bytes at the
+    /// cursor.
+    ///
+    /// The cold half of [`Tokeniser::skip_comment`]: reached only by a comment
+    /// carrying non-ASCII text, and reporting only for the subset of those
+    /// carrying a format character.
+    #[cold]
+    fn report_format_chars(&mut self, len: usize) {
+        let mut scanned = 0;
+        // Re-scanning from each hit keeps the borrow of `self` inside the
+        // condition, so nothing has to be collected to report it.
+        while let Some((index, c)) = self.rest()[scanned..len]
+            .char_indices()
+            .find(|&(_, c)| is_format(c))
+        {
+            let start = self.cursor + scanned + index;
+            let error = self.error(
+                LexErrorKind::UnknownCharacter,
+                Span::new(start, start + c.len_utf8()),
+            );
+            self.report(error);
+            scanned += index + c.len_utf8();
         }
     }
 
@@ -478,10 +526,41 @@ mod tests {
             &[(Symbol, "a"), (Symbol, "b"), (Symbol, "c")],
         );
 
-        // Comments are not symbols, so nothing renders back to the user out of
-        // one, and it stays liberal in what it swallows.
+        // A comment names nothing, so a control character in one is swallowed
+        // rather than reported.
         assert_tokens(
             concat!("a ;com\u{0}ment\n", "b"),
+            &[(Symbol, "a"), (Symbol, "b")],
+        );
+
+        // A format character in a comment is NOT, because it attacks the
+        // rendering rather than the name: an override in a comment reorders
+        // the display of the code beside it.
+        assert_errors(
+            concat!("a ;com\u{202e}ment\n", "b"),
+            &[(Class::LexUnknownCharacter, "\u{202e}")],
+        );
+
+        // They accumulate within one comment, and are found after non-ASCII
+        // text that is perfectly legitimate.
+        assert_errors(
+            "; \u{2200}x \u{202e}a \u{200b}b",
+            &[
+                (Class::LexUnknownCharacter, "\u{202e}"),
+                (Class::LexUnknownCharacter, "\u{200b}"),
+            ],
+        );
+
+        // A comment closed by EOF rather than a newline is scanned the same.
+        assert_errors(
+            "a ;trailing \u{feff}",
+            &[(Class::LexUnknownCharacter, "\u{feff}")],
+        );
+
+        // Legitimate non-ASCII comment text takes the same path and reports
+        // nothing.
+        assert_tokens(
+            concat!("a ;\u{2200}x. x \u{2261} 0\n", "b"),
             &[(Symbol, "a"), (Symbol, "b")],
         );
 

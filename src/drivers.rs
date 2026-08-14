@@ -2,9 +2,7 @@
 
 use crate::{
     context::Compilation,
-    diagnostics::{
-        Aborted, Class, Diagnostic, Diagnostics, Phase, Site, conv::ice,
-    },
+    diagnostics::{Aborted, Class, Diagnostics, Phase, Site, conv::ice},
     lexer::{Token, tokenise},
     source::SourceId,
 };
@@ -38,8 +36,8 @@ pub fn compile(
     Ok(())
 }
 
-/// The gate that ensures that the results of a compiler phase only pass through
-/// if the local [`Diagnostics`] of that phase has no errors.
+/// The gate that ensures the results of a compiler phase only pass through if
+/// the local [`Diagnostics`] of that phase has no errors.
 fn gate<T>(
     global_diags: &mut Diagnostics,
     local_diags: Diagnostics,
@@ -48,9 +46,11 @@ fn gate<T>(
 ) -> Result<T, Aborted> {
     let succeeded = !local_diags.has_errors();
     global_diags.merge(local_diags);
-    succeeded
-        .then_some(container)
-        .ok_or_else(|| Aborted::new(phase))
+    if succeeded {
+        Ok(container)
+    } else {
+        Err(Aborted::new(phase))
+    }
 }
 
 /// Add a set of files to the given [`SourceTable`][crate::source::SourceTable].
@@ -90,13 +90,16 @@ fn lex_sources(
         .iter()
         .filter_map(|&id| {
             let (tokens, mut lexer_diags) = tokenise(id, &ctx.table);
+
+            // Internal compiler invariant
             if tokens.is_none() && !lexer_diags.has_errors() {
-                lexer_diags.push(ice(Diagnostic::new(
+                lexer_diags.push(ice(
                     Class::ICEDroppedOutput,
                     Site::Source(id),
                     "lexing produced no tokens",
-                )));
+                ));
             }
+
             local.merge(lexer_diags);
             tokens
         })
@@ -136,6 +139,8 @@ fn log_tokens(
 
 #[cfg(test)]
 mod tests {
+    use crate::diagnostics::Diagnostic;
+
     use super::*;
 
     /// An error diagnostic with no location.

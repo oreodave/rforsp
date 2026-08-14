@@ -7,11 +7,10 @@ use crate::{
 };
 
 /// Characters that separate scalars, and so CANNOT be part of one.
-const RESTRICTED_CHARS: &str = "'^$()[];\n\t ";
+const RESTRICTED_CHARS: &str = "'^$()[];\r\n\t ";
 
-/// Characters skipped between tokens.  A strict subset of
-/// [`RESTRICTED_CHARS`]; LF-only, so `\r` is deliberately absent.
-const WHITESPACE_CHARS: &str = "\n\t ";
+/// Characters skipped between tokens.  A strict subset of [`RESTRICTED_CHARS`].
+const WHITESPACE_CHARS: &str = "\r\n\t ";
 
 /// Character introducing a comment, which runs to end of line.
 const COMMENT_START: char = ';';
@@ -43,7 +42,7 @@ const _: () = {
 
 /// Check if a given [`char`] is a valid character to be part of a symbol.
 fn is_valid_sym_char(c: char) -> bool {
-    !RESTRICTED_CHARS.contains(c) && !c.is_ascii_control()
+    !RESTRICTED_CHARS.contains(c) && !c.is_control()
 }
 
 /// Check if the given [`&str`] contains only numeric digits, excluding a
@@ -413,13 +412,34 @@ mod tests {
 
         // End of file doesn't matter for comments.
         assert_tokens("a ;trailing", &[(Symbol, "a")]);
+
+        // A CRLF source lexes exactly as its LF twin does.
+        assert_tokens("a\r\nb", &[(Symbol, "a"), (Symbol, "b")]);
+
+        // CR is trivia in its own right, not half of a terminator, so a lone
+        // CR separates tokens too.  Being restricted, it ends a run rather
+        // than joining one.
+        assert_tokens("$x\r^y", &[(Bind, "$x"), (Load, "^y")]);
+
+        // A comment runs to the LF, so a CR sitting before one is swallowed
+        // by the comment rather than reported.
+        assert_tokens("a ;comment\r\nb", &[(Symbol, "a"), (Symbol, "b")]);
+
+        // NEL is Unicode `White_Space` but is not one of the four recognised
+        // characters, so it is an error rather than trivia.  This is what the
+        // carve-out being a fixed set - rather than `!is_whitespace` - buys.
+        assert_errors("a\u{85}b", &[(Class::LexUnknownCharacter, "\u{85}")]);
     }
 
     #[test]
     fn control_characters_are_errors() {
         // A control character is not symbol material.  It is reported on its
         // own one-character span.
-        for control in ['\u{0}', '\u{b}', '\u{c}', '\u{1b}', '\u{7f}'] {
+        // The exclusion is Unicode `Cc` rather than ASCII, so C1 (`\u{80}`
+        // through `\u{9f}`) reports exactly as C0 and DEL do.
+        for control in [
+            '\u{0}', '\u{b}', '\u{c}', '\u{1b}', '\u{7f}', '\u{80}', '\u{9f}',
+        ] {
             let text = format!("a{control}b");
             let control = control.to_string();
             assert_errors(&text, &[(Class::LexUnknownCharacter, &control)]);

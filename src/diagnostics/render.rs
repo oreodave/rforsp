@@ -226,6 +226,7 @@ impl<'a, W: Write> Renderer<'a, W> {
         writeln!(self.out, "{padding} |")?;
         for (i, &(line, role)) in lines.iter().enumerate() {
             let text = self.table.line_text(origin.source, line);
+            let text = text.strip_suffix("\r").unwrap_or(text);
 
             // Write the text
             writeln!(self.out, "{line:>gutter_width$} | {text}")?;
@@ -300,6 +301,7 @@ mod tests {
         let b = add(&mut t, "b", "Foo\nbar\n");
         let em = add(&mut t, "em", "ab\u{1f34e}cd\n");
         let eof = add(&mut t, "eof", "abc\ndef");
+        let crlf = add(&mut t, "crlf", "hello\r\nworld!\r\n");
         let syn = t.add_origin(a, Span::new(0, 5));
 
         // Site::None - no location prefix.
@@ -363,6 +365,35 @@ mod tests {
         );
         assert!(s.contains("2 | def"));
         assert!(s.contains("| ^^^"));
+
+        // The CR of a CRLF line is trivia, but it is still in the line's byte
+        // slice.  Left in, it returns the terminal cursor to column 0 and the
+        // caret line overwrites the source line, so the snippet trims it.
+        let s = diag(
+            &t,
+            Site::Raw(SyntaxOrigin {
+                source: crlf,
+                span: Span::new(0, 5),
+            }),
+            "m",
+        );
+        assert!(!s.contains('\r'), "stray CR in {s:?}");
+        assert!(s.contains("1 | hello\n"));
+        assert!(s.contains("| ^^^^^"));
+
+        // CR is not a line terminator, so line mapping stays LF-only: the
+        // second line begins after the LF, at 2:1.
+        let s = diag(
+            &t,
+            Site::Raw(SyntaxOrigin {
+                source: crlf,
+                span: Span::new(7, 13),
+            }),
+            "m",
+        );
+        assert!(s.contains("crlf:2:1: "));
+        assert!(s.contains("2 | world!\n"));
+        assert!(s.contains("| ^^^^^^"));
     }
 
     #[test]

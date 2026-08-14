@@ -129,6 +129,16 @@ impl<'a> Tokeniser<'a> {
 
     /// Skip whitespace and comments from the current cursor, stopping at the
     /// first character that begins a token.
+    ///
+    /// Trivia is liberal in what it swallows, deliberately.  Nothing within it
+    /// becomes a name, a token or a span, so a character that could not appear
+    /// in a symbol - a control character, say - is skipped happily here rather
+    /// than reported.  The exclusions applied to symbol material exist to stop
+    /// a diagnostic being corrupted by the very thing it names, and trivia
+    /// names nothing, so applying them here would buy nothing.
+    ///
+    /// NOTE: We do NOT count `\r` as a valid newline starter, only `\n`.  A
+    /// carriage return is simply counted as trivia.
     fn skip_trivia(&mut self) {
         loop {
             self.cursor += self.run_len(|c| WHITESPACE_CHARS.contains(c));

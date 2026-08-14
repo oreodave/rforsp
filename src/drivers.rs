@@ -56,7 +56,7 @@ fn gate<T>(
 /// Add a set of files to the given [`SourceTable`][crate::source::SourceTable].
 ///
 /// # Errors
-/// - If any error [`Diagnostic`]s are created while adding files to the table.
+/// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created while adding files to the table.
 fn sources_from_files(
     filenames: &[String],
     ctx: &mut Compilation,
@@ -79,7 +79,7 @@ fn sources_from_files(
 /// Lex a sequence of [`SourceId`] into Token Streams.
 ///
 /// # Errors
-/// - If any error [`Diagnostic`]s are created while lexing the given sources.
+/// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created while lexing the given sources.
 fn lex_sources(
     source_ids: &[SourceId],
     ctx: &Compilation,

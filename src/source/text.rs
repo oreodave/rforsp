@@ -12,9 +12,16 @@ pub struct Source {
     pub name: String,
     /// Contents of a Source.
     contents: String,
+    /// Byte position where program text begins: past a leading byte order
+    /// mark, or 0.  The mark is recorded rather than stripped so that offsets
+    /// keep agreeing with the file on disk.
+    content_start: u32,
     /// Byte position for the starts of lines in the Source.
     line_starts: Vec<u32>,
 }
+
+/// A byte order mark, which may appear once at the head of a source.
+const BYTE_ORDER_MARK: char = '\u{feff}';
 
 /// Maximum source length in bytes.  [Span]'s fields are u32, so they work
 /// happily with content of at most this size.
@@ -35,8 +42,11 @@ pub enum SourceError {
 }
 
 /// Compute the starting byte positions of every line within `contents`.
-fn compute_line_starts(contents: &str) -> Vec<u32> {
-    let mut line_starts: Vec<u32> = vec![0];
+///
+/// Line 1 begins at `content_start`, so a leading byte order mark falls
+/// outside every line and is counted in no column.
+fn compute_line_starts(contents: &str, content_start: u32) -> Vec<u32> {
+    let mut line_starts: Vec<u32> = vec![content_start];
     line_starts.extend(
         contents
             .bytes()
@@ -74,12 +84,39 @@ impl Source {
             });
         }
 
-        let line_starts = compute_line_starts(&contents);
+        let content_start = if contents.starts_with(BYTE_ORDER_MARK) {
+            offset(BYTE_ORDER_MARK.len_utf8())
+        } else {
+            0
+        };
+        let line_starts = compute_line_starts(&contents, content_start);
         Ok(Self {
             name,
             contents,
+            content_start,
             line_starts,
         })
+    }
+
+    /// Byte position at which this [Source]'s program text begins.
+    ///
+    /// Scanning starts here rather than at 0, so a leading byte order mark is
+    /// never seen by the lexer and needs no rule there.  Exactly one mark is
+    /// consumed; a second is ordinary program text and is rejected as the
+    /// format character it is.
+    #[must_use]
+    pub const fn content_start(&self) -> usize {
+        self.content_start as usize
+    }
+
+    /// Clamp a byte position into the program text, so that a position within
+    /// a leading byte order mark maps to the start of line 1.
+    ///
+    /// Nothing in the compiler should produce such a position, but the mapper
+    /// runs while rendering [`Severity::Bug`][crate::diagnostics::Severity], so
+    /// it must not be the thing that panics when a bug is being reported.
+    fn clamp(&self, byte: u32) -> u32 {
+        byte.max(self.content_start)
     }
 
     /// Get the length of the [Source].
@@ -88,10 +125,14 @@ impl Source {
         self.contents.len()
     }
 
-    /// Check if the [Source] is empty. (stupid)
+    /// Check if the [Source] holds any program text.
+    ///
+    /// This is not `len() == 0`: a source consisting only of a byte order mark
+    /// has three bytes and no content.  [`Source::len`] answers questions about
+    /// bytes, this one answers questions about text.
     #[must_use]
     pub const fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.len() == self.content_start()
     }
 
     /// Check if the given byte position points to the end of the source
@@ -151,7 +192,7 @@ impl Source {
     #[must_use]
     fn line_index(&self, byte: u32) -> usize {
         self.line_starts
-            .binary_search(&byte)
+            .binary_search(&self.clamp(byte))
             .unwrap_or_else(|i| i - 1)
     }
 
@@ -173,7 +214,7 @@ impl Source {
             "position_at: byte {byte} is not in a char boundary"
         );
 
-        let byte = offset(byte);
+        let byte = self.clamp(offset(byte));
 
         let line = self.line_index(byte);
 
@@ -437,6 +478,70 @@ mod tests {
         // By construction, the next byte after an emoji position should be
         // within the codepoint.  Thus, Source::position_at should fail.
         let _ = source.position_at(SAMPLE_EMOJIS[0] + 1);
+    }
+
+    #[test]
+    fn byte_order_mark() {
+        let marked = Source::from_contents(
+            "m",
+            format!("{BYTE_ORDER_MARK}{SAMPLE_TEXT}"),
+        )
+        .expect("Should not fail");
+        let plain = Source::from_contents("p", SAMPLE_TEXT.to_string())
+            .expect("Should not fail");
+
+        // The mark is recorded rather than stripped, so it is still in the
+        // contents and offsets still agree with the file on disk.
+        assert_eq!(marked.content_start(), 3);
+        assert_eq!(plain.content_start(), 0);
+        assert_eq!(marked.len(), plain.len() + 3);
+
+        // Line 1 begins past the mark, so the mark is counted in no column:
+        // every character maps to the position its unmarked twin does.
+        for (byte, _) in SAMPLE_TEXT.char_indices() {
+            assert_eq!(marked.position_at(byte + 3), plain.position_at(byte));
+        }
+
+        // ... and it is in no line either, so a rendered line 1 does not carry
+        // an invisible leading character.
+        for line in 1..=SAMPLE_LINES.len() {
+            assert_eq!(marked.line_text(line), plain.line_text(line));
+        }
+
+        // A position within the mark clamps to the start of line 1 rather than
+        // underflowing the line search.  Nothing should ask for one, but the
+        // mapper runs while rendering a `Bug`, so it must not be what panics
+        // when a compiler bug is being reported.
+        assert_eq!(marked.position_at(0), Position::default());
+
+        // A source consisting only of a mark has no program text at all, which
+        // is empty rather than erroneous - and empty in the sense that matters,
+        // despite holding three bytes.
+        let bare = Source::from_contents("b", BYTE_ORDER_MARK.to_string())
+            .expect("Should not fail");
+        assert_eq!(bare.content_start(), bare.len());
+        assert_eq!(bare.line_text(1), "");
+        assert!(bare.is_empty(), "a mark alone is not program text");
+        assert_eq!(bare.len(), 3, "... but it is still three bytes");
+
+        // A source with neither is empty on both counts.
+        let nothing =
+            Source::from_contents("n", String::new()).expect("Should not fail");
+        assert!(nothing.is_empty());
+        assert_eq!(nothing.len(), 0);
+
+        // A marked source with program text is not empty.
+        assert!(!marked.is_empty());
+
+        // Only the first mark is consumed - a second is ordinary program text,
+        // left for the lexer to reject as the format character it is.
+        let doubled = Source::from_contents(
+            "d",
+            format!("{BYTE_ORDER_MARK}{BYTE_ORDER_MARK}x"),
+        )
+        .expect("Should not fail");
+        assert_eq!(doubled.content_start(), 3);
+        assert_eq!(doubled.line_text(1), format!("{BYTE_ORDER_MARK}x"));
     }
 
     #[test]

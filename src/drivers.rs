@@ -1,4 +1,7 @@
 //! Generalised drivers for each phase of the compiler.
+//!
+//! These are the top level drivers that thread the various phases of the
+//! compiler together.
 
 use crate::{
     context::Compilation,

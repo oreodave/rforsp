@@ -1,11 +1,7 @@
-//! HIR - the source-shaped IR the parser produces.
+//! Source shaped IR the parser produces.
 //!
-//! It preserves every distinction the source makes and drops only notation, so
-//! a diagnostic pointing at an [`HirForm`] points at something the user
-//! recognises as their own program.
-//!
-//! HIR knows a [`SymId`] for every name, a [`SyntaxId`] - and therefore a
-//! span - for every form, and the syntactic category of every form.
+//! This is the first top level representation of a user program.  This maps to
+//! the generalised semihomoiconic AST of rForsp as a language.
 
 use crate::{interner::SymId, source::SyntaxId};
 

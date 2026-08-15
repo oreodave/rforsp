@@ -3,6 +3,8 @@
 //! [`char::is_control`] covers the Unicode `Cc` category, but there is no
 //! equivalent for `Cf` - the format characters - and no general-category
 //! accessor to derive one from.  The class is therefore carried here as data.
+//!
+//! NOTE: this module is LLM generated.
 
 use std::cmp::Ordering;
 

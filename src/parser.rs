@@ -1,6 +1,8 @@
 //! Phase 2 - parser
 //!
-//! Tokens to [`HirForm`]s.  Bracket matching lives here.
+//! The second stage of the compiler parses streams of
+//! [`Token`][crate::lexer::Token]s into a sequence of [`HirForm`]s, which is
+//! the Higher Level Intermediate Representation of the compiler.
 
 mod hir;
 pub use hir::{HirForm, HirKind};

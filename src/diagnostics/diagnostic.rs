@@ -1,7 +1,6 @@
 //! Generalised Diagnostic Type
 //!
-//! This module describes the Diagnostic type - a singular "thing to report to
-//! the user".
+//! A singular "thing to report to the user".
 
 use crate::diagnostics::Class;
 use crate::source::{SourceId, SyntaxId, SyntaxOrigin};

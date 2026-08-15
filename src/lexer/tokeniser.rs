@@ -1,4 +1,7 @@
-//! Main tokeniser runtime
+//! Tokeniser from raw text.
+//!
+//! This is the core routine which translates [`Source`]s to a stream of
+//! [`Token`]s.
 
 use crate::{
     diagnostics::Diagnostics,
@@ -292,8 +295,9 @@ impl<'a> Tokeniser<'a> {
                         span: Span::new(start, self.cursor),
                     })
                 } else {
-                    // If we get a non-symbol scalar, then we do want to bind it in the
-                    // diagnostic span so it doesn't get re-used somewhere else.
+                    // If we get a non-symbol scalar, then we do want to bind it
+                    // in the diagnostic span so it doesn't get re-used
+                    // somewhere else.
                     Err(self.error(error_kind, Span::new(start, self.cursor)))
                 }
             }
@@ -324,10 +328,9 @@ impl<'a> Tokeniser<'a> {
             '^' => self.lex_binding(TokenKind::Load, LexErrorKind::LoadInvalid),
             _ => self.lex_scalar().ok_or_else(|| {
                 // Worst path possible; nothing from the above was able to bind
-                // and we couldn't even get a symbol out of it.
-
-                // Since we want to accumulate errors though, we should try and
-                // skip just this character and see what else we could lex.
+                // and we couldn't even get a symbol out of it.  Since we want
+                // to accumulate errors though, we should try and skip just this
+                // character and see what else we could lex.
                 let span = self.new_span(c.len_utf8());
                 self.cursor += c.len_utf8();
                 self.error(LexErrorKind::UnknownCharacter, span)

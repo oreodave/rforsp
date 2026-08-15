@@ -1,4 +1,7 @@
 //! Each Phase's Error Kind to [`Class`]
+//!
+//! Definitions of conversion from different Phase specific Error Kind's to the
+//! generalised [`Class`].
 
 use crate::{diagnostics::Class, lexer::LexErrorKind, parser::ParseErrorKind};
 

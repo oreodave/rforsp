@@ -13,6 +13,7 @@ use std::fmt::Write as _;
 use crate::{
     diagnostics::{Aborted, Class, Diagnostic, Phase, Site},
     lexer::{LexError, LexErrorKind},
+    parser::{ParseError, ParseErrorKind},
     source::{SourceError, SourceTableError},
 };
 
@@ -44,11 +45,6 @@ impl From<SourceTableError> for Diagnostic {
 impl From<LexError> for Diagnostic {
     fn from(e: LexError) -> Self {
         let site = Site::Raw(e.origin);
-        let class = match e.kind {
-            LexErrorKind::UnknownCharacter => Class::LexUnknownCharacter,
-            LexErrorKind::BindInvalid => Class::LexBindInvalid,
-            LexErrorKind::LoadInvalid => Class::LexLoadInvalid,
-        };
         let message = match e.kind {
             LexErrorKind::UnknownCharacter => "Unrecognised character",
             LexErrorKind::BindInvalid => {
@@ -59,7 +55,29 @@ impl From<LexError> for Diagnostic {
             }
         };
 
-        Self::new(class, site, message)
+        Self::new(e.kind.into(), site, message)
+    }
+}
+
+impl From<ParseError> for Diagnostic {
+    fn from(e: ParseError) -> Self {
+        let site = Site::Raw(e.origin);
+        let message = match e.kind {
+            ParseErrorKind::IntOverflow => {
+                "Integer literal does not fit in a 64 bit signed integer"
+            }
+            ParseErrorKind::NestedQuote => {
+                "Expected a form after Quote ('), found another Quote"
+            }
+            ParseErrorKind::QuoteWithoutForm => {
+                "Expected a form after Quote (')"
+            }
+            ParseErrorKind::BindingInDatum => {
+                "Expected a datum, found a Bind ($) or Load (^)"
+            }
+        };
+
+        Self::new(e.kind.into(), site, message)
     }
 }
 
@@ -161,6 +179,38 @@ mod tests {
             assert_eq!(
                 diag.class.phase(),
                 Phase::Lex,
+                "{kind:?} escaped its phase"
+            );
+            assert_eq!(diag.site, Site::Raw(origin));
+            assert!(!diag.message.is_empty(), "{kind:?} needs a message");
+        }
+    }
+
+    #[test]
+    fn parse_err() {
+        let mut table = SourceTable::new();
+        let source = table
+            .add_source_raw("t", "''x".into())
+            .expect("within bound");
+        let origin = SyntaxOrigin {
+            source,
+            span: Span::new(0, 2),
+        };
+
+        for (kind, class) in [
+            (ParseErrorKind::IntOverflow, Class::ParseIntOverflow),
+            (ParseErrorKind::NestedQuote, Class::ParseNestedQuote),
+            (
+                ParseErrorKind::QuoteWithoutForm,
+                Class::ParseQuoteWithoutForm,
+            ),
+            (ParseErrorKind::BindingInDatum, Class::ParseBindingInDatum),
+        ] {
+            let diag = Diagnostic::from(ParseError { origin, kind });
+            assert_eq!(diag.class, class);
+            assert_eq!(
+                diag.class.phase(),
+                Phase::Parse,
                 "{kind:?} escaped its phase"
             );
             assert_eq!(diag.site, Site::Raw(origin));

@@ -8,7 +8,7 @@
 //! The [`Severity`] of a [`Diagnostic`][crate::diagnostics::Diagnostic] is
 //! derived from the [`Class`].
 
-use crate::diagnostics::phase::Phase;
+use crate::diagnostics::Phase;
 
 /// How serious a diagnostic is.
 ///
@@ -125,6 +125,33 @@ classes! {
     /// Poisoned/dropped output from a compiler phase despite no new Diagnostics
     /// generated in a phase.
     ICEDroppedOutput => ICE, Bug, "DROPPED_OUTPUT";
+}
+
+mod kind_to_class {
+    use crate::{
+        diagnostics::Class, lexer::LexErrorKind, parser::ParseErrorKind,
+    };
+
+    impl From<LexErrorKind> for Class {
+        fn from(k: LexErrorKind) -> Self {
+            match k {
+                LexErrorKind::UnknownCharacter => Self::LexUnknownCharacter,
+                LexErrorKind::BindInvalid => Self::LexBindInvalid,
+                LexErrorKind::LoadInvalid => Self::LexLoadInvalid,
+            }
+        }
+    }
+
+    impl From<ParseErrorKind> for Class {
+        fn from(e: ParseErrorKind) -> Self {
+            match e {
+                ParseErrorKind::IntOverflow => Self::ParseIntOverflow,
+                ParseErrorKind::NestedQuote => Self::ParseNestedQuote,
+                ParseErrorKind::QuoteWithoutForm => Self::ParseQuoteWithoutForm,
+                ParseErrorKind::BindingInDatum => Self::ParseBindingInDatum,
+            }
+        }
+    }
 }
 
 #[cfg(test)]

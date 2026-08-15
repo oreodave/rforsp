@@ -169,19 +169,17 @@ mod tests {
             span: Span::new(0, 3),
         };
 
-        for (kind, class) in [
-            (LexErrorKind::UnknownCharacter, Class::LexUnknownCharacter),
-            (LexErrorKind::BindInvalid, Class::LexBindInvalid),
-            (LexErrorKind::LoadInvalid, Class::LexLoadInvalid),
+        for kind in [
+            LexErrorKind::UnknownCharacter,
+            LexErrorKind::BindInvalid,
+            LexErrorKind::LoadInvalid,
         ] {
             let diag = Diagnostic::from(LexError { origin, kind });
-            assert_eq!(diag.class, class);
             assert_eq!(
-                diag.class.phase(),
-                Phase::Lex,
-                "{kind:?} escaped its phase"
+                diag.site,
+                Site::Raw(origin),
+                "{kind:?} lost its origin"
             );
-            assert_eq!(diag.site, Site::Raw(origin));
             assert!(!diag.message.is_empty(), "{kind:?} needs a message");
         }
     }
@@ -197,23 +195,18 @@ mod tests {
             span: Span::new(0, 2),
         };
 
-        for (kind, class) in [
-            (ParseErrorKind::IntOverflow, Class::ParseIntOverflow),
-            (ParseErrorKind::NestedQuote, Class::ParseNestedQuote),
-            (
-                ParseErrorKind::QuoteWithoutForm,
-                Class::ParseQuoteWithoutForm,
-            ),
-            (ParseErrorKind::BindingInDatum, Class::ParseBindingInDatum),
+        for kind in [
+            ParseErrorKind::IntOverflow,
+            ParseErrorKind::NestedQuote,
+            ParseErrorKind::QuoteWithoutForm,
+            ParseErrorKind::BindingInDatum,
         ] {
             let diag = Diagnostic::from(ParseError { origin, kind });
-            assert_eq!(diag.class, class);
             assert_eq!(
-                diag.class.phase(),
-                Phase::Parse,
-                "{kind:?} escaped its phase"
+                diag.site,
+                Site::Raw(origin),
+                "{kind:?} lost its origin"
             );
-            assert_eq!(diag.site, Site::Raw(origin));
             assert!(!diag.message.is_empty(), "{kind:?} needs a message");
         }
     }

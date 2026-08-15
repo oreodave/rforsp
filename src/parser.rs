@@ -4,3 +4,6 @@
 
 mod hir;
 pub use hir::{HirForm, HirKind};
+
+mod error;
+pub use error::{ParseError, ParseErrorKind};

@@ -9,6 +9,8 @@ pub enum Phase {
     Source,
     /// Lexing phase
     Lex,
+    /// Parsing phase
+    Parse,
 }
 
 /// Error value for an Aborted [`Phase`].
@@ -23,6 +25,7 @@ impl Phase {
             Self::ICE => "ice",
             Self::Source => "source",
             Self::Lex => "lex",
+            Self::Parse => "parse",
         }
     }
 }

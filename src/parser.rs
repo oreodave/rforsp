@@ -9,3 +9,6 @@ pub use hir::{HirForm, HirKind};
 
 mod error;
 pub use error::{ParseError, ParseErrorKind};
+
+mod parse;
+pub use parse::parse;

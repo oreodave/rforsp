@@ -40,6 +40,12 @@ impl Span {
     pub const fn length(&self) -> u32 {
         self.end - self.start
     }
+
+    /// Join the current [Span] with the [Span] given, returning a new one
+    #[must_use]
+    pub fn join(self, other: Self) -> Self {
+        Self::from_u32(self.start.min(other.start), self.end.max(other.end))
+    }
 }
 
 /// Return `pos` as an offset (usize -> u32).

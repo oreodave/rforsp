@@ -106,6 +106,22 @@ classes! {
     /// [`LoadInvalid`][crate::lexer::LexErrorKind::LoadInvalid]
     LexLoadInvalid => Lex, Error, "LOAD_INVALID";
 
+    /// Integer literal does not fit an `i64`.  Mirrors
+    /// [`IntOverflow`][crate::parser::ParseErrorKind::IntOverflow]
+    ParseIntOverflow => Parse, Error, "INT_OVERFLOW";
+
+    /// A quote directly wrapping another quote.  Mirrors
+    /// [`NestedQuote`][crate::parser::ParseErrorKind::NestedQuote]
+    ParseNestedQuote => Parse, Error, "NESTED_QUOTE";
+
+    /// A quote with no following form.  Mirrors
+    /// [`QuoteWithoutForm`][crate::parser::ParseErrorKind::QuoteWithoutForm]
+    ParseQuoteWithoutForm => Parse, Error, "QUOTE_WITHOUT_FORM";
+
+    /// A binding form where a datum is required.  Mirrors
+    /// [`BindingInDatum`][crate::parser::ParseErrorKind::BindingInDatum]
+    ParseBindingInDatum => Parse, Error, "BINDING_IN_DATUM";
+
     /// Poisoned/dropped output from a compiler phase despite no new Diagnostics
     /// generated in a phase.
     ICEDroppedOutput => ICE, Bug, "DROPPED_OUTPUT";

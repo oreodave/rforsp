@@ -176,7 +176,7 @@ fn parse_streams(
                     })
                     .count();
                 let mut got = 0usize;
-                dfs(forms, |_| got += 1);
+                dfs(forms, |_, _| got += 1);
 
                 if got != expected {
                     let message = format!(

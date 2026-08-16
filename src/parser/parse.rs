@@ -493,7 +493,7 @@ mod tests {
                 })
                 .count();
             let mut got = 0usize;
-            dfs(forms, |_| got += 1);
+            dfs(forms, |_, _| got += 1);
             assert_eq!(
                 got, expected,
                 "{text:?} yielded {got} forms from {expected} non-closing tokens"

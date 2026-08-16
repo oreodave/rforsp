@@ -106,18 +106,20 @@ impl Drop for HirForm {
 
 /// Perform a Depth First Search on the given sequence of [`HirForm`]s.
 ///
-/// On each node, call the given function `f`.
-pub fn dfs(forms: &[HirForm], mut f: impl FnMut(&HirForm)) {
-    let mut stack = Vec::<&HirForm>::new();
-    stack.extend(forms.iter().rev());
-    while let Some(form) = stack.pop() {
-        f(form);
+/// On each node, call the given function `f` with that node and its depth,
+/// counting the forms in `forms` as depth zero.
+pub fn dfs(forms: &[HirForm], mut f: impl FnMut(&HirForm, usize)) {
+    let mut stack = Vec::<(&HirForm, usize)>::new();
+    stack.extend(forms.iter().rev().map(|form| (form, 0)));
+    while let Some((form, depth)) = stack.pop() {
+        f(form, depth);
+        let child = depth + 1;
         match &form.kind {
             HirKind::List(xs) | HirKind::Vector(xs) => {
-                stack.extend(xs.iter().rev());
+                stack.extend(xs.iter().rev().map(|x| (x, child)));
             }
             HirKind::Quote(form) => {
-                stack.push(form);
+                stack.push((&**form, child));
             }
             HirKind::Int(_)
             | HirKind::Bind(_)
@@ -165,7 +167,7 @@ mod tests {
         // it is invisible until the bijection reports a compiler bug against
         // a correct program.
         let mut ints = Vec::new();
-        dfs(&forms, |form| {
+        dfs(&forms, |form, _| {
             if let HirKind::Int(n) = form.kind {
                 ints.push(n);
             }
@@ -174,8 +176,15 @@ mod tests {
 
         // Every node exactly once, containers and the quote included.
         let mut count = 0;
-        dfs(&forms, |_| count += 1);
+        dfs(&forms, |_, _| count += 1);
         assert_eq!(count, 7);
+
+        // Depth is per-entry, so it must fall back to zero for `4` after the
+        // vector's subtree rather than continuing to climb.  A quote raises
+        // depth like any other parent.
+        let mut depths = Vec::new();
+        dfs(&forms, |_, depth| depths.push(depth));
+        assert_eq!(depths, [0, 1, 1, 2, 1, 2, 0]);
     }
 
     #[test]
@@ -195,7 +204,7 @@ mod tests {
 
         let forms = vec![form];
         let mut count = 0usize;
-        dfs(&forms, |_| count += 1);
+        dfs(&forms, |_, _| count += 1);
         assert_eq!(count, DEPTH + 1);
     }
 }

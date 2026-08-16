@@ -92,6 +92,64 @@ impl<'a> Parser<'a> {
         self.diagnostics
             .push(Diagnostic::from(ParseError { origin, kind }));
     }
+
+    /// Yield the given `form` with respect to the current [`Frame`] stack.
+    ///
+    /// If the [`Frame`] stack is empty, `form` is simply pushed into the
+    /// accumulated `self.forms`.  Otherwise, let `F` be the top of the
+    /// [`Frame`] stack:
+    /// - If `F` is a "container" ([`FrameKind::Vector`] or [`FrameKind::List`])
+    ///   then the given `form` is simply added to the container's collection of
+    ///   [`HirForm`]s.
+    /// - If `F` is a quote then it is closed via [`Self::close`] (making a
+    ///   [`HirKind::Quote`] form), and is then iteratively yielded into the
+    ///   parent frame.
+    ///
+    /// Reports a [`ParseErrorKind::BindingInDatum`] if `F` is a datum frame and
+    /// `form` is a [`HirKind::Load`] or [`HirKind::Bind`].  NOTE: The `form` is
+    /// still desposited.
+    fn yield_form(&mut self, mut form: HirForm) {
+        loop {
+            let Some(mut top) = self.stack.pop() else {
+                self.forms.push(form);
+                return;
+            };
+
+            // It's an error to have a Load or Bind HirForm in a datum frame.
+            if top.is_datum
+                && matches!(form.kind, HirKind::Load(_) | HirKind::Bind(_))
+            {
+                let origin = *self.table.get_origin(form.id);
+                self.report_error(origin, ParseErrorKind::BindingInDatum);
+                // We still deposit this `form`.
+            }
+
+            match top.kind {
+                FrameKind::Vector(ref mut forms)
+                | FrameKind::List(ref mut forms) => {
+                    forms.push(form);
+                    self.stack.push(top);
+                    return;
+                }
+                FrameKind::Quote => {
+                    // NOTE: A quote is closed the moment a form yields into it.
+                    // We need to yield this quote _again_ back into whatever
+                    // parent frame it's a part of, so this forces a loop.
+                    let origin = self.table.get_origin(form.id);
+
+                    // We set `form` here so it can be yielded back into the
+                    // parent.  NOTE: if an error is reported due to a Bind or
+                    // Load, it only happens once as form becomes a
+                    // HirKind::Quote.
+                    form = self.close(
+                        &top,
+                        HirKind::Quote(Box::new(form)),
+                        origin.span,
+                    );
+                }
+            }
+        }
+    }
 }
 
 /// Types of [`Frame`]s.

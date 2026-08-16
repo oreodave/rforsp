@@ -37,7 +37,7 @@ pub fn parse(
     ((!diagnostics.has_errors()).then_some(forms), diagnostics)
 }
 
-/// Parser state structure.
+/// Parser state machine structure.
 struct Parser<'a> {
     /// [`SourceId`] of the Source being parsed.
     source_id: SourceId,
@@ -182,21 +182,15 @@ impl<'a> Parser<'a> {
         self.yield_form(form);
     }
 
-    /// Yield the given `form` with respect to the current [`Frame`] stack.
+    /// Yields `form` into the current parsing context.
     ///
-    /// If the [`Frame`] stack is empty, `form` is simply pushed into the
-    /// accumulated [`Self::forms`].  Otherwise, let `F` be the top of the
-    /// [`Frame`] stack:
-    /// - If `F` is a "container" ([`FrameKind::Vector`] or [`FrameKind::List`])
-    ///   then the given `form` is simply added to the container's collection of
-    ///   [`HirForm`]s.
-    /// - If `F` is a quote then it is closed via [`Self::close`] (making a
-    ///   [`HirKind::Quote`] form), and is then iteratively yielded into the
-    ///   parent frame.
+    /// A container frame consumes the form and remains open. A quote frame
+    /// consumes exactly one form, closes, and yields the resulting quote into
+    /// its parent. Consequently, a single call may close several nested quote
+    /// frames.
     ///
-    /// Reports a [`ParseErrorKind::BindingInDatum`] if `F` is a datum frame and
-    /// `form` is a [`HirKind::Load`] or [`HirKind::Bind`].  NOTE: The `form` is
-    /// still deposited.
+    /// If the receiving frame is in datum position, `Load` and `Bind` forms
+    /// produce a diagnostic but are still deposited.
     fn yield_form(&mut self, mut form: HirForm) {
         loop {
             let Some(mut top) = self.stack.pop() else {
@@ -393,7 +387,8 @@ struct Frame {
     kind: FrameKind,
     /// The Span this frame started on.
     opening: Span,
-    /// Is this frame supposed to accumulate datums?
+    /// Whether the frame is in datum position.  This propagates from the frame
+    /// down to its children.
     is_datum: bool,
 }
 

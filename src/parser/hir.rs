@@ -8,7 +8,7 @@ use std::mem;
 use crate::{interner::SymId, source::SyntaxId};
 
 /// Syntactic category of an [`HirForm`].
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum HirKind {
     /// An integer literal, converted.
     Int(i64),
@@ -30,7 +30,7 @@ pub enum HirKind {
 ///
 /// A body of code is, implicitly, a `Vec<HirForm>` since rForsp is
 /// concatenative.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct HirForm {
     /// Origin of this form in the
     /// [`SourceTable`][crate::source::SourceTable].

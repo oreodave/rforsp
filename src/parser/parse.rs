@@ -366,7 +366,7 @@ impl<'a> Parser<'a> {
 }
 
 /// Types of [`Frame`]s.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 enum FrameKind {
     /// Vector.
     Vector(Vec<HirForm>),

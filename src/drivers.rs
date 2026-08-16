@@ -6,7 +6,8 @@
 use crate::{
     context::Compilation,
     diagnostics::{Aborted, Class, Diagnostics, Phase, Site, conv::ice},
-    lexer::{Token, tokenise},
+    lexer::{Token, TokenKind, tokenise},
+    parser::{HirForm, dfs, parse},
     source::SourceId,
 };
 
@@ -36,6 +37,8 @@ pub fn compile(
     let lexes = lex_sources(&sources, diagnostics, ctx)?;
 
     let _ = log_tokens(&sources, &lexes, log, ctx, log_out);
+
+    let body = parse_streams(&sources, &lexes, diagnostics, ctx)?;
 
     Ok(())
 }
@@ -112,6 +115,88 @@ fn lex_sources(
         .collect::<Vec<_>>();
 
     gate(diagnostics, local, tokens_set, Phase::Lex)
+}
+
+/// Parse a collection of [`Token`] streams, merging their results all together
+/// into one sequence of [`HirForm`].
+///
+/// The merged sequence is in the order of the [`Token`] streams given.
+///
+/// # Errors
+/// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created
+///   while parsing the given [`Token`] streams.
+fn parse_streams(
+    source_ids: &[SourceId],
+    token_streams: &[Vec<Token>],
+    diagnostics: &mut Diagnostics,
+    ctx: &mut Compilation,
+) -> Result<Vec<HirForm>, Aborted> {
+    debug_assert_eq!(
+        source_ids.len(),
+        token_streams.len(),
+        "Expected source_ids and token_streams to be paired."
+    );
+
+    let mut local = Diagnostics::new();
+    let body = source_ids
+        .iter()
+        .zip(token_streams.iter())
+        .filter_map(|(&source_id, token_stream)| {
+            let (forms, mut parse_diags) = parse(
+                source_id,
+                token_stream,
+                &mut ctx.table,
+                &mut ctx.interner,
+            );
+
+            // Internal compiler invariant - Dropped output for unclean case.
+            if forms.is_none() && !parse_diags.has_errors() {
+                parse_diags.push(ice(
+                    Class::ICEDroppedOutput,
+                    Site::Source(source_id),
+                    "parsing produced no forms",
+                ));
+            }
+
+            // Internal compiler invariant - Dropped output for clean case.
+            //
+            // The same two counts are asserted over the whole parser corpus
+            // by `parse_text` in `parser::parse`'s tests.  They are computed
+            // separately on purpose: this one catches the parser in the
+            // field, that one catches it in CI.  If the two expressions ever
+            // disagree about what a closer is, one of them is wrong.
+            if let Some(forms) = &forms {
+                let expected = token_stream
+                    .iter()
+                    .filter(|t| {
+                        !matches!(
+                            t.kind,
+                            TokenKind::VecEnd | TokenKind::ListEnd
+                        )
+                    })
+                    .count();
+                let mut got = 0usize;
+                dfs(forms, |_| got += 1);
+
+                if got != expected {
+                    let message = format!(
+                        "parsed {got} forms from {expected} non-closing tokens"
+                    );
+                    parse_diags.push(ice(
+                        Class::ICEDroppedOutput,
+                        Site::Source(source_id),
+                        message,
+                    ));
+                }
+            }
+
+            local.merge(parse_diags);
+            forms
+        })
+        .flatten()
+        .collect::<Vec<_>>();
+
+    gate(diagnostics, local, body, Phase::Parse)
 }
 
 /// Log tokens if and only if `log` == [`Log::Tokens`].

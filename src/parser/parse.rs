@@ -307,7 +307,20 @@ impl<'a> Parser<'a> {
             TokenKind::ListStart => {
                 self.push_frame(FrameKind::List(Vec::new()), token.span);
             }
-            TokenKind::Quote => self.push_frame(FrameKind::Quote, token.span),
+            TokenKind::Quote => {
+                // We've got a new quote despite there already being a quote on
+                // the frame stack => error.
+                if let Some(Frame {
+                    kind: FrameKind::Quote,
+                    opening,
+                    ..
+                }) = self.stack.last()
+                {
+                    let span = opening.join(token.span);
+                    self.report(self.error(span, ParseErrorKind::NestedQuote));
+                }
+                self.push_frame(FrameKind::Quote, token.span);
+            }
             TokenKind::Number => match self.parse_int(token) {
                 Ok(form) => self.yield_form(form),
                 Err(e) => self.report(e),

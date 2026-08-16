@@ -85,6 +85,13 @@ impl<'a> Parser<'a> {
             .add_origin(self.source_id, frame.opening.join(closing));
         HirForm::new(id, kind)
     }
+
+    /// Report a [`ParseError`] at the given [`SyntaxOrigin`] of
+    /// [`ParseErrorKind`].
+    fn report_error(&mut self, origin: SyntaxOrigin, kind: ParseErrorKind) {
+        self.diagnostics
+            .push(Diagnostic::from(ParseError { origin, kind }));
+    }
 }
 
 /// Types of [`Frame`]s.

@@ -159,37 +159,25 @@ impl<'a> Parser<'a> {
                 return;
             };
 
-            match kind.close_with(token.kind) {
-                // Happy path - this is the correct closer.
-                Ok(hirkind) => break self.close(hirkind, opening, token.span),
+            let Some((expected, hirkind)) = kind.into_container() else {
+                // This FrameKind is not a container, which means it's a quote.
+                // Since the quote is still pending a child, this is an error.
+                // Report, then loop again to catch a parent container.
+                self.report(
+                    self.error(opening, ParseErrorKind::QuoteWithoutForm),
+                );
+                continue;
+            };
 
-                // If the top frame is a container and we get the wrong closer,
-                // report then close it up anyway so the rest of the parse path
-                // can keep catching errors.
-                Err(FrameKind::Vector(cs)) => {
-                    let span = opening.join(token.span);
-                    self.report(
-                        self.error(span, ParseErrorKind::MismatchedCloser),
-                    );
-                    break self.close(HirKind::Vector(cs), opening, token.span);
-                }
-                Err(FrameKind::List(cs)) => {
-                    let span = opening.join(token.span);
-                    self.report(
-                        self.error(span, ParseErrorKind::MismatchedCloser),
-                    );
-                    break self.close(HirKind::List(cs), opening, token.span);
-                }
-
-                // We're trying to close on a quote which is still pending a
-                // child - that's a separate error.  Report it, then loop again
-                // to see if we can catch a parent container.
-                Err(FrameKind::Quote) => {
-                    self.report(
-                        self.error(opening, ParseErrorKind::QuoteWithoutForm),
-                    );
-                }
+            // If we get the wrong closer for this container, report it, then
+            // close the container up anyway so the rest of the parse can keep
+            // catching errors.
+            if expected != token.kind {
+                let span = opening.join(token.span);
+                self.report(self.error(span, ParseErrorKind::MismatchedCloser));
             }
+
+            break self.close(hirkind, opening, token.span);
         };
         self.yield_form(form);
     }
@@ -377,16 +365,16 @@ enum FrameKind {
 }
 
 impl FrameKind {
-    /// Close this frame kind with `closer`, yielding a [`HirKind`] if
-    /// successful.
+    /// Consume this frame kind as a container: the [`TokenKind`] that closes
+    /// it, paired with the [`HirKind`] it becomes once closed.
     ///
-    /// # Errors
-    /// - If the given `closer` token isn't appropriate for this [`FrameKind`].
-    fn close_with(self, closer: TokenKind) -> Result<HirKind, Self> {
-        match (self, closer) {
-            (Self::Vector(cs), TokenKind::VecEnd) => Ok(HirKind::Vector(cs)),
-            (Self::List(cs), TokenKind::ListEnd) => Ok(HirKind::List(cs)),
-            (other, _) => Err(other),
+    /// Returns None if [`FrameKind::Quote`] since that's obviously not a
+    /// container.
+    fn into_container(self) -> Option<(TokenKind, HirKind)> {
+        match self {
+            Self::Vector(cs) => Some((TokenKind::VecEnd, HirKind::Vector(cs))),
+            Self::List(cs) => Some((TokenKind::ListEnd, HirKind::List(cs))),
+            Self::Quote => None,
         }
     }
 }

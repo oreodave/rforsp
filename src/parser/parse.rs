@@ -416,12 +416,55 @@ mod tests {
     use crate::{
         diagnostics::{Class, Site},
         lexer::tokenise,
-        parser::dfs,
+        parser::{dfs, print_forms},
     };
 
     /// A collection of test cases: a rendered form, or a diagnostic, paired
     /// with the text its span covers.
     type Spanned<T> = Vec<(T, String)>;
+
+    /// One form's shape and payload, with its [`SyntaxId`] dropped.
+    ///
+    /// A reprint cannot reproduce the original's spans, so the round trip
+    /// compares [`HirKind`] structure and interned [`SymId`] alone.
+    #[derive(Debug, PartialEq, Eq)]
+    enum Skeleton {
+        /// [`HirKind::Int`]'s converted value.
+        Int(i64),
+        /// [`HirKind::Bind`]'s symbol.
+        Bind(SymId),
+        /// [`HirKind::Load`]'s symbol.
+        Load(SymId),
+        /// [`HirKind::Call`]'s symbol.
+        Call(SymId),
+        /// [`HirKind::Quote`], whose child follows it.
+        Quote,
+        /// [`HirKind::List`], whose children follow it.
+        List,
+        /// [`HirKind::Vector`], whose children follow it.
+        Vector,
+    }
+
+    /// Every form in `forms` as a [`Skeleton`], pre-order, paired with depth.
+    ///
+    /// Pre-order plus depth determines a tree, so comparing two of these is
+    /// structural equality.  Built on [`dfs`] to stay iterative.
+    fn skeletons(forms: &[HirForm]) -> Vec<(Skeleton, usize)> {
+        let mut out = Vec::new();
+        dfs(forms, |form, depth| {
+            let skeleton = match &form.kind {
+                HirKind::Int(n) => Skeleton::Int(*n),
+                HirKind::Bind(s) => Skeleton::Bind(*s),
+                HirKind::Load(s) => Skeleton::Load(*s),
+                HirKind::Call(s) => Skeleton::Call(*s),
+                HirKind::Quote(_) => Skeleton::Quote,
+                HirKind::List(_) => Skeleton::List,
+                HirKind::Vector(_) => Skeleton::Vector,
+            };
+            out.push((skeleton, depth));
+        });
+        out
+    }
 
     /// Render a form back to source-like text, ignoring [`SyntaxId`]s.
     ///
@@ -463,18 +506,8 @@ mod tests {
         let tokens = tokenise(id, &table).0.expect("lexes cleanly");
         let (forms, diags) = parse(id, &tokens, &mut table, &mut interner);
 
-        // The bijection `forms == tokens - closers`, which `parse_streams` in
-        // `crate::drivers` reports as `ice::DROPPED_OUTPUT`.  Checking it here
-        // means every clean case in the corpus exercises it, and the nesting
-        // shapes that would break it are the ones already written.
-        //
-        // The two are deliberately separate computations rather than a shared
-        // helper: a helper could be wrong in both places at once.  They must
-        // still agree on what counts as a closer.
-        //
-        // It holds only on a clean parse, and `forms` being `Some` is exactly
-        // that condition rather than a second one: `parse` withholds the body
-        // when it reported.
+        // Test the compiler invariant of bijection between the count of forms
+        // and tokens.
         if let Some(forms) = &forms {
             let expected = tokens
                 .iter()
@@ -487,6 +520,32 @@ mod tests {
             assert_eq!(
                 got, expected,
                 "{text:?} yielded {got} forms from {expected} non-closing tokens"
+            );
+        }
+
+        // Test the round trip forms -> [`parser::print`] -> reparse.
+        if let Some(forms) = &forms {
+            let mut printed = String::new();
+            print_forms(forms, &interner, &mut printed)
+                .expect("writing to a String cannot fail");
+
+            let reprint = table
+                .add_source_raw("t-reprint", printed.clone())
+                .expect("within bound");
+            let tokens = tokenise(reprint, &table)
+                .0
+                .expect("a printed body lexes cleanly");
+            let (reparsed, _) =
+                parse(reprint, &tokens, &mut table, &mut interner);
+            let reparsed = reparsed.expect("a printed body parses cleanly");
+
+            // Origins are excluded by construction: the reprint is a
+            // different source, so every `SyntaxId` on the right differs even
+            // when the trees agree.
+            assert_eq!(
+                skeletons(forms),
+                skeletons(&reparsed),
+                "{text:?} printed as {printed:?}, which parsed to a different tree"
             );
         }
 
@@ -541,10 +600,6 @@ mod tests {
 
     /// Assert parsing `text` reports exactly `expected`, as (class, span
     /// text).
-    ///
-    /// The recovered body is deliberately not asserted on: an error path
-    /// carries no well-formedness contract, so only the diagnostics are
-    /// observable.
     fn assert_errors(text: &str, expected: &[(Class, &str)]) {
         let (forms, diags) = parse_text(text);
         let got: Vec<_> = diags.iter().map(|(c, s)| (*c, s.as_str())).collect();

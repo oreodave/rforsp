@@ -36,10 +36,8 @@ pub fn print_forms(
         // as well as `WHITESPACE_CHARS`; whitespace is always trivia when
         // tokenised.
         //
-        // Only a form takes a leading space.  A closer hugs what it closes,
-        // and an opener or a quote clears the flag so the thing it introduces
-        // hugs it in turn.  None of that is required to re-lex - it is what
-        // makes the output the program the user wrote.
+        // Only a form takes a leading space: a closer hugs what it closes,
+        // and an opener or quote clears the flag so what follows hugs it.
         if need_space && matches!(form, ToPrint::Form(_)) {
             write!(out, " ")?;
         }
@@ -104,9 +102,8 @@ mod tests {
 
     /// Lex, parse and print `text`, yielding what the printer produced.
     ///
-    /// Panics unless `text` lexes and parses cleanly: a tree produced
-    /// alongside diagnostics is partial by A-029 and carries no
-    /// well-formedness contract, so it is not a printer input.
+    /// Panics unless `text` parses cleanly: a recovered body is partial and
+    /// is not a printer input.
     fn print_of(text: &str) -> String {
         let mut table = SourceTable::new();
         let mut interner = Interner::new();
@@ -126,7 +123,7 @@ mod tests {
     /// A [`SyntaxId`] to hang synthetic forms off.
     ///
     /// The printer reads payloads and never origins, so one id serves every
-    /// node and the table it came from need not outlive this call.
+    /// node.
     fn any_id() -> SyntaxId {
         let mut table = SourceTable::new();
         let source =
@@ -137,20 +134,16 @@ mod tests {
     #[test]
     fn prints_surface_syntax() {
         // Exact output, so a change in spacing has to be made on purpose.
-        // Every case below is already normalised, so the printer is the
-        // identity on it and the expectation reads as the source - which is
-        // the property that makes this printer usable in a diagnostic and not
-        // only in a round trip.
+        // Every case is already normalised, so each expectation reads back as
+        // its own source.
         for (source, expected) in [
             ("", ""),
             ("1 2", "1 2"),
             ("-1 -9223372036854775808", "-1 -9223372036854775808"),
-            // The three symbol kinds differ only by sigil, so a printer that
-            // collapsed them would round trip vacuously.
+            // Collapsing the sigils would round trip vacuously.
             ("$a ^b c", "$a ^b c"),
-            // Symbol material is anything outside `RESTRICTED_CHARS`, which
-            // is exactly the invariant letting a bare space separate forms.
-            // If that set ever shrinks, these stop round tripping first.
+            // Symbol material is anything outside `RESTRICTED_CHARS`, the
+            // invariant letting a bare space separate forms.
             ("λ +x a-b", "λ +x a-b"),
             // A quote binds its child with no separator.
             ("'x", "'x"),
@@ -159,8 +152,7 @@ mod tests {
             ("[]", "[]"),
             ("()", "()"),
             ("'[]", "'[]"),
-            // A-045 names this one: legal, and nests a quote inside a data
-            // vector.
+            // Legal, and nests a quote inside a data vector.
             ("'['x]", "'['x]"),
             ("(1 (2) [3])", "(1 (2) [3])"),
         ] {
@@ -174,10 +166,8 @@ mod tests {
 
     #[test]
     fn printing_normalises_notation() {
-        // The printer prints the tree, not the text the tree came from.
-        // Everything HIR drops as notation - layout, comments, a leading
-        // zero - has to be absent from the output, or the printer is echoing
-        // its input somewhere and the round trip proves nothing.
+        // The printer prints the tree, not the text it came from, so
+        // everything HIR drops as notation must be absent from the output.
         for (source, expected) in [
             ("[  1\n  2 ]", "[1 2]"),
             ("1 ; a comment\n2", "1 2"),
@@ -194,11 +184,8 @@ mod tests {
 
     #[test]
     fn printing_is_a_fixpoint() {
-        // The property the round trip rests on: printed output re-lexes and
-        // re-parses, and printing what came back changes nothing.  Anything
-        // the printer drops or adds shows up here as a second print that
-        // disagrees with the first - or as `print_of` failing to parse at
-        // all.
+        // The precondition the round trip rests on: printed output re-lexes
+        // and re-parses at all, and printing what came back changes nothing.
         for source in [
             "1 2",
             "$a ^b c",
@@ -222,10 +209,9 @@ mod tests {
 
     #[test]
     fn payload_is_printed_rather_than_the_span() {
-        // `log_hir` prints the text a form's origin covers, which reproduces
-        // the source whatever the parser actually interned.  This printer
-        // must read the payload instead, or the round trip agrees with a
-        // parser that interned the wrong thing.
+        // `log_hir` prints the text a form's origin covers, reproducing the
+        // source whatever the parser interned.  Reading the payload instead
+        // is what stops the round trip agreeing with a bad intern.
         let mut table = SourceTable::new();
         let mut interner = Interner::new();
         let source = table
@@ -244,10 +230,9 @@ mod tests {
 
     #[test]
     fn deep_nesting_prints() {
-        // Deeper than the machine stack takes, as in `hir::tests`.  A
-        // recursive printer aborts the process here rather than reporting
-        // anything.  Bracket counts rather than the whole string, so this
-        // stays a statement about recursion and not about spacing.
+        // Deeper than the machine stack takes, as in `hir::tests`: a
+        // recursive printer aborts the process here.  Bracket counts rather
+        // than the whole string keeps this about recursion, not spacing.
         const DEPTH: usize = 200_000;
 
         let id = any_id();

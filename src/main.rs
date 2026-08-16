@@ -38,6 +38,7 @@ fn parse_cli() -> Result<CliConfig, CliExit> {
     {
         match args.next().unwrap_or_default().as_str() {
             "--log-tokens" => config.log.insert(Log::TOKENS),
+            "--log-hir" => config.log.insert(Log::HIR),
             "--help" => {
                 usage(std::io::stdout());
                 return Err(CliExit::Success);
@@ -71,7 +72,8 @@ fn usage(mut out: impl std::io::Write) {
             "Options:\n",
             "  --help:       Print this help and exit.\n",
             "  --version:    Print version of program.\n",
-            "  --log-tokens: Print tokens generated per FILE.\n"
+            "  --log-tokens: Print tokens generated per FILE.\n",
+            "  --log-hir:    Print AST generated over all FILES.\n",
         )
     );
 }

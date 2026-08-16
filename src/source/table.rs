@@ -7,7 +7,10 @@
 use crate::source::{Position, Source, SourceError, Span};
 
 /// ID for a [Source] in the [`SourceTable`]
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+///
+/// IDs are handed out in the order sources were added, so they are naturally
+/// ordered.
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Copy, Clone)]
 pub struct SourceId(u32);
 
 /// ID for a [`SyntaxOrigin`] in the [`SourceTable`]

@@ -32,10 +32,10 @@ pub fn compile(
 ) -> Result<(), Aborted> {
     // FIXME(oreo)[2026-08-12 15:42]: Wire in parsing, resolution, lowering,
     // verification.
-    let sources = sources_from_files(filenames, ctx, diagnostics)?;
-    let lexes = lex_sources(&sources, ctx, diagnostics)?;
+    let sources = sources_from_files(filenames, diagnostics, ctx)?;
+    let lexes = lex_sources(&sources, diagnostics, ctx)?;
 
-    let _ = log_tokens(ctx, &sources, &lexes, log, log_out);
+    let _ = log_tokens(&sources, &lexes, log, ctx, log_out);
 
     Ok(())
 }
@@ -60,11 +60,12 @@ fn gate<T>(
 /// Add a set of files to the given [`SourceTable`][crate::source::SourceTable].
 ///
 /// # Errors
-/// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created while adding files to the table.
+/// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created
+///   while adding files to the table.
 fn sources_from_files(
     filenames: &[String],
-    ctx: &mut Compilation,
     diagnostics: &mut Diagnostics,
+    ctx: &mut Compilation,
 ) -> Result<Vec<SourceId>, Aborted> {
     let mut local = Diagnostics::new();
     let sources = filenames
@@ -83,11 +84,12 @@ fn sources_from_files(
 /// Lex a sequence of [`SourceId`] into Token Streams.
 ///
 /// # Errors
-/// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created while lexing the given sources.
+/// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created
+///   while lexing the given sources.
 fn lex_sources(
     source_ids: &[SourceId],
-    ctx: &Compilation,
     diagnostics: &mut Diagnostics,
+    ctx: &Compilation,
 ) -> Result<Vec<Vec<Token>>, Aborted> {
     let mut local = Diagnostics::new();
     let tokens_set = source_ids
@@ -114,10 +116,10 @@ fn lex_sources(
 
 /// Log tokens if and only if `log` == [`Log::Tokens`].
 fn log_tokens(
-    ctx: &Compilation,
     sources: &[SourceId],
     lexes: &[Vec<Token>],
     log: Log,
+    ctx: &Compilation,
     log_out: &mut impl std::fmt::Write,
 ) -> std::fmt::Result {
     if log == Log::Tokens {

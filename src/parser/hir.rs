@@ -3,6 +3,8 @@
 //! This is the first top level representation of a user program.  This maps to
 //! the generalised semihomoiconic AST of rForsp as a language.
 
+use std::mem;
+
 use crate::{interner::SymId, source::SyntaxId};
 
 /// Syntactic category of an [`HirForm`].
@@ -37,11 +39,68 @@ pub struct HirForm {
     pub kind: HirKind,
 }
 
+impl HirKind {
+    /// The kind left behind when a form's own kind is taken from it.
+    ///
+    /// Any childless variant would do; this one is the cheapest to construct
+    /// and to drop.
+    const STOLEN: Self = Self::Int(0);
+
+    /// Whether this kind owns any [`HirForm`]s.
+    const fn has_children(&self) -> bool {
+        matches!(self, Self::Quote(_) | Self::List(_) | Self::Vector(_))
+    }
+}
+
 impl HirForm {
     /// Construct a form of `kind` originating at `id`.
     #[must_use]
     pub const fn new(id: SyntaxId, kind: HirKind) -> Self {
         Self { id, kind }
+    }
+}
+
+impl Drop for HirForm {
+    /// Dismantle this [`HirForm`] iteratively.
+    ///
+    /// A derived Drop naively recurs through all forms that potentially own
+    /// other [`HirForm`]s.  On pathological inputs this will overflow the stack
+    /// which is not good behaviour.
+    ///
+    /// This manual implementation iterates through children rather than
+    /// recurring, bypassing the machine stack.  This avoids the stack overflow
+    /// possibility entirely.
+    fn drop(&mut self) {
+        // A leaf owns no forms, so the glue is already safe for it and
+        // allocating a worklist per leaf would dominate the cost of freeing
+        // a tree.
+        if !self.kind.has_children() {
+            return;
+        }
+
+        let mut worklist = vec![mem::replace(&mut self.kind, HirKind::STOLEN)];
+        while let Some(kind) = worklist.pop() {
+            match kind {
+                HirKind::Quote(mut boxed) => {
+                    worklist
+                        .push(mem::replace(&mut boxed.kind, HirKind::STOLEN));
+                    // `boxed` now holds a leaf, so dropping it here returns
+                    // immediately rather than descending.
+                }
+                HirKind::List(mut forms) | HirKind::Vector(mut forms) => {
+                    for form in &mut forms {
+                        worklist.push(mem::replace(
+                            &mut form.kind,
+                            HirKind::STOLEN,
+                        ));
+                    }
+                }
+                HirKind::Int(_)
+                | HirKind::Bind(_)
+                | HirKind::Load(_)
+                | HirKind::Call(_) => (),
+            }
+        }
     }
 }
 
@@ -117,5 +176,26 @@ mod tests {
         let mut count = 0;
         dfs(&forms, |_| count += 1);
         assert_eq!(count, 7);
+    }
+
+    #[test]
+    fn deep_nesting_walks_and_drops() {
+        // Deeper than the compiler's own drop glue, or a recursive walk,
+        // survives on a test thread's stack.  Both are under test: the walk
+        // here, and the drop of `forms` when this function returns.  A
+        // recursive version of either aborts the process rather than
+        // reporting anything.
+        const DEPTH: usize = 200_000;
+
+        let id = any_id();
+        let mut form = HirForm::new(id, HirKind::Int(0));
+        for _ in 0..DEPTH {
+            form = HirForm::new(id, HirKind::Vector(vec![form]));
+        }
+
+        let forms = vec![form];
+        let mut count = 0usize;
+        dfs(&forms, |_| count += 1);
+        assert_eq!(count, DEPTH + 1);
     }
 }

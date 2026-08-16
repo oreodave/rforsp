@@ -138,6 +138,7 @@ impl<'a> Tokeniser<'a> {
             // well.
             !RESTRICTED_CHARS.contains(c) && !c.is_control() && !is_format(c)
         });
+
         if len == 0 {
             return None;
         }

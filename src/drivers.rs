@@ -30,7 +30,8 @@ pub fn compile(
     log: Log,
     log_out: &mut impl std::fmt::Write,
 ) -> Result<(), Aborted> {
-    // FIXME: Wire in parsing, resolution, lowering, verification.
+    // FIXME(oreo)[2026-08-12 15:42]: Wire in parsing, resolution, lowering,
+    // verification.
     let sources = sources_from_files(filenames, ctx, diagnostics)?;
     let lexes = lex_sources(&sources, ctx, diagnostics)?;
 

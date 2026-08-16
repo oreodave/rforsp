@@ -14,6 +14,14 @@ pub enum ParseErrorKind {
     /// A binding form (`$x` or `^x`) in datum position, which has no datum to
     /// denote.
     BindingInDatum,
+    /// A vector left open at end of input.
+    UnterminatedVector,
+    /// A list left open at end of input.
+    UnterminatedList,
+    /// A closer token for the wrong kind of innermost open container.
+    MismatchedCloser,
+    /// A closer with no open container at all.
+    UnexpectedCloser,
 }
 
 /// Parsing error type

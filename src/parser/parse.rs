@@ -109,6 +109,13 @@ impl<'a> Parser<'a> {
         self.diagnostics.push(Diagnostic::from(error));
     }
 
+    /// Push a new [`Frame`] onto the [`Frame`] stack of [`FrameKind`] opening
+    /// at a given [`Span`].
+    fn push_frame(&mut self, kind: FrameKind, opening: Span) {
+        self.stack
+            .push(Frame::new(kind, opening, self.top_is_datum()));
+    }
+
     /// Register a [`SyntaxOrigin`] for the given [`Frame`].
     ///
     /// `closing` is joined with the opening of the given [`Frame`], so the

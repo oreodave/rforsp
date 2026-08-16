@@ -122,6 +122,22 @@ classes! {
     /// [`BindingInDatum`][crate::parser::ParseErrorKind::BindingInDatum]
     ParseBindingInDatum => Parse, Error, "BINDING_IN_DATUM";
 
+    /// A vector left open at end of input.  Mirrors
+    /// [`UnterminatedVector`][crate::parser::ParseErrorKind::UnterminatedVector]
+    ParseUnterminatedVector => Parse, Error, "UNTERMINATED_VECTOR";
+
+    /// A list left open at end of input.  Mirrors
+    /// [`UnterminatedList`][crate::parser::ParseErrorKind::UnterminatedList]
+    ParseUnterminatedList => Parse, Error, "UNTERMINATED_LIST";
+
+    /// A closer of the wrong kind for the innermost open container.  Mirrors
+    /// [`MismatchedCloser`][crate::parser::ParseErrorKind::MismatchedCloser]
+    ParseMismatchedCloser => Parse, Error, "MISMATCHED_CLOSER";
+
+    /// A closer with no open container at all.  Mirrors
+    /// [`UnexpectedCloser`][crate::parser::ParseErrorKind::UnexpectedCloser]
+    ParseUnexpectedCloser => Parse, Error, "UNEXPECTED_CLOSER";
+
     /// Poisoned/dropped output from a compiler phase despite no new Diagnostics
     /// generated in a phase.
     ICEDroppedOutput => ICE, Bug, "DROPPED_OUTPUT";

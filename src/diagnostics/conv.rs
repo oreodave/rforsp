@@ -75,6 +75,18 @@ impl From<ParseError> for Diagnostic {
             ParseErrorKind::BindingInDatum => {
                 "Expected a datum, found a Bind ($) or Load (^)"
             }
+            ParseErrorKind::UnterminatedVector => {
+                "Vector opened with [ was never closed"
+            }
+            ParseErrorKind::UnterminatedList => {
+                "List opened with ( was never closed"
+            }
+            ParseErrorKind::MismatchedCloser => {
+                "Closer does not match the innermost open Vector or List"
+            }
+            ParseErrorKind::UnexpectedCloser => {
+                "Closer with no matching opener"
+            }
         };
 
         Self::new(e.kind.into(), site, message)
@@ -200,6 +212,10 @@ mod tests {
             ParseErrorKind::NestedQuote,
             ParseErrorKind::QuoteWithoutForm,
             ParseErrorKind::BindingInDatum,
+            ParseErrorKind::UnterminatedVector,
+            ParseErrorKind::UnterminatedList,
+            ParseErrorKind::MismatchedCloser,
+            ParseErrorKind::UnexpectedCloser,
         ] {
             let diag = Diagnostic::from(ParseError { origin, kind });
             assert_eq!(

@@ -22,6 +22,10 @@ impl From<ParseErrorKind> for Class {
             ParseErrorKind::NestedQuote => Self::ParseNestedQuote,
             ParseErrorKind::QuoteWithoutForm => Self::ParseQuoteWithoutForm,
             ParseErrorKind::BindingInDatum => Self::ParseBindingInDatum,
+            ParseErrorKind::UnterminatedVector => Self::ParseUnterminatedVector,
+            ParseErrorKind::UnterminatedList => Self::ParseUnterminatedList,
+            ParseErrorKind::MismatchedCloser => Self::ParseMismatchedCloser,
+            ParseErrorKind::UnexpectedCloser => Self::ParseUnexpectedCloser,
         }
     }
 }
@@ -59,6 +63,22 @@ mod tests {
                 Class::ParseQuoteWithoutForm,
             ),
             (ParseErrorKind::BindingInDatum, Class::ParseBindingInDatum),
+            (
+                ParseErrorKind::UnterminatedVector,
+                Class::ParseUnterminatedVector,
+            ),
+            (
+                ParseErrorKind::UnterminatedList,
+                Class::ParseUnterminatedList,
+            ),
+            (
+                ParseErrorKind::MismatchedCloser,
+                Class::ParseMismatchedCloser,
+            ),
+            (
+                ParseErrorKind::UnexpectedCloser,
+                Class::ParseUnexpectedCloser,
+            ),
         ] {
             assert_eq!(Class::from(kind), class, "{kind:?}");
             assert_eq!(

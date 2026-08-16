@@ -49,6 +49,27 @@ struct Parser<'a> {
     forms: Vec<HirForm>,
 }
 
+impl<'a> Parser<'a> {
+    /// Construct new parser state.
+    const fn new(
+        source_id: SourceId,
+        table: &'a mut SourceTable,
+        interner: &'a mut Interner,
+        diagnostics: &'a mut Diagnostics,
+        tokens: &'a [Token],
+    ) -> Self {
+        Self {
+            source_id,
+            table,
+            interner,
+            diagnostics,
+            remtokens: tokens,
+            stack: Vec::new(),
+            forms: Vec::new(),
+        }
+    }
+}
+
 /// Types of [`Frame`]s.
 #[derive(Debug, PartialEq, Eq)]
 enum FrameKind {

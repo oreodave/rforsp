@@ -70,3 +70,21 @@ struct Frame {
     /// Is this frame supposed to accumulate datums?
     is_datum: bool,
 }
+
+impl Frame {
+    /// Construct a new [`Frame`].
+    const fn new(
+        kind: FrameKind,
+        opening: Span,
+        parent_is_datum: bool,
+    ) -> Self {
+        // '<x> and (<xs>) are both in datum position.
+        let is_datum = parent_is_datum
+            || matches!(kind, FrameKind::Quote | FrameKind::List(_));
+        Self {
+            kind,
+            opening,
+            is_datum,
+        }
+    }
+}

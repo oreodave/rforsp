@@ -473,6 +473,33 @@ mod tests {
         let tokens = tokenise(id, &table).0.expect("lexes cleanly");
         let (forms, diags) = parse(id, &tokens, &mut table, &mut interner);
 
+        // The bijection `forms == tokens - closers`, which `parse_streams` in
+        // `crate::drivers` reports as `ice::DROPPED_OUTPUT`.  Checking it here
+        // means every clean case in the corpus exercises it, and the nesting
+        // shapes that would break it are the ones already written.
+        //
+        // The two are deliberately separate computations rather than a shared
+        // helper: a helper could be wrong in both places at once.  They must
+        // still agree on what counts as a closer.
+        //
+        // It holds only on a clean parse, and `forms` being `Some` is exactly
+        // that condition rather than a second one: `parse` withholds the body
+        // when it reported.
+        if let Some(forms) = &forms {
+            let expected = tokens
+                .iter()
+                .filter(|t| {
+                    !matches!(t.kind, TokenKind::VecEnd | TokenKind::ListEnd)
+                })
+                .count();
+            let mut got = 0usize;
+            dfs(forms, |_| got += 1);
+            assert_eq!(
+                got, expected,
+                "{text:?} yielded {got} forms from {expected} non-closing tokens"
+            );
+        }
+
         let source = table.get_source(id);
         let forms = forms.map(|forms| {
             forms

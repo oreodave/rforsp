@@ -205,7 +205,7 @@ mod tests {
         let files = ["/nonexistent/a".to_owned(), "/nonexistent/b".to_owned()];
 
         assert_eq!(
-            sources_from_files(&files, &mut ctx, &mut diags),
+            sources_from_files(&files, &mut diags, &mut ctx,),
             Err(Aborted::new(Phase::Source))
         );
         assert_eq!(
@@ -230,13 +230,13 @@ mod tests {
         // A clean source's tokens are discarded because a sibling failed.
         let mut diags = Diagnostics::new();
         assert_eq!(
-            lex_sources(&[good, bad], &ctx, &mut diags),
+            lex_sources(&[good, bad], &mut diags, &ctx,),
             Err(Aborted::new(Phase::Lex))
         );
         assert_eq!(diags.error_count(), 2);
 
         let mut diags = Diagnostics::new();
-        let tokens = lex_sources(&[good], &ctx, &mut diags)
+        let tokens = lex_sources(&[good], &mut diags, &ctx)
             .expect("a clean source passes");
         assert_eq!(tokens[0].len(), 3);
         assert!(!diags.has_errors());

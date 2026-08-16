@@ -32,6 +32,8 @@ pub fn compile(
 
     let body = parse_streams(&sources, &lexes, diagnostics, ctx)?;
 
+    let _ = log_hir(&lexes, &body, log, ctx, log_out);
+
     Ok(())
 }
 

@@ -47,8 +47,23 @@ impl HirKind {
     const STOLEN: Self = Self::Int(0);
 
     /// Whether this kind owns any [`HirForm`]s.
-    const fn has_children(&self) -> bool {
+    #[must_use]
+    pub const fn has_children(&self) -> bool {
         matches!(self, Self::Quote(_) | Self::List(_) | Self::Vector(_))
+    }
+
+    /// Get a labelling string.
+    #[must_use]
+    pub const fn label_str(&self) -> &'static str {
+        match self {
+            Self::Int(_) => "Int",
+            Self::Quote(_) => "Quote",
+            Self::List(_) => "List",
+            Self::Vector(_) => "Vector",
+            Self::Bind(_) => "Bind",
+            Self::Load(_) => "Load",
+            Self::Call(_) => "Call",
+        }
     }
 }
 

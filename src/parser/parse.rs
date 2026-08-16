@@ -91,6 +91,11 @@ impl<'a> Parser<'a> {
         self.interner.intern(text)
     }
 
+    /// Check if the top of the [`Frame`] stack is a datum.
+    fn top_is_datum(&self) -> bool {
+        self.stack.last().is_some_and(|f| f.is_datum)
+    }
+
     /// Construct a new [`ParseError`] of kind [`ParseErrorKind`] at the given
     /// [`Span`].
     const fn error(&self, span: Span, kind: ParseErrorKind) -> ParseError {
@@ -130,7 +135,7 @@ impl<'a> Parser<'a> {
     /// Yield the given `form` with respect to the current [`Frame`] stack.
     ///
     /// If the [`Frame`] stack is empty, `form` is simply pushed into the
-    /// accumulated `self.forms`.  Otherwise, let `F` be the top of the
+    /// accumulated [`Self::forms`].  Otherwise, let `F` be the top of the
     /// [`Frame`] stack:
     /// - If `F` is a "container" ([`FrameKind::Vector`] or [`FrameKind::List`])
     ///   then the given `form` is simply added to the container's collection of
@@ -141,7 +146,7 @@ impl<'a> Parser<'a> {
     ///
     /// Reports a [`ParseErrorKind::BindingInDatum`] if `F` is a datum frame and
     /// `form` is a [`HirKind::Load`] or [`HirKind::Bind`].  NOTE: The `form` is
-    /// still desposited.
+    /// still deposited.
     fn yield_form(&mut self, mut form: HirForm) {
         loop {
             let Some(mut top) = self.stack.pop() else {
@@ -223,8 +228,8 @@ impl<'a> Parser<'a> {
             "parse_sym_like called with non symbolic token {token:?}"
         );
 
-        let sym_id = self.intern_span(token.symbol_span());
         let syntax_id = self.add_syntax(token.span);
+        let sym_id = self.intern_span(token.symbol_span());
         HirForm::new(syntax_id, make(sym_id))
     }
 }

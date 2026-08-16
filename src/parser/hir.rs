@@ -21,7 +21,7 @@ pub enum HirKind {
     /// `^x`
     Load(SymId),
     /// `x`, a bare name.
-    CallRef(SymId),
+    Call(SymId),
 }
 
 /// A single HIR form: a syntactic category plus its origin.

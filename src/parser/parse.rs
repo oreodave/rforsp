@@ -5,10 +5,10 @@
 
 use crate::{
     diagnostics::{Diagnostic, Diagnostics},
-    interner::Interner,
-    lexer::Token,
+    interner::{Interner, SymId},
+    lexer::{Token, TokenKind},
     parser::{HirForm, HirKind, ParseError, ParseErrorKind},
-    source::{SourceId, SourceTable, Span, SyntaxOrigin},
+    source::{SourceId, SourceTable, Span, SyntaxId, SyntaxOrigin},
 };
 
 /// Parse the token stream of the source given by [`SourceId`] in a
@@ -69,6 +69,47 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Get the text of a given [`Span`].
+    fn text_of(&self, span: Span) -> &str {
+        self.table.text_of(&SyntaxOrigin {
+            source: self.source_id,
+            span,
+        })
+    }
+
+    /// Mint a [`SyntaxOrigin`] for the given [`Span`].
+    fn add_syntax(&mut self, span: Span) -> SyntaxId {
+        self.table.add_origin(self.source_id, span)
+    }
+
+    /// Intern the contents of [`Span`].
+    fn intern_span(&mut self, span: Span) -> SymId {
+        let text = self.table.text_of(&SyntaxOrigin {
+            source: self.source_id,
+            span,
+        });
+        self.interner.intern(text)
+    }
+
+    /// Construct a new [`ParseError`] of kind [`ParseErrorKind`] at the given
+    /// [`Span`].
+    const fn error(&self, span: Span, kind: ParseErrorKind) -> ParseError {
+        ParseError {
+            origin: SyntaxOrigin {
+                source: self.source_id,
+                span,
+            },
+            kind,
+        }
+    }
+
+    /// Report a [`ParseError`] of kind [`ParseErrorKind`] at the given
+    /// [`Span`].
+    fn report_error(&mut self, span: Span, kind: ParseErrorKind) {
+        self.diagnostics
+            .push(Diagnostic::from(self.error(span, kind)));
+    }
+
     /// Register a [`SyntaxOrigin`] for the given [`Frame`].
     ///
     /// `closing` is joined with the opening of the given [`Frame`], so the
@@ -84,13 +125,6 @@ impl<'a> Parser<'a> {
             .table
             .add_origin(self.source_id, frame.opening.join(closing));
         HirForm::new(id, kind)
-    }
-
-    /// Report a [`ParseError`] at the given [`SyntaxOrigin`] of
-    /// [`ParseErrorKind`].
-    fn report_error(&mut self, origin: SyntaxOrigin, kind: ParseErrorKind) {
-        self.diagnostics
-            .push(Diagnostic::from(ParseError { origin, kind }));
     }
 
     /// Yield the given `form` with respect to the current [`Frame`] stack.
@@ -119,8 +153,8 @@ impl<'a> Parser<'a> {
             if top.is_datum
                 && matches!(form.kind, HirKind::Load(_) | HirKind::Bind(_))
             {
-                let origin = *self.table.get_origin(form.id);
-                self.report_error(origin, ParseErrorKind::BindingInDatum);
+                let span = self.table.get_origin(form.id).span;
+                self.report_error(span, ParseErrorKind::BindingInDatum);
                 // We still deposit this `form`.
             }
 

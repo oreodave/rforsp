@@ -108,11 +108,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Report a [`ParseError`] of kind [`ParseErrorKind`] at the given
-    /// [`Span`].
-    fn report_error(&mut self, span: Span, kind: ParseErrorKind) {
-        self.diagnostics
-            .push(Diagnostic::from(self.error(span, kind)));
+    /// Report a [`ParseError`] into [`Self::diagnostics`].
+    fn report(&mut self, error: ParseError) {
+        self.diagnostics.push(Diagnostic::from(error));
     }
 
     /// Register a [`SyntaxOrigin`] for the given [`Frame`].
@@ -159,7 +157,7 @@ impl<'a> Parser<'a> {
                 && matches!(form.kind, HirKind::Load(_) | HirKind::Bind(_))
             {
                 let span = self.table.get_origin(form.id).span;
-                self.report_error(span, ParseErrorKind::BindingInDatum);
+                self.report(self.error(span, ParseErrorKind::BindingInDatum));
                 // We still deposit this `form`.
             }
 

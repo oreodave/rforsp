@@ -67,3 +67,55 @@ pub fn dfs(forms: &[HirForm], mut f: impl FnMut(&HirForm)) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source::{SourceTable, Span};
+
+    /// A [`SyntaxId`] to hang synthetic forms off.
+    ///
+    /// Nothing here inspects origins, so one id serves every node.
+    fn any_id() -> SyntaxId {
+        let mut table = SourceTable::new();
+        let source =
+            table.add_source_raw("t", "x".into()).expect("within bound");
+        table.add_origin(source, Span::new(0, 1))
+    }
+
+    #[test]
+    fn dfs_visits_every_form() {
+        let id = any_id();
+        let leaf = |n| HirForm::new(id, HirKind::Int(n));
+
+        // [1 '2 (3)] 4
+        let forms = vec![
+            HirForm::new(
+                id,
+                HirKind::Vector(vec![
+                    leaf(1),
+                    HirForm::new(id, HirKind::Quote(Box::new(leaf(2)))),
+                    HirForm::new(id, HirKind::List(vec![leaf(3)])),
+                ]),
+            ),
+            leaf(4),
+        ];
+
+        // Children are pushed reversed, so they come back in source order.
+        // A quote's child counts: it is a child like any other, and missing
+        // it is invisible until the bijection reports a compiler bug against
+        // a correct program.
+        let mut ints = Vec::new();
+        dfs(&forms, |form| {
+            if let HirKind::Int(n) = form.kind {
+                ints.push(n);
+            }
+        });
+        assert_eq!(ints, [1, 2, 3, 4]);
+
+        // Every node exactly once, containers and the quote included.
+        let mut count = 0;
+        dfs(&forms, |_| count += 1);
+        assert_eq!(count, 7);
+    }
+}

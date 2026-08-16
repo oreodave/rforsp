@@ -184,6 +184,26 @@ impl<'a> Parser<'a> {
             }
         }
     }
+
+    /// Attempt to parse an integer.
+    ///
+    /// # Errors
+    /// - If any error arises from attempting to parse the integer.
+    fn parse_int(&mut self, token: Token) -> Result<HirForm, ParseError> {
+        debug_assert_eq!(
+            token.kind,
+            TokenKind::Number,
+            "parse_int called with non number token {token:?}"
+        );
+
+        let text = self.text_of(token.span);
+        // FIXME(oreo)[2026-08-16 02:33]:: we're relying on the fact that the
+        // tokeniser classifies TokenKind::Number as any sequence of -?[0-9]+.
+        // This will break if and when that is no longer true.
+        str::parse::<i64>(text)
+            .map(|n| HirForm::new(self.add_syntax(token.span), HirKind::Int(n)))
+            .map_err(|_| self.error(token.span, ParseErrorKind::IntOverflow))
+    }
 }
 
 /// Types of [`Frame`]s.

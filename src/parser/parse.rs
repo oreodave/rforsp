@@ -233,6 +233,44 @@ impl<'a> Parser<'a> {
         let sym_id = self.intern_span(token.symbol_span());
         HirForm::new(syntax_id, make(sym_id))
     }
+
+    /// Parse a singular [`Token`].
+    ///
+    /// This essentially acts as the transition function for the [`Parser`]
+    /// state machine, using the singular [`Token`] as input.
+    fn parse_singular(&mut self, token: Token) {
+        match token.kind {
+            TokenKind::VecStart => {
+                self.push_frame(FrameKind::Vector(Vec::new()), token.span);
+            }
+            TokenKind::ListStart => {
+                self.push_frame(FrameKind::List(Vec::new()), token.span);
+            }
+            TokenKind::Quote => self.push_frame(FrameKind::Quote, token.span),
+            TokenKind::Number => match self.parse_int(token) {
+                Ok(form) => self.yield_form(form),
+                Err(e) => self.report(e),
+            },
+            TokenKind::Symbol => {
+                let form = self.parse_sym_like(token, HirKind::Call);
+                self.yield_form(form);
+            }
+            TokenKind::Bind => {
+                let form = self.parse_sym_like(token, HirKind::Bind);
+                self.yield_form(form);
+            }
+            TokenKind::Load => {
+                let form = self.parse_sym_like(token, HirKind::Load);
+                self.yield_form(form);
+            }
+            TokenKind::VecEnd => {
+                todo!()
+            }
+            TokenKind::ListEnd => {
+                todo!()
+            }
+        }
+    }
 }
 
 /// Types of [`Frame`]s.

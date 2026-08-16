@@ -9,6 +9,7 @@ mod phase;
 pub use phase::{Aborted, Phase};
 
 mod class;
+mod classify;
 pub use class::{Class, Severity};
 
 mod diagnostic;

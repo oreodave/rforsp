@@ -1,22 +1,16 @@
 //! Generalised drivers for each phase of the compiler.
+//!
+//! These are the top level drivers that thread the various phases of the
+//! compiler together.
 
 use crate::{
     context::Compilation,
-    diagnostics::{
-        Aborted, Class, Diagnostic, Diagnostics, Phase, Site, conv::ice,
-    },
-    lexer::{Token, tokenise},
+    diagnostics::{Aborted, Class, Diagnostics, Phase, Site, conv::ice},
+    lexer::{Token, TokenKind, tokenise},
+    log::{Log, log_hir, log_tokens},
+    parser::{HirForm, dfs, parse},
     source::SourceId,
 };
-
-/// Level of logs from [`compile`].
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub enum Log {
-    /// no logs.
-    None,
-    /// print a log of the tokens
-    Tokens,
-}
 
 /// Compile a set of `filenames`.
 ///
@@ -29,17 +23,22 @@ pub fn compile(
     log: Log,
     log_out: &mut impl std::fmt::Write,
 ) -> Result<(), Aborted> {
-    // FIXME: Wire in parsing, resolution, lowering, verification.
-    let sources = sources_from_files(filenames, ctx, diagnostics)?;
-    let lexes = lex_sources(&sources, ctx, diagnostics)?;
+    // FIXME(oreo)[2026-08-12 15:42]: Wire in parsing, resolution, lowering,
+    // verification.
+    let sources = sources_from_files(filenames, diagnostics, ctx)?;
+    let lexes = lex_sources(&sources, diagnostics, ctx)?;
 
-    let _ = log_tokens(ctx, &sources, &lexes, log, log_out);
+    let _ = log_tokens(&sources, &lexes, log, ctx, log_out);
+
+    let body = parse_streams(&sources, &lexes, diagnostics, ctx)?;
+
+    let _ = log_hir(&lexes, &body, log, ctx, log_out);
 
     Ok(())
 }
 
-/// The gate that ensures that the results of a compiler phase only pass through
-/// if the local [`Diagnostics`] of that phase has no errors.
+/// The gate that ensures the results of a compiler phase only pass through if
+/// the local [`Diagnostics`] of that phase has no errors.
 fn gate<T>(
     global_diags: &mut Diagnostics,
     local_diags: Diagnostics,
@@ -48,19 +47,22 @@ fn gate<T>(
 ) -> Result<T, Aborted> {
     let succeeded = !local_diags.has_errors();
     global_diags.merge(local_diags);
-    succeeded
-        .then_some(container)
-        .ok_or_else(|| Aborted::new(phase))
+    if succeeded {
+        Ok(container)
+    } else {
+        Err(Aborted::new(phase))
+    }
 }
 
 /// Add a set of files to the given [`SourceTable`][crate::source::SourceTable].
 ///
 /// # Errors
-/// - If any error [`Diagnostic`]s are created while adding files to the table.
+/// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created
+///   while adding files to the table.
 fn sources_from_files(
     filenames: &[String],
-    ctx: &mut Compilation,
     diagnostics: &mut Diagnostics,
+    ctx: &mut Compilation,
 ) -> Result<Vec<SourceId>, Aborted> {
     let mut local = Diagnostics::new();
     let sources = filenames
@@ -79,24 +81,28 @@ fn sources_from_files(
 /// Lex a sequence of [`SourceId`] into Token Streams.
 ///
 /// # Errors
-/// - If any error [`Diagnostic`]s are created while lexing the given sources.
+/// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created
+///   while lexing the given sources.
 fn lex_sources(
     source_ids: &[SourceId],
-    ctx: &Compilation,
     diagnostics: &mut Diagnostics,
+    ctx: &Compilation,
 ) -> Result<Vec<Vec<Token>>, Aborted> {
     let mut local = Diagnostics::new();
     let tokens_set = source_ids
         .iter()
         .filter_map(|&id| {
             let (tokens, mut lexer_diags) = tokenise(id, &ctx.table);
+
+            // Internal compiler invariant
             if tokens.is_none() && !lexer_diags.has_errors() {
-                lexer_diags.push(ice(Diagnostic::new(
+                lexer_diags.push(ice(
                     Class::ICEDroppedOutput,
                     Site::Source(id),
                     "lexing produced no tokens",
-                )));
+                ));
             }
+
             local.merge(lexer_diags);
             tokens
         })
@@ -105,37 +111,92 @@ fn lex_sources(
     gate(diagnostics, local, tokens_set, Phase::Lex)
 }
 
-/// Log tokens if and only if `log` == [`Log::Tokens`].
-fn log_tokens(
-    ctx: &Compilation,
-    sources: &[SourceId],
-    lexes: &[Vec<Token>],
-    log: Log,
-    log_out: &mut impl std::fmt::Write,
-) -> std::fmt::Result {
-    if log == Log::Tokens {
-        for (&id, lex_stream) in sources.iter().zip(lexes) {
-            let source = ctx.table.get_source(id);
-            writeln!(
-                log_out,
-                "{}: {} bytes => {} tokens",
-                source.name,
-                source.len(),
-                lex_stream.len()
-            )?;
-            for token in lex_stream {
-                let kind = token.kind;
-                let text = source.span_text(token.span);
-                write!(log_out, "{kind:?}({text}), ")?;
+/// Parse a collection of [`Token`] streams, merging their results all together
+/// into one sequence of [`HirForm`].
+///
+/// The merged sequence is in the order of the [`Token`] streams given.
+///
+/// # Errors
+/// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created
+///   while parsing the given [`Token`] streams.
+fn parse_streams(
+    source_ids: &[SourceId],
+    token_streams: &[Vec<Token>],
+    diagnostics: &mut Diagnostics,
+    ctx: &mut Compilation,
+) -> Result<Vec<HirForm>, Aborted> {
+    debug_assert_eq!(
+        source_ids.len(),
+        token_streams.len(),
+        "Expected source_ids and token_streams to be paired."
+    );
+
+    let mut local = Diagnostics::new();
+    let body = source_ids
+        .iter()
+        .zip(token_streams.iter())
+        .filter_map(|(&source_id, token_stream)| {
+            let (forms, mut parse_diags) = parse(
+                source_id,
+                token_stream,
+                &mut ctx.table,
+                &mut ctx.interner,
+            );
+
+            // Internal compiler invariant - Dropped output for unclean case.
+            if forms.is_none() && !parse_diags.has_errors() {
+                parse_diags.push(ice(
+                    Class::ICEDroppedOutput,
+                    Site::Source(source_id),
+                    "parsing produced no forms",
+                ));
             }
-            writeln!(log_out)?;
-        }
-    }
-    Ok(())
+
+            // Internal compiler invariant - Dropped output for clean case.
+            //
+            // The same two counts are asserted over the whole parser corpus
+            // by `parse_text` in `parser::parse`'s tests.  They are computed
+            // separately on purpose: this one catches the parser in the
+            // field, that one catches it in CI.  If the two expressions ever
+            // disagree about what a closer is, one of them is wrong.
+            if let Some(forms) = &forms {
+                let expected = token_stream
+                    .iter()
+                    .filter(|t| {
+                        !matches!(
+                            t.kind,
+                            TokenKind::VecEnd | TokenKind::ListEnd
+                        )
+                    })
+                    .count();
+                let mut got = 0usize;
+                dfs(forms, |_, _| got += 1);
+
+                if got != expected {
+                    let message = format!(
+                        "parsed {got} forms from {expected} non-closing tokens"
+                    );
+                    parse_diags.push(ice(
+                        Class::ICEDroppedOutput,
+                        Site::Source(source_id),
+                        message,
+                    ));
+                }
+            }
+
+            local.merge(parse_diags);
+            forms
+        })
+        .flatten()
+        .collect::<Vec<_>>();
+
+    gate(diagnostics, local, body, Phase::Parse)
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::diagnostics::Diagnostic;
+
     use super::*;
 
     /// An error diagnostic with no location.
@@ -194,7 +255,7 @@ mod tests {
         let files = ["/nonexistent/a".to_owned(), "/nonexistent/b".to_owned()];
 
         assert_eq!(
-            sources_from_files(&files, &mut ctx, &mut diags),
+            sources_from_files(&files, &mut diags, &mut ctx,),
             Err(Aborted::new(Phase::Source))
         );
         assert_eq!(
@@ -219,13 +280,13 @@ mod tests {
         // A clean source's tokens are discarded because a sibling failed.
         let mut diags = Diagnostics::new();
         assert_eq!(
-            lex_sources(&[good, bad], &ctx, &mut diags),
+            lex_sources(&[good, bad], &mut diags, &ctx,),
             Err(Aborted::new(Phase::Lex))
         );
         assert_eq!(diags.error_count(), 2);
 
         let mut diags = Diagnostics::new();
-        let tokens = lex_sources(&[good], &ctx, &mut diags)
+        let tokens = lex_sources(&[good], &mut diags, &ctx)
             .expect("a clean source passes");
         assert_eq!(tokens[0].len(), 3);
         assert!(!diags.has_errors());

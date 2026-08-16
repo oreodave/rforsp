@@ -12,6 +12,8 @@ pub mod interner;
 pub mod context;
 
 pub mod lexer;
+pub mod parser;
 pub mod source;
 
 pub mod drivers;
+pub mod log;

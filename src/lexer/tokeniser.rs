@@ -1,4 +1,7 @@
-//! Main tokeniser runtime
+//! Tokeniser from raw text.
+//!
+//! This is the core routine which translates [`Source`]s to a stream of
+//! [`Token`]s.
 
 use crate::{
     diagnostics::Diagnostics,
@@ -14,48 +17,6 @@ const WHITESPACE_CHARS: &str = "\r\n\t ";
 
 /// Character introducing a comment, which runs to end of line.
 const COMMENT_START: char = ';';
-
-/// Compile time check that [`WHITESPACE_CHARS`] ⊂ [`RESTRICTED_CHARS`].
-const _: () = {
-    // TODO(oreo)[2026-08-11 00:06]: This rigamarole is only necessary because
-    // iterating and `.contains` aren't const-stable yet in Rust.  Might be
-    // worth looking back at this later.
-    let whitespace = WHITESPACE_CHARS.as_bytes();
-    let restricted = RESTRICTED_CHARS.as_bytes();
-    let mut i = 0;
-    while i < whitespace.len() {
-        let mut found = false;
-        let mut j = 0;
-        while j < restricted.len() {
-            if whitespace[i] == restricted[j] {
-                found = true;
-            }
-            j += 1;
-        }
-        assert!(
-            found,
-            "WHITESPACE_CHARS must be a subset of RESTRICTED_CHARS"
-        );
-        i += 1;
-    }
-};
-
-/// Check if a given [`char`] is a valid character to be part of a symbol.
-///
-/// Two classes are excluded beyond the restricted set, both because they
-/// render as nothing: control characters (`Cc`) and format characters (`Cf`).
-/// A name containing either would report back to the reader as a name they
-/// cannot see.
-fn is_valid_sym_char(c: char) -> bool {
-    !RESTRICTED_CHARS.contains(c) && !c.is_control() && !is_format(c)
-}
-
-/// Check if the given [`&str`] contains only numeric digits, excluding a
-/// possible sign at the start.
-fn is_integer(text: &str) -> bool {
-    let digits = text.strip_prefix('-').unwrap_or(text);
-    !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
-}
 
 /// Tokenise a source given by [`SourceId`] in a [`SourceTable`], returning the
 /// token stream as a [`Vec<Token>`] if no errors arise, otherwise [`None`].
@@ -108,8 +69,6 @@ impl<'a> Tokeniser<'a> {
             source_id,
             source,
             diagnostics,
-            // Phase 0 has already accounted for a leading byte order mark, so
-            // every character from here on is program text.
             cursor: source.content_start(),
         }
     }
@@ -134,36 +93,13 @@ impl<'a> Tokeniser<'a> {
             .sum()
     }
 
-    /// Skip whitespace and comments from the current cursor, stopping at the
-    /// first character that begins a token.
-    ///
-    /// Trivia is liberal in what it swallows, deliberately.  Nothing within it
-    /// becomes a name, a token or a span, so a character that could not appear
-    /// in a symbol - a control character, say - is skipped happily here rather
-    /// than reported.  The exclusions applied to symbol material exist to stop
-    /// a diagnostic being corrupted by the very thing it names, and trivia
-    /// names nothing, so applying them here would buy nothing.
-    ///
-    /// NOTE: We do NOT count `\r` as a valid newline starter, only `\n`.  A
-    /// carriage return is simply counted as trivia.
-    fn skip_trivia(&mut self) {
-        loop {
-            self.cursor += self.run_len(|c| WHITESPACE_CHARS.contains(c));
-            if self.peek() == Some(COMMENT_START) {
-                self.cursor += self.run_len(|c| c != '\n');
-            } else {
-                return;
-            }
-        }
-    }
-
     /// Construct a new span of given length `len` starting at
-    /// `Tokeniser::cursor`.
+    /// [`Tokeniser::cursor`].
     const fn new_span(&self, len: usize) -> Span {
         Span::new(self.cursor, self.cursor + len)
     }
 
-    /// Construct a [`LexError`] of the given kind over `span`.
+    /// Construct a [`LexError`] of the given kind over [`Span`].
     const fn error(&self, kind: LexErrorKind, span: Span) -> LexError {
         LexError {
             origin: SyntaxOrigin {
@@ -172,11 +108,6 @@ impl<'a> Tokeniser<'a> {
             },
             kind,
         }
-    }
-
-    /// Record a [`LexError`] as a diagnostic and carry on lexing.
-    fn report(&mut self, error: LexError) {
-        self.diagnostics.push(error.into());
     }
 
     /// Return a [`Token`] of the given [`TokenKind`] which is known to consist
@@ -191,16 +122,35 @@ impl<'a> Tokeniser<'a> {
         token
     }
 
+    /// Record a [`LexError`] as a diagnostic and carry on lexing.
+    fn report(&mut self, error: LexError) {
+        self.diagnostics.push(error.into());
+    }
+
     /// Classify the scalar run at the cursor without consuming it, returning
     /// its [`TokenKind`] and byte length.
     ///
     /// Returns `None` when there is no run at all - the cursor sits on a
     /// restricted character or at end-of-source.
     fn scan_scalar(&self) -> Option<(TokenKind, usize)> {
-        let len = self.run_len(is_valid_sym_char);
+        let len = self.run_len(|c| {
+            // NOTE: we exclude control characters and format characters here as
+            // well.
+            !RESTRICTED_CHARS.contains(c) && !c.is_control() && !is_format(c)
+        });
+
         if len == 0 {
-            None
-        } else if is_integer(&self.rest()[..len]) {
+            return None;
+        }
+
+        // Check if the given text is an integer or not.
+        let is_integer = {
+            let text = &self.rest()[..len];
+            let digits = text.strip_prefix('-').unwrap_or(text);
+            !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
+        };
+
+        if is_integer {
             Some((TokenKind::Number, len))
         } else {
             Some((TokenKind::Symbol, len))
@@ -231,24 +181,23 @@ impl<'a> Tokeniser<'a> {
     ) -> Result<Token, LexError> {
         let start = self.cursor;
         self.cursor += 1;
-
-        match self.scan_scalar() {
+        let Some((ret_kind, len)) = self.scan_scalar() else {
             // Nothing follows to consume, so the sigil alone is the span.
-            None => Err(self.error(error_kind, Span::new(start, self.cursor))),
-            Some((ret_kind, len)) => {
-                self.cursor += len;
-                if ret_kind == TokenKind::Symbol {
-                    // Good path!
-                    Ok(Token {
-                        kind,
-                        span: Span::new(start, self.cursor),
-                    })
-                } else {
-                    // If we get a non-symbol scalar, then we do want to bind it in the
-                    // diagnostic span so it doesn't get re-used somewhere else.
-                    Err(self.error(error_kind, Span::new(start, self.cursor)))
-                }
-            }
+            return Err(self.error(error_kind, Span::new(start, self.cursor)));
+        };
+
+        self.cursor += len;
+        if ret_kind == TokenKind::Symbol {
+            // Good path!
+            Ok(Token {
+                kind,
+                span: Span::new(start, self.cursor),
+            })
+        } else {
+            // If we get a non-symbol scalar that's obviously an error.  We do
+            // want to bind it in the diagnostic span so it doesn't get re-used
+            // somewhere else.
+            Err(self.error(error_kind, Span::new(start, self.cursor)))
         }
     }
 
@@ -276,17 +225,92 @@ impl<'a> Tokeniser<'a> {
             '^' => self.lex_binding(TokenKind::Load, LexErrorKind::LoadInvalid),
             _ => self.lex_scalar().ok_or_else(|| {
                 // Worst path possible; nothing from the above was able to bind
-                // and we couldn't even get a symbol out of it.
-
-                // Since we want to accumulate errors though, we should try and
-                // skip just this character and see what else we could lex.
+                // and we couldn't even get a symbol out of it.  Since we want
+                // to accumulate errors though, we should try and skip just this
+                // character and see what else we could lex.
                 let span = self.new_span(c.len_utf8());
                 self.cursor += c.len_utf8();
                 self.error(LexErrorKind::UnknownCharacter, span)
             }),
         }
     }
+
+    /// Skip whitespace and comments from the current cursor, stopping at the
+    /// first character that begins a token.
+    ///
+    /// NOTE: We do NOT count `\r` as a valid newline starter, only `\n`.  A
+    /// carriage return is simply counted as trivia.
+    fn skip_trivia(&mut self) {
+        loop {
+            self.cursor += self.run_len(|c| WHITESPACE_CHARS.contains(c));
+            if self.peek() == Some(COMMENT_START) {
+                self.skip_comment();
+            } else {
+                return;
+            }
+        }
+    }
+
+    /// Skip a comment, from the cursor to the end of its line, reporting any
+    /// format character within it.
+    ///
+    /// We report format characters despite comments not being tokenised in any
+    /// way because of how *rendering* could be affected by them.
+    fn skip_comment(&mut self) {
+        let len = self.run_len(|c| c != '\n');
+        if !self.rest()[..len].is_ascii() {
+            self.report_format_chars(len);
+        }
+        self.cursor += len;
+    }
+
+    /// Locate and report every format character in the `len` bytes at the
+    /// cursor - this is used during [`Tokeniser::skip_comment`] when we find
+    /// some non-ASCII text.
+    #[cold]
+    fn report_format_chars(&mut self, len: usize) {
+        let mut scanned = 0;
+        // Re-scanning from each hit keeps the borrow of `self` inside the
+        // condition, so nothing has to be collected to report it.
+        while let Some((index, c)) = self.rest()[scanned..len]
+            .char_indices()
+            .find(|&(_, c)| is_format(c))
+        {
+            let start = self.cursor + scanned + index;
+            let error = self.error(
+                LexErrorKind::UnknownCharacter,
+                Span::new(start, start + c.len_utf8()),
+            );
+            self.report(error);
+            scanned += index + c.len_utf8();
+        }
+    }
 }
+
+/// Compile time check that [`WHITESPACE_CHARS`] ⊂ [`RESTRICTED_CHARS`].
+const _: () = {
+    // TODO(oreo)[2026-08-11 00:06]: This rigamarole is only necessary because
+    // iterating and `.contains` aren't const-stable yet in Rust.  Might be
+    // worth looking back at this later.
+    let whitespace = WHITESPACE_CHARS.as_bytes();
+    let restricted = RESTRICTED_CHARS.as_bytes();
+    let mut i = 0;
+    while i < whitespace.len() {
+        let mut found = false;
+        let mut j = 0;
+        while j < restricted.len() {
+            if whitespace[i] == restricted[j] {
+                found = true;
+            }
+            j += 1;
+        }
+        assert!(
+            found,
+            "WHITESPACE_CHARS must be a subset of RESTRICTED_CHARS"
+        );
+        i += 1;
+    }
+};
 
 #[cfg(test)]
 mod tests {
@@ -478,10 +502,41 @@ mod tests {
             &[(Symbol, "a"), (Symbol, "b"), (Symbol, "c")],
         );
 
-        // Comments are not symbols, so nothing renders back to the user out of
-        // one, and it stays liberal in what it swallows.
+        // A comment names nothing, so a control character in one is swallowed
+        // rather than reported.
         assert_tokens(
             concat!("a ;com\u{0}ment\n", "b"),
+            &[(Symbol, "a"), (Symbol, "b")],
+        );
+
+        // A format character in a comment is NOT, because it attacks the
+        // rendering rather than the name: an override in a comment reorders
+        // the display of the code beside it.
+        assert_errors(
+            concat!("a ;com\u{202e}ment\n", "b"),
+            &[(Class::LexUnknownCharacter, "\u{202e}")],
+        );
+
+        // They accumulate within one comment, and are found after non-ASCII
+        // text that is perfectly legitimate.
+        assert_errors(
+            "; \u{2200}x \u{202e}a \u{200b}b",
+            &[
+                (Class::LexUnknownCharacter, "\u{202e}"),
+                (Class::LexUnknownCharacter, "\u{200b}"),
+            ],
+        );
+
+        // A comment closed by EOF rather than a newline is scanned the same.
+        assert_errors(
+            "a ;trailing \u{feff}",
+            &[(Class::LexUnknownCharacter, "\u{feff}")],
+        );
+
+        // Legitimate non-ASCII comment text takes the same path and reports
+        // nothing.
+        assert_tokens(
+            concat!("a ;\u{2200}x. x \u{2261} 0\n", "b"),
             &[(Symbol, "a"), (Symbol, "b")],
         );
 

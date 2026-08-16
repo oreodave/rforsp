@@ -3,6 +3,8 @@
 //! [`char::is_control`] covers the Unicode `Cc` category, but there is no
 //! equivalent for `Cf` - the format characters - and no general-category
 //! accessor to derive one from.  The class is therefore carried here as data.
+//!
+//! NOTE: this module is LLM generated.
 
 use std::cmp::Ordering;
 
@@ -77,6 +79,15 @@ mod tests {
             assert!(low <= high, "{low:?}..{high:?} is inverted");
             assert!(high < next_low, "{high:?} is not before {next_low:?}");
         }
+
+        // The tokeniser skips an all-ASCII comment without inspecting it,
+        // which is only sound while no format character is ASCII.  The
+        // property belongs to the table, so it is pinned here rather than
+        // where it is relied on.
+        assert!(
+            !FORMAT_RANGES[0].0.is_ascii(),
+            "an ASCII format character would defeat the comment fast path"
+        );
     }
 
     #[test]

@@ -6,7 +6,7 @@ use std::fmt::{self, Write};
 
 use crate::{
     diagnostics::{Class, Diagnostic, Diagnostics, Severity, Site},
-    source::{SourceTable, SyntaxOrigin},
+    source::{SourceId, SourceTable, SyntaxOrigin},
 };
 
 /// The default number of diagnostics that are rendered, after which diagnostics
@@ -29,10 +29,13 @@ pub fn render_diagnostics(
 /// Render a collection of [`Diagnostics`] related to a [`SourceTable`] into
 /// `out`.  `cap` decides how many are suppressed.
 ///
-/// [`Severity::Bug`] is exempt from `cap` and rendered as a trailing section:
-/// a bug is the compiler's fault rather than the user's, so losing one behind
-/// a screenful of user errors would hide the only diagnostic they cannot act
-/// on.  The cap therefore counts, and suppresses, ordinary diagnostics alone.
+/// Diagnostics are rendered in source order rather than the order the phases
+/// happened to report them in.
+///
+/// [`Severity::Bug`] is exempt from `cap` and rendered as a trailing section
+/// always as they're critical if found during real word cases.  Ordering runs
+/// before the cap, so what survives it is the head of the file rather than
+/// whichever diagnostics happened to be reported first.
 ///
 /// # Errors
 /// - Repeated back from `write!`/`writeln!` calls.
@@ -42,9 +45,12 @@ fn render_diagnostics_with_cap(
     cap: usize,
     out: &mut impl fmt::Write,
 ) -> fmt::Result {
-    let items = diags.items();
-    let ordinary = items
+    let mut ordered: Vec<&Diagnostic> = diags.items().iter().collect();
+    ordered.sort_by_key(|diag| position_of(table, diag.site));
+
+    let ordinary = ordered
         .iter()
+        .copied()
         .filter(|diag| diag.class.severity() != Severity::Bug);
     let len = ordinary.clone().count();
     let to_render = len.min(cap);
@@ -63,11 +69,27 @@ fn render_diagnostics_with_cap(
 
     // Everything that is not ordinary is a bug, so the count settles whether
     // there are any without a second scan.
-    if items.len() > len {
-        renderer.render_bugs(items, written)?;
+    if ordered.len() > len {
+        renderer.render_bugs(&ordered, written)?;
     }
 
     Ok(())
+}
+
+/// The position a [`Site`] renders at, which orders Diagnostics.
+fn position_of(
+    table: &SourceTable,
+    site: Site,
+) -> Option<(SourceId, Option<u32>)> {
+    match site {
+        Site::None => None,
+        Site::Source(id) => Some((id, None)),
+        Site::Raw(origin) => Some((origin.source, Some(origin.span.start))),
+        Site::Syntax(id) => {
+            let origin = table.get_origin(id);
+            Some((origin.source, Some(origin.span.start)))
+        }
+    }
 }
 
 /// Renderer state - used to make rendering process easier.
@@ -151,7 +173,7 @@ impl<'a, W: Write> Renderer<'a, W> {
     /// already been rendered above.
     fn render_bugs(
         &mut self,
-        items: &[Diagnostic],
+        items: &[&Diagnostic],
         separate: bool,
     ) -> fmt::Result {
         if separate {
@@ -452,6 +474,76 @@ mod tests {
         assert!(s.contains("error[source::TOO_LARGE]: a"));
         assert!(s.contains("error[source::TOO_LARGE]: b"));
         assert!(!s.contains("suppressed"));
+    }
+
+    #[test]
+    fn ordering_is_by_position() {
+        let mut t = SourceTable::new();
+        let a = add(&mut t, "a", "hello\nworld!\n");
+        let b = add(&mut t, "b", "Foo\nbar\n");
+        let raw = |source, start, end| {
+            Site::Raw(SyntaxOrigin {
+                source,
+                span: Span::new(start, end),
+            })
+        };
+
+        // Reported in an order no reader would accept and no phase produces on
+        // purpose: a later offset before an earlier one, a second file before
+        // the first, and the positionless diagnostic last of all.
+        let mut acc = Diagnostics::new();
+        for (site, msg) in [
+            (raw(a, 6, 11), "late"),
+            (raw(b, 0, 3), "other"),
+            (raw(a, 0, 5), "early"),
+            (Site::None, "nowhere"),
+            (Site::Source(a), "whole"),
+        ] {
+            acc.push(Diagnostic::new(Class::SourceTooLarge, site, msg));
+        }
+
+        let s = diags(&t, &acc);
+        let at = |m: &str| s.find(&format!(": {m}\n")).expect(m);
+
+        // A positionless diagnostic precedes every located one, a source-wide
+        // one sits at the head of its own file, and sources follow the order
+        // they were added in rather than the order they were reported in.
+        assert!(at("nowhere") < at("whole"), "{s}");
+        assert!(at("whole") < at("early"), "{s}");
+        assert!(at("early") < at("late"), "{s}");
+        assert!(at("late") < at("other"), "{s}");
+    }
+
+    #[test]
+    fn ordering_is_stable_and_precedes_the_cap() {
+        let mut t = SourceTable::new();
+        let a = add(&mut t, "a", "hello\nworld!\n");
+        let raw = |start, end| {
+            Site::Raw(SyntaxOrigin {
+                source: a,
+                span: Span::new(start, end),
+            })
+        };
+
+        // Two diagnostics at one position have nothing to order them by, so
+        // the sort must leave them as reported rather than swap them.
+        let mut acc = Diagnostics::new();
+        acc.push(Diagnostic::new(Class::SourceTooLarge, raw(6, 11), "third"));
+        acc.push(Diagnostic::new(Class::SourceTooLarge, raw(0, 5), "first"));
+        acc.push(Diagnostic::new(Class::SourceTooLarge, raw(0, 5), "second"));
+
+        let s = diags(&t, &acc);
+        let at = |m: &str| s.find(&format!(": {m}\n")).expect(m);
+        assert!(at("first") < at("second"), "{s}");
+        assert!(at("second") < at("third"), "{s}");
+
+        // Ordering runs before the cap, so what survives it is the head of the
+        // file.  Capping first would keep whichever diagnostic a phase happened
+        // to report earliest, which here is the last one in the source.
+        let s = diags_with_cap(&t, &acc, 1);
+        assert!(s.contains(": first\n"), "{s}");
+        assert!(!s.contains(": third\n"), "{s}");
+        assert!(s.contains("2 diagnostics suppressed"), "{s}");
     }
 
     #[test]

@@ -13,6 +13,7 @@ use std::fmt::Write as _;
 use crate::{
     diagnostics::{Aborted, Class, Diagnostic, Phase, Site},
     lexer::{LexError, LexErrorKind},
+    parser::{ParseError, ParseErrorKind},
     source::{SourceError, SourceTableError},
 };
 
@@ -44,11 +45,6 @@ impl From<SourceTableError> for Diagnostic {
 impl From<LexError> for Diagnostic {
     fn from(e: LexError) -> Self {
         let site = Site::Raw(e.origin);
-        let class = match e.kind {
-            LexErrorKind::UnknownCharacter => Class::LexUnknownCharacter,
-            LexErrorKind::BindInvalid => Class::LexBindInvalid,
-            LexErrorKind::LoadInvalid => Class::LexLoadInvalid,
-        };
         let message = match e.kind {
             LexErrorKind::UnknownCharacter => "Unrecognised character",
             LexErrorKind::BindInvalid => {
@@ -59,7 +55,41 @@ impl From<LexError> for Diagnostic {
             }
         };
 
-        Self::new(class, site, message)
+        Self::new(e.kind.into(), site, message)
+    }
+}
+
+impl From<ParseError> for Diagnostic {
+    fn from(e: ParseError) -> Self {
+        let site = Site::Raw(e.origin);
+        let message = match e.kind {
+            ParseErrorKind::IntOverflow => {
+                "Integer literal does not fit in a 64 bit signed integer"
+            }
+            ParseErrorKind::NestedQuote => {
+                "Expected a form after Quote ('), found another Quote"
+            }
+            ParseErrorKind::QuoteWithoutForm => {
+                "Expected a form after Quote (')"
+            }
+            ParseErrorKind::BindingInDatum => {
+                "Expected a datum, found a Bind ($) or Load (^)"
+            }
+            ParseErrorKind::UnterminatedVector => {
+                "Vector opened with [ was never closed"
+            }
+            ParseErrorKind::UnterminatedList => {
+                "List opened with ( was never closed"
+            }
+            ParseErrorKind::MismatchedCloser => {
+                "Closer does not match the innermost open Vector or List"
+            }
+            ParseErrorKind::UnexpectedCloser => {
+                "Closer with no matching opener"
+            }
+        };
+
+        Self::new(e.kind.into(), site, message)
     }
 }
 
@@ -81,16 +111,17 @@ impl fmt::Display for Aborted {
 ///   detection site to report.
 #[must_use]
 #[track_caller]
-pub fn ice(mut diag: Diagnostic) -> Diagnostic {
+pub fn ice(class: Class, site: Site, message: impl Into<String>) -> Diagnostic {
     assert_eq!(
-        diag.class.phase(),
+        class.phase(),
         Phase::ICE,
         "only a compiler bug carries a detection site"
     );
 
+    let mut message: String = message.into();
     let location = std::panic::Location::caller();
-    let _ = write!(diag.message, ", detected at {location}");
-    diag
+    let _ = write!(message, ", detected at {location}");
+    Diagnostic::new(class, site, message)
 }
 
 #[cfg(test)]
@@ -150,19 +181,48 @@ mod tests {
             span: Span::new(0, 3),
         };
 
-        for (kind, class) in [
-            (LexErrorKind::UnknownCharacter, Class::LexUnknownCharacter),
-            (LexErrorKind::BindInvalid, Class::LexBindInvalid),
-            (LexErrorKind::LoadInvalid, Class::LexLoadInvalid),
+        for kind in [
+            LexErrorKind::UnknownCharacter,
+            LexErrorKind::BindInvalid,
+            LexErrorKind::LoadInvalid,
         ] {
             let diag = Diagnostic::from(LexError { origin, kind });
-            assert_eq!(diag.class, class);
             assert_eq!(
-                diag.class.phase(),
-                Phase::Lex,
-                "{kind:?} escaped its phase"
+                diag.site,
+                Site::Raw(origin),
+                "{kind:?} lost its origin"
             );
-            assert_eq!(diag.site, Site::Raw(origin));
+            assert!(!diag.message.is_empty(), "{kind:?} needs a message");
+        }
+    }
+
+    #[test]
+    fn parse_err() {
+        let mut table = SourceTable::new();
+        let source = table
+            .add_source_raw("t", "''x".into())
+            .expect("within bound");
+        let origin = SyntaxOrigin {
+            source,
+            span: Span::new(0, 2),
+        };
+
+        for kind in [
+            ParseErrorKind::IntOverflow,
+            ParseErrorKind::NestedQuote,
+            ParseErrorKind::QuoteWithoutForm,
+            ParseErrorKind::BindingInDatum,
+            ParseErrorKind::UnterminatedVector,
+            ParseErrorKind::UnterminatedList,
+            ParseErrorKind::MismatchedCloser,
+            ParseErrorKind::UnexpectedCloser,
+        ] {
+            let diag = Diagnostic::from(ParseError { origin, kind });
+            assert_eq!(
+                diag.site,
+                Site::Raw(origin),
+                "{kind:?} lost its origin"
+            );
             assert!(!diag.message.is_empty(), "{kind:?} needs a message");
         }
     }
@@ -173,11 +233,11 @@ mod tests {
         // rather than this one, so pinning the line is what checks the
         // attribute is in effect.
         let line = line!() + 1;
-        let diag = ice(Diagnostic::new(
+        let diag = ice(
             Class::ICEDroppedOutput,
             Site::None,
             "lex discarded output from a call that reported nothing",
-        ));
+        );
 
         assert!(
             diag.message

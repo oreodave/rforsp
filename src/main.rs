@@ -5,7 +5,8 @@ use std::process::ExitCode;
 use rforsp::{
     context::Compilation,
     diagnostics::{Diagnostics, render_diagnostics},
-    drivers::{Log, compile},
+    drivers::compile,
+    log::Log,
 };
 
 /// Configuration for CLI driver.
@@ -27,36 +28,33 @@ enum CliExit {
 /// Parse command line arguments
 fn parse_cli() -> Result<CliConfig, CliExit> {
     let mut config = CliConfig {
-        log: Log::None,
+        log: Log::NONE,
         files: Vec::new(),
     };
-    let mut exit = None;
     let mut args = std::env::args().skip(1).peekable();
 
-    while args.peek().is_some_and(|arg| arg.starts_with("--")) {
+    while let Some(arg) = args.peek()
+        && arg.starts_with("--")
+    {
         match args.next().unwrap_or_default().as_str() {
-            "--log-tokens" => config.log = Log::Tokens,
+            "--log-tokens" => config.log.insert(Log::TOKENS),
+            "--log-hir" => config.log.insert(Log::HIR),
             "--help" => {
                 usage(std::io::stdout());
-                exit = Some(CliExit::Success);
-                break;
+                return Err(CliExit::Success);
             }
             "--version" => {
                 println!("rforsp v0.0.0");
-                exit = Some(CliExit::Success);
-                break;
+                return Err(CliExit::Success);
             }
             unknown => {
                 eprintln!("Unknown argument `{unknown}`.");
-                exit = Some(CliExit::Failure);
-                break;
+                return Err(CliExit::Failure);
             }
         }
     }
 
-    if let Some(exit) = exit {
-        Err(exit)
-    } else if args.len() == 0 {
+    if args.len() == 0 {
         Err(CliExit::Failure)
     } else {
         config.files = args.collect();
@@ -74,7 +72,8 @@ fn usage(mut out: impl std::io::Write) {
             "Options:\n",
             "  --help:       Print this help and exit.\n",
             "  --version:    Print version of program.\n",
-            "  --log-tokens: Print tokens generated per FILE.\n"
+            "  --log-tokens: Print tokens generated per FILE.\n",
+            "  --log-hir:    Print AST generated over all FILES.\n",
         )
     );
 }

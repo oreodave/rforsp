@@ -8,7 +8,7 @@
 //! The [`Severity`] of a [`Diagnostic`][crate::diagnostics::Diagnostic] is
 //! derived from the [`Class`].
 
-use crate::diagnostics::phase::Phase;
+use crate::diagnostics::Phase;
 
 /// How serious a diagnostic is.
 ///
@@ -105,6 +105,38 @@ classes! {
     /// Use of LOAD operator (^) was invalid.  Mirrors
     /// [`LoadInvalid`][crate::lexer::LexErrorKind::LoadInvalid]
     LexLoadInvalid => Lex, Error, "LOAD_INVALID";
+
+    /// Integer literal does not fit an `i64`.  Mirrors
+    /// [`IntOverflow`][crate::parser::ParseErrorKind::IntOverflow]
+    ParseIntOverflow => Parse, Error, "INT_OVERFLOW";
+
+    /// A quote directly wrapping another quote.  Mirrors
+    /// [`NestedQuote`][crate::parser::ParseErrorKind::NestedQuote]
+    ParseNestedQuote => Parse, Error, "NESTED_QUOTE";
+
+    /// A quote with no following form.  Mirrors
+    /// [`QuoteWithoutForm`][crate::parser::ParseErrorKind::QuoteWithoutForm]
+    ParseQuoteWithoutForm => Parse, Error, "QUOTE_WITHOUT_FORM";
+
+    /// A binding form where a datum is required.  Mirrors
+    /// [`BindingInDatum`][crate::parser::ParseErrorKind::BindingInDatum]
+    ParseBindingInDatum => Parse, Error, "BINDING_IN_DATUM";
+
+    /// A vector left open at end of input.  Mirrors
+    /// [`UnterminatedVector`][crate::parser::ParseErrorKind::UnterminatedVector]
+    ParseUnterminatedVector => Parse, Error, "UNTERMINATED_VECTOR";
+
+    /// A list left open at end of input.  Mirrors
+    /// [`UnterminatedList`][crate::parser::ParseErrorKind::UnterminatedList]
+    ParseUnterminatedList => Parse, Error, "UNTERMINATED_LIST";
+
+    /// A closer of the wrong kind for the innermost open container.  Mirrors
+    /// [`MismatchedCloser`][crate::parser::ParseErrorKind::MismatchedCloser]
+    ParseMismatchedCloser => Parse, Error, "MISMATCHED_CLOSER";
+
+    /// A closer with no open container at all.  Mirrors
+    /// [`UnexpectedCloser`][crate::parser::ParseErrorKind::UnexpectedCloser]
+    ParseUnexpectedCloser => Parse, Error, "UNEXPECTED_CLOSER";
 
     /// Poisoned/dropped output from a compiler phase despite no new Diagnostics
     /// generated in a phase.

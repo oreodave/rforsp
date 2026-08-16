@@ -5,7 +5,8 @@ use std::process::ExitCode;
 use rforsp::{
     context::Compilation,
     diagnostics::{Diagnostics, render_diagnostics},
-    drivers::{Log, compile},
+    drivers::compile,
+    log::Log,
 };
 
 /// Configuration for CLI driver.
@@ -27,7 +28,7 @@ enum CliExit {
 /// Parse command line arguments
 fn parse_cli() -> Result<CliConfig, CliExit> {
     let mut config = CliConfig {
-        log: Log::None,
+        log: Log::NONE,
         files: Vec::new(),
     };
     let mut args = std::env::args().skip(1).peekable();
@@ -36,7 +37,7 @@ fn parse_cli() -> Result<CliConfig, CliExit> {
         && arg.starts_with("--")
     {
         match args.next().unwrap_or_default().as_str() {
-            "--log-tokens" => config.log = Log::Tokens,
+            "--log-tokens" => config.log.insert(Log::TOKENS),
             "--help" => {
                 usage(std::io::stdout());
                 return Err(CliExit::Success);

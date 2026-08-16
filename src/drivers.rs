@@ -7,18 +7,10 @@ use crate::{
     context::Compilation,
     diagnostics::{Aborted, Class, Diagnostics, Phase, Site, conv::ice},
     lexer::{Token, TokenKind, tokenise},
+    log::{Log, log_hir, log_tokens},
     parser::{HirForm, dfs, parse},
     source::SourceId,
 };
-
-/// Level of logs from [`compile`].
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub enum Log {
-    /// no logs.
-    None,
-    /// print a log of the tokens
-    Tokens,
-}
 
 /// Compile a set of `filenames`.
 ///
@@ -197,35 +189,6 @@ fn parse_streams(
         .collect::<Vec<_>>();
 
     gate(diagnostics, local, body, Phase::Parse)
-}
-
-/// Log tokens if and only if `log` == [`Log::Tokens`].
-fn log_tokens(
-    sources: &[SourceId],
-    lexes: &[Vec<Token>],
-    log: Log,
-    ctx: &Compilation,
-    log_out: &mut impl std::fmt::Write,
-) -> std::fmt::Result {
-    if log == Log::Tokens {
-        for (&id, lex_stream) in sources.iter().zip(lexes) {
-            let source = ctx.table.get_source(id);
-            writeln!(
-                log_out,
-                "{}: {} bytes => {} tokens",
-                source.name,
-                source.len(),
-                lex_stream.len()
-            )?;
-            for token in lex_stream {
-                let kind = token.kind;
-                let text = source.span_text(token.span);
-                write!(log_out, "{kind:?}({text}), ")?;
-            }
-            writeln!(log_out)?;
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

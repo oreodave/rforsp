@@ -5,7 +5,7 @@
 //! the Higher Level Intermediate Representation of the compiler.
 
 mod hir;
-pub use hir::{HirForm, HirKind};
+pub use hir::{HirForm, HirKind, dfs};
 
 mod error;
 pub use error::{ParseError, ParseErrorKind};

@@ -44,3 +44,26 @@ impl HirForm {
         Self { id, kind }
     }
 }
+
+/// Perform a Depth First Search on the given sequence of [`HirForm`]s.
+///
+/// On each node, call the given function `f`.
+pub fn dfs(forms: &[HirForm], mut f: impl FnMut(&HirForm)) {
+    let mut stack = Vec::<&HirForm>::new();
+    stack.extend(forms.iter().rev());
+    while let Some(form) = stack.pop() {
+        f(form);
+        match &form.kind {
+            HirKind::List(xs) | HirKind::Vector(xs) => {
+                stack.extend(xs.iter().rev());
+            }
+            HirKind::Quote(form) => {
+                stack.push(form);
+            }
+            HirKind::Int(_)
+            | HirKind::Bind(_)
+            | HirKind::Load(_)
+            | HirKind::Call(_) => (),
+        }
+    }
+}

@@ -426,6 +426,7 @@ mod tests {
     use crate::{
         diagnostics::{Class, Site},
         lexer::tokenise,
+        parser::dfs,
     };
 
     /// A collection of test cases: a rendered form, or a diagnostic, paired

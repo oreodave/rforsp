@@ -323,6 +323,27 @@ impl<'a> Parser<'a> {
             }
         }
     }
+
+    /// Report errors from unclosed [`Frame`]s in the [`Frame`] stack.
+    ///
+    /// This should be called after the token stream has been completely parsed
+    /// by the [`Parser`] state machine.  It catches stray frames and reports
+    /// errors for them.
+    ///
+    /// This does clear the [`Frame`] stack afterwards.
+    fn report_unclosed(&mut self) {
+        // We need to completely take the stack away so we don't get a borrow
+        // error when trying to report the errors later.
+        let stack = std::mem::take(&mut self.stack);
+        for frame in stack {
+            let error_kind = match frame.kind {
+                FrameKind::Vector(_) => ParseErrorKind::UnterminatedVector,
+                FrameKind::List(_) => ParseErrorKind::UnterminatedList,
+                FrameKind::Quote => ParseErrorKind::QuoteWithoutForm,
+            };
+            self.report(self.error(frame.opening, error_kind));
+        }
+    }
 }
 
 /// Types of [`Frame`]s.

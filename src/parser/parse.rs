@@ -123,13 +123,11 @@ impl<'a> Parser<'a> {
     /// opening token.
     fn close(
         &mut self,
-        frame: &Frame,
         kind: HirKind,
+        opening: Span,
         closing: Span,
     ) -> HirForm {
-        let id = self
-            .table
-            .add_origin(self.source_id, frame.opening.join(closing));
+        let id = self.table.add_origin(self.source_id, opening.join(closing));
         HirForm::new(id, kind)
     }
 
@@ -182,8 +180,8 @@ impl<'a> Parser<'a> {
                     // Load, it only happens once as form becomes a
                     // HirKind::Quote.
                     form = self.close(
-                        &top,
                         HirKind::Quote(Box::new(form)),
+                        top.opening,
                         origin.span,
                     );
                 }

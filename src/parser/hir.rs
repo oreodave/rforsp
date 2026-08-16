@@ -19,7 +19,7 @@ pub enum HirKind {
     /// `$x`
     Bind(SymId),
     /// `^x`
-    LoadRef(SymId),
+    Load(SymId),
     /// `x`, a bare name.
     CallRef(SymId),
 }

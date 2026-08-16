@@ -68,6 +68,23 @@ impl<'a> Parser<'a> {
             forms: Vec::new(),
         }
     }
+
+    /// Register a [`SyntaxOrigin`] for the given [`Frame`].
+    ///
+    /// `closing` is joined with the opening of the given [`Frame`], so the
+    /// resultant form's origin spans the whole construct rather than just its
+    /// opening token.
+    fn close(
+        &mut self,
+        frame: &Frame,
+        kind: HirKind,
+        closing: Span,
+    ) -> HirForm {
+        let id = self
+            .table
+            .add_origin(self.source_id, frame.opening.join(closing));
+        HirForm::new(id, kind)
+    }
 }
 
 /// Types of [`Frame`]s.

@@ -204,6 +204,29 @@ impl<'a> Parser<'a> {
             .map(|n| HirForm::new(self.add_syntax(token.span), HirKind::Int(n)))
             .map_err(|_| self.error(token.span, ParseErrorKind::IntOverflow))
     }
+
+    /// Parse a symbolic-like [`Token`].
+    ///
+    /// `make` is used to construct the correct [`HirKind`] given the [`SymId`],
+    /// and naturally induces strong assertions on the kind of [`HirForm`]s this
+    /// function could produce.
+    fn parse_sym_like(
+        &mut self,
+        token: Token,
+        make: fn(SymId) -> HirKind,
+    ) -> HirForm {
+        debug_assert!(
+            matches!(
+                token.kind,
+                TokenKind::Symbol | TokenKind::Bind | TokenKind::Load
+            ),
+            "parse_sym_like called with non symbolic token {token:?}"
+        );
+
+        let sym_id = self.intern_span(token.symbol_span());
+        let syntax_id = self.add_syntax(token.span);
+        HirForm::new(syntax_id, make(sym_id))
+    }
 }
 
 /// Types of [`Frame`]s.

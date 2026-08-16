@@ -1,7 +1,6 @@
-//! Conversions from phase-specific Errors to Diagnostic
+//! Conversions from phase-specific Errors to Diagnostic.
 //!
-//! Each compiler phase's internal error type which we expect to eventually
-//! report to the user should have a conversion here into Diagnostic.
+//! Every phase error a user can see is converted here.
 //!
 //! Diagnostics with no error type behind them are constructed here too, by a
 //! named constructor per [`Class`].  Construction lives in one module so that

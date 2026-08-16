@@ -1,12 +1,8 @@
-//! Classification of Diagnostics
+//! Classification of Diagnostics.
 //!
-//! Each [`Diagnostic`][crate::diagnostics::Diagnostic] has a generalised class.
-//! This class should cover most of the internal error variants of each
-//! possibly-fallible compiler phase, as well as other variants of
-//! warnings/notes/etc.
-//!
-//! The [`Severity`] of a [`Diagnostic`][crate::diagnostics::Diagnostic] is
-//! derived from the [`Class`].
+//! Every [`Diagnostic`][crate::diagnostics::Diagnostic] carries a [`Class`],
+//! and the class alone fixes its owning phase, its [`Severity`] and its stable
+//! code.  Together the classes are the compiler's whole error surface.
 
 use crate::diagnostics::Phase;
 
@@ -63,7 +59,7 @@ macro_rules! classes {
                 }
             }
 
-            /// Get the [`Severity`] for this [`Class`]
+            /// Get the [`Severity`] for this [`Class`].
             #[must_use]
             pub const fn severity(&self) -> Severity {
                 match self {

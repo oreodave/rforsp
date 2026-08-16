@@ -11,21 +11,24 @@ use rforsp::{
 
 /// Configuration for CLI driver.
 struct CliConfig {
-    /// Log level.
+    /// Stages to log.
     log: Log,
-    /// Files to compile.
+    /// Files to compile, in the order given.
     files: Vec<String>,
 }
 
-/// Types of immediate CLI exit following command line parsing.
+/// Immediate exit requested while parsing arguments.
 enum CliExit {
-    /// Immediately exit with failure.
+    /// Exit 1.  The caller prints usage.
     Failure,
-    /// Immediately exit with success.
+    /// Exit 0.  The output is already printed.
     Success,
 }
 
-/// Parse command line arguments
+/// Parse command line arguments.
+///
+/// Options precede files.  Parsing stops at the first argument that does not
+/// begin with `--`.
 fn parse_cli() -> Result<CliConfig, CliExit> {
     let mut config = CliConfig {
         log: Log::NONE,
@@ -62,8 +65,10 @@ fn parse_cli() -> Result<CliConfig, CliExit> {
     }
 }
 
-/// Print usage to the given [`Write`] target.
+/// Print usage to the given `out` target.
 fn usage(mut out: impl std::io::Write) {
+    // Every caller exits immediately after this, so a failed write to the
+    // terminal has nowhere left to be reported.
     let _ = write!(
         out,
         concat!(
@@ -105,6 +110,8 @@ fn main() -> ExitCode {
         Err(e) => {
             eprintln!("{e}");
             let mut error_buf = String::new();
+            // The target is a String, so the only error this can carry is one
+            // the renderer invents, which it does not.
             let _ =
                 render_diagnostics(&diagnostics, &ctx.table, &mut error_buf);
             eprint!("{error_buf}");

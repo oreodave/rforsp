@@ -26,14 +26,14 @@ pub struct SyntaxOrigin {
     pub span: Span,
 }
 
-/// Collated metadata for the location of code within the [`SourceTable`]
+/// Collated metadata for the location of code within the [`SourceTable`].
 #[derive(Debug, Copy, Clone)]
 pub struct Location<'a> {
     /// Name of the [Source] this location relates to.
     pub name: &'a str,
-    /// Starting [Position] of this LOC
+    /// First [Position] of this location.
     pub start: Position,
-    /// End [Position] (1 past last character) of this LOC
+    /// [Position] one past the last character of this location.
     pub end: Position,
 }
 
@@ -50,13 +50,13 @@ pub struct SourceTable {
 /// Possible errors that may arise during [Source] construction.
 #[derive(Debug)]
 pub enum SourceTableError {
-    /// Error arose when creating the raw [Source]
+    /// Error arose when creating the raw [Source].
     SourceCreate(SourceError),
-    /// Error arose when doing a IO read operation.
+    /// Error arose during an IO read operation.
     Io {
-        /// File name
+        /// File name.
         name: String,
-        /// IO error
+        /// IO error.
         err: std::io::Error,
     },
 }
@@ -156,7 +156,7 @@ impl SourceTable {
         &self.origins[id]
     }
 
-    /// Get the [Location] within of a [`SyntaxOrigin`].
+    /// Get the [Location] of a [`SyntaxOrigin`].
     #[must_use]
     pub fn location_of(&self, origin: &SyntaxOrigin) -> Location<'_> {
         let source = self.get_source(origin.source);
@@ -191,9 +191,9 @@ impl SourceTable {
         source.line_text_of(origin.span.start as usize)
     }
 
-    /// Get the line indices for the given [`SyntaxOrigin`].  If the
-    /// [`SyntaxOrigin`] only occurs on a single line, the two indices returned
-    /// should be equivalent.
+    /// Get the line indices for the given [`SyntaxOrigin`].
+    ///
+    /// The two indices are equal when the origin covers one line.
     #[must_use]
     pub fn lines_of(&self, origin: &SyntaxOrigin) -> (usize, usize) {
         let source = self.get_source(origin.source);
@@ -298,24 +298,21 @@ mod tests {
             syntax_ids.iter().zip(cases.iter())
         {
             let origin = table.get_origin(syntax_id);
-            // Test that getting the origin yields us the input components.
+            // The origin comes back as its input components.
             assert_eq!(origin.source, *source);
             assert_eq!(origin.span, *span);
 
-            // Test location_of works as we expect, across sources.
+            // `location_of` resolves across sources, not just the first.
             let location = table.location_of(origin);
             assert_eq!(location.name, *name);
             assert_eq!(location.start, *start);
             assert_eq!(location.end, *end);
 
-            // Prove that the text we get for this origin is the same as what we
-            // expect.
             let actual_text = table.text_of(origin);
             assert_eq!(*text, actual_text);
 
-            // The line mirrors (`line_text`, `line_text_of`, `lines_of`) are
-            // thin delegates over `Source`; prove they agree with the resolved
-            // location's start line, across both sources.
+            // `line_text`, `line_text_of` and `lines_of` delegate to
+            // `Source`.  They must agree with the resolved start line.
             let start_line = location.start.line;
             assert_eq!(table.lines_of(origin).0, start_line);
             assert_eq!(

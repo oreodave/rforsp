@@ -1,10 +1,7 @@
-//! The rForsp compiler runtime.
+//! The rForsp compiler library.
 //!
-//! This is the top-level crate of the rForsp compiler project.  It links
-//! together all the disparate modules of the compiler runtime, which is then
-//! driven by the main compiler executable.
-
-#![cfg_attr(test, allow(dead_code, unused_variables, unused_imports))]
+//! Each phase lives in its own module.  [`drivers`] threads them together and
+//! the executable drives that.
 
 pub mod diagnostics;
 pub mod interner;

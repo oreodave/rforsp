@@ -1,6 +1,7 @@
 //! Generalised renderer for all Diagnostics.
 //!
-//! This is the generator of strings for a Diagnostic/collection of Diagnostics.
+//! The only place a [`Diagnostic`] becomes text.  Rendering happens once, at
+//! the driver, where the [`SourceTable`] is available.
 
 use std::fmt::{self, Write};
 
@@ -32,10 +33,12 @@ pub fn render_diagnostics(
 /// Diagnostics are rendered in source order rather than the order the phases
 /// happened to report them in.
 ///
-/// [`Severity::Bug`] is exempt from `cap` and rendered as a trailing section
-/// always as they're critical if found during real word cases.  Ordering runs
-/// before the cap, so what survives it is the head of the file rather than
-/// whichever diagnostics happened to be reported first.
+/// [`Severity::Bug`] is exempt from `cap` and rendered as a trailing section.
+/// A bug is the compiler's fault, so losing one behind a screenful of user
+/// errors would hide the only diagnostic the user cannot act on.
+///
+/// Ordering runs before the cap, so what survives it is the head of the file
+/// rather than whichever diagnostics were reported first.
 ///
 /// # Errors
 /// - Repeated back from `write!`/`writeln!` calls.
@@ -92,9 +95,7 @@ fn position_of(
     }
 }
 
-/// Renderer state - used to make rendering process easier.
-///
-/// Holds both the [`SourceTable`] diagnostics refer to and the [`Write`]
+/// Renderer state: the [`SourceTable`] diagnostics refer to, and the [`Write`]
 /// target they are rendered into.
 struct Renderer<'a, W: Write> {
     /// [`SourceTable`] that [`Diagnostics`] refer to.
@@ -250,11 +251,11 @@ impl<'a, W: Write> Renderer<'a, W> {
             let text = self.table.line_text(origin.source, line);
             let text = text.strip_suffix("\r").unwrap_or(text);
 
-            // Write the text
             writeln!(self.out, "{line:>gutter_width$} | {text}")?;
 
-            // We now need to compute what to highlight - we derive this from
-            // the LineRole.
+            // The role decides which end of the line the span reaches: a
+            // middle line is covered end to end, an outer line only to or
+            // from the span's own column.
             let line_end = text.chars().count() + 1;
             let end_col = if location.end.line == line {
                 location.end.col
@@ -272,11 +273,11 @@ impl<'a, W: Write> Renderer<'a, W> {
             let spaces = " ".repeat(col);
             let carets = "^".repeat(width);
 
-            // Write the carets highlighting the text
+            // Carets count characters, not bytes, so they align under
+            // multi-byte text.
             writeln!(self.out, "{padding} | {spaces}{carets}")?;
 
-            // Write a continuation line ("...") if and only if the start and
-            // end lines are not adjacent.
+            // Elide only when lines were actually skipped.
             if i == 0 && start_line + 1 < end_line {
                 writeln!(self.out, "{padding} | ...")?;
             }

@@ -1,8 +1,8 @@
-//! Token data type
+//! Token data type.
 
 use crate::source::Span;
 
-/// Kinds of Tokens
+/// Kinds of Token.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum TokenKind {
     /// [
@@ -15,22 +15,23 @@ pub enum TokenKind {
     ListEnd,
     /// '
     Quote,
-    /// Numeric token
+    /// Integer literal, classified by shape alone.  Phase 2 converts it and
+    /// therefore owns overflow.
     Number,
-    /// Any generic symbol
+    /// A bare name.
     Symbol,
-    /// `$<Symbol>`
+    /// `$<Symbol>`.  One token, spanning sigil and name together.
     Bind,
-    /// `^<Symbol>`
+    /// `^<Symbol>`.  One token, spanning sigil and name together.
     Load,
 }
 
-/// Token type
+/// A token: a kind and the span it covers.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct Token {
-    /// Kind of token
+    /// Kind of token.
     pub kind: TokenKind,
-    /// Span within source of Token.
+    /// Span of the token within its source.
     pub span: Span,
 }
 

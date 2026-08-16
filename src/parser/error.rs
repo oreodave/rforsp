@@ -24,7 +24,7 @@ pub enum ParseErrorKind {
     UnexpectedCloser,
 }
 
-/// Parsing error type
+/// Parsing error.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct ParseError {
     /// Point of origin for error.

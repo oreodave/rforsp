@@ -3,17 +3,20 @@
 /// Phase of the compiler diagnostics may originate from.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Phase {
-    /// Internal Compiler Error
+    /// Internal Compiler Error.
     ICE,
     /// Source phase.
     Source,
-    /// Lexing phase
+    /// Lexing phase.
     Lex,
-    /// Parsing phase
+    /// Parsing phase.
     Parse,
 }
 
 /// Error value for an Aborted [`Phase`].
+///
+/// Deliberately neither [`Copy`] nor [`Clone`]: one abort is one compilation
+/// ending, and a copy of it could outlive that.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Aborted(pub Phase);
 

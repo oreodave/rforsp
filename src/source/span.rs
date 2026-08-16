@@ -1,12 +1,12 @@
 //! Byte Spans.
 //!
-//! Defines [`Span`], a byte range within a [`Source`][crate::source::Source],
+//! Defines [`Span`], a byte range within a [`Source`][crate::source::Source].
 
 use crate::source::MAX_SOURCE_LEN;
 
 /// A byte span, composed of a start and end position.
 ///
-/// NOTE: This span maps to [`start`, `end`) i.e. an exclusive ended range.
+/// The range is half-open: `[start, end)`.
 #[derive(Debug, Eq, PartialEq, Hash, Copy, Clone, Default)]
 pub struct Span {
     /// Byte offset of the first character in the span.
@@ -20,6 +20,7 @@ impl Span {
     ///
     /// # Panics
     /// - If either component is greater than [`MAX_SOURCE_LEN`].
+    /// - If `start > end`.
     #[must_use]
     pub const fn new(start: usize, end: usize) -> Self {
         Self::from_u32(offset(start), offset(end))
@@ -35,13 +36,15 @@ impl Span {
         Self { start, end }
     }
 
-    /// Returns the length of this [Span].
+    /// Return the length of this [Span] in bytes.
     #[must_use]
     pub const fn length(&self) -> u32 {
         self.end - self.start
     }
 
-    /// Join the current [Span] with the [Span] given, returning a new one
+    /// Return the smallest [Span] that covers both.
+    ///
+    /// Anything between two disjoint spans is covered too.
     #[must_use]
     pub fn join(self, other: Self) -> Self {
         Self::from_u32(self.start.min(other.start), self.end.max(other.end))

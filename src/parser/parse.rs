@@ -1,7 +1,7 @@
 //! Parser from token streams.
 //!
-//! This is the core routine which compiles a stream of [`Token`]s to
-//! [`HirForm`]s.
+//! Compiles a stream of [`Token`]s to [`HirForm`]s.  Nesting lives on an
+//! explicit [`Frame`] stack, not on the machine stack.
 
 use crate::{
     diagnostics::{Diagnostic, Diagnostics},
@@ -149,10 +149,8 @@ impl<'a> Parser<'a> {
         );
 
         let form = loop {
-            // Try to get some frame from the frame stack so we can close it.
             let Some(Frame { kind, opening, .. }) = self.stack.pop() else {
-                // If there's nothing on the stack, then this closer is
-                // unexpected.  Report.
+                // An empty stack means this closer has nothing to close.
                 self.report(
                     self.error(token.span, ParseErrorKind::UnexpectedCloser),
                 );
@@ -160,18 +158,16 @@ impl<'a> Parser<'a> {
             };
 
             let Some((expected, hirkind)) = kind.into_container() else {
-                // This FrameKind is not a container, which means it's a quote.
-                // Since the quote is still pending a child, this is an error.
-                // Report, then loop again to catch a parent container.
+                // The only non-container frame is a quote, and it is still
+                // pending a child.  Report, then loop for a parent container.
                 self.report(
                     self.error(opening, ParseErrorKind::QuoteWithoutForm),
                 );
                 continue;
             };
 
-            // If we get the wrong closer for this container, report it, then
-            // close the container up anyway so the rest of the parse can keep
-            // catching errors.
+            // A wrong closer still closes the container, so the rest of the
+            // parse keeps reporting.
             if expected != token.kind {
                 let span = opening.join(token.span);
                 self.report(self.error(span, ParseErrorKind::MismatchedCloser));
@@ -198,13 +194,13 @@ impl<'a> Parser<'a> {
                 return;
             };
 
-            // It's an error to have a Load or Bind HirForm in a datum frame.
+            // A Load or Bind in a datum frame denotes nothing.  Report it, but
+            // deposit it anyway so recovery continues.
             if top.is_datum
                 && matches!(form.kind, HirKind::Load(_) | HirKind::Bind(_))
             {
                 let span = self.table.get_origin(form.id).span;
                 self.report(self.error(span, ParseErrorKind::BindingInDatum));
-                // We still deposit this `form`.
             }
 
             match top.kind {
@@ -215,15 +211,13 @@ impl<'a> Parser<'a> {
                     return;
                 }
                 FrameKind::Quote => {
-                    // NOTE: A quote is closed the moment a form yields into it.
-                    // We need to yield this quote _again_ back into whatever
-                    // parent frame it's a part of, so this forces a loop.
+                    // A quote closes the moment a form yields into it, and the
+                    // resulting quote must yield into the parent in turn.  The
+                    // loop is what closes a stack of them.
                     let origin = self.table.get_origin(form.id);
 
-                    // We set `form` here so it can be yielded back into the
-                    // parent.  NOTE: if an error is reported due to a Bind or
-                    // Load, it only happens once as form becomes a
-                    // HirKind::Quote.
+                    // `form` becomes the quote, so a datum error above cannot
+                    // fire twice for the same binding.
                     form = self.close(
                         HirKind::Quote(Box::new(form)),
                         top.opening,
@@ -236,12 +230,10 @@ impl<'a> Parser<'a> {
 
     /// Parse an integer.
     ///
-    /// A literal that does not fit an `i64` reports a [`Diagnostic`], but is
-    /// left in as a poison [`HirKind::Int`] of zero.
-    ///
-    /// Since upstream `parse` drops the parsed forms if there are any
-    /// Diagnostics, there's no chance of this poison value being used in later
-    /// compiler phases.
+    /// A literal that does not fit an `i64` reports a [`Diagnostic`] and is
+    /// left in as a poison [`HirKind::Int`] of zero.  `parse` withholds the
+    /// body whenever anything was reported, so the poison cannot reach a
+    /// later phase.
     fn parse_int(&mut self, token: Token) -> HirForm {
         debug_assert_eq!(
             token.kind,
@@ -249,9 +241,9 @@ impl<'a> Parser<'a> {
             "parse_int called with non number token {token:?}"
         );
 
-        // FIXME(oreo)[2026-08-16 02:33]:: we're relying on the fact that the
-        // tokeniser classifies TokenKind::Number as any sequence of -?[0-9]+.
-        // This will break if and when that is no longer true.
+        // FIXME(oreo)[2026-08-16 02:33]:: this relies on the tokeniser
+        // emitting TokenKind::Number for `-?[0-9]+` and nothing else.  A
+        // wider Number shape makes every other parse failure an overflow.
         let parsed = str::parse::<i64>(self.text_of(token.span));
         let value = parsed.unwrap_or_else(|_| {
             self.report(self.error(token.span, ParseErrorKind::IntOverflow));
@@ -263,9 +255,8 @@ impl<'a> Parser<'a> {
 
     /// Parse a symbolic-like [`Token`].
     ///
-    /// `make` is used to construct the correct [`HirKind`] given the [`SymId`],
-    /// and naturally induces strong assertions on the kind of [`HirForm`]s this
-    /// function could produce.
+    /// `make` builds the [`HirKind`] from the [`SymId`], so the caller fixes
+    /// which kind this can produce.
     fn parse_sym_like(
         &mut self,
         token: Token,
@@ -286,8 +277,8 @@ impl<'a> Parser<'a> {
 
     /// Parse a singular [`Token`].
     ///
-    /// This essentially acts as the transition function for the [`Parser`]
-    /// state machine, using the singular [`Token`] as input.
+    /// The transition function of the [`Parser`] state machine.  Phase 2 needs
+    /// no lookahead, so one token is the whole input.
     fn parse_singular(&mut self, token: Token) {
         match token.kind {
             TokenKind::VecStart => {
@@ -297,8 +288,8 @@ impl<'a> Parser<'a> {
                 self.push_frame(FrameKind::List(Vec::new()), token.span);
             }
             TokenKind::Quote => {
-                // We've got a new quote despite there already being a quote on
-                // the frame stack => error.
+                // A quote frame is unsatisfied by construction, so a quote on
+                // top of one is `''x`.
                 if let Some(Frame {
                     kind: FrameKind::Quote,
                     opening,
@@ -334,14 +325,10 @@ impl<'a> Parser<'a> {
 
     /// Report errors from unclosed [`Frame`]s in the [`Frame`] stack.
     ///
-    /// This should be called after the token stream has been completely parsed
-    /// by the [`Parser`] state machine.  It catches stray frames and reports
-    /// errors for them.
-    ///
-    /// This does clear the [`Frame`] stack afterwards.
+    /// Called once the token stream is exhausted.  Reports bottom-to-top, so
+    /// the openers arrive in source order, and clears the stack.
     fn report_unclosed(&mut self) {
-        // We need to completely take the stack away so we don't get a borrow
-        // error when trying to report the errors later.
+        // Take the stack whole: reporting borrows `self` mutably.
         let stack = std::mem::take(&mut self.stack);
         for frame in stack {
             let error_kind = match frame.kind {
@@ -369,8 +356,7 @@ impl FrameKind {
     /// Consume this frame kind as a container: the [`TokenKind`] that closes
     /// it, paired with the [`HirKind`] it becomes once closed.
     ///
-    /// Returns None if [`FrameKind::Quote`] since that's obviously not a
-    /// container.
+    /// Returns None for [`FrameKind::Quote`], which is not a container.
     fn into_container(self) -> Option<(TokenKind, HirKind)> {
         match self {
             Self::Vector(cs) => Some((TokenKind::VecEnd, HirKind::Vector(cs))),
@@ -594,7 +580,7 @@ mod tests {
 
     #[test]
     fn forms_and_shapes() {
-        // Nothing begets nothing.
+        // An empty source yields an empty body.
         assert_forms("", &[]);
         assert_forms("  \n; comment\n", &[]);
 
@@ -760,8 +746,9 @@ mod tests {
             &[(Class::ParseIntOverflow, "-9223372036854775809")],
         );
 
-        // A failed conversion yields no form, and the surrounding parse
-        // carries on rather than unwinding.
+        // A failed conversion still yields a form, so the counts stay in step
+        // and the surrounding parse carries on.  Only the diagnostic is
+        // observable: the body is withheld either way.
         assert_errors(
             "[1 9223372036854775808 2]",
             &[(Class::ParseIntOverflow, "9223372036854775808")],

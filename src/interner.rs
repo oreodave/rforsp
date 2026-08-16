@@ -16,32 +16,35 @@ pub struct SymId(u32);
 /// with associated [`SymId`]s.
 #[derive(Debug)]
 pub struct Interner {
-    /// Collection of `String` indexed by [`SymId`]
+    /// Collection of `String` indexed by [`SymId`].
     names: Vec<String>,
     /// Reverse lookup to get [`SymId`] given the contents of the symbol.
     lookup: HashMap<String, SymId>,
 }
 
 /// Distinguished symbol raw string contents.
+///
+/// `f` is compared against runtime values.  `if` and `rec` are compared
+/// against names, and only ever as a pre-filter ahead of resolution: a symbol
+/// dispatched on identity alone becomes a reserved word.
 const DISTINGUISHED: [&str; 3] = ["f", "if", "rec"];
 
-/// Symbol representing "f"
+/// Symbol representing "f".
 pub const SYM_F: SymId = SymId(0);
-/// Symbol representing "if"
+/// Symbol representing "if".
 pub const SYM_IF: SymId = SymId(1);
-/// Symbol representing "rec"
+/// Symbol representing "rec".
 pub const SYM_REC: SymId = SymId(2);
 
-// Build time assertion that we've built around 3 distinguished symbols.
+// Build time check that the constants above cover DISTINGUISHED.
 const _: () = assert!(
     DISTINGUISHED.len() == 3,
     "There should only be 3 distinguished symbols"
 );
 
 impl Interner {
-    /// Creates a new [Interner] structure.
-    /// The interner automatically interns a number of distinguished symbols
-    /// which see.
+    /// Create a new [Interner], with the distinguished symbols already
+    /// interned.
     #[must_use]
     pub fn new() -> Self {
         let mut interner = Self {
@@ -57,11 +60,11 @@ impl Interner {
     }
 
     /// Intern a `name`, returning its associated [`SymId`].
-    /// NOTE: This will mutate and allocate iff the `name` is not already
-    /// present in `self`.
+    ///
+    /// This mutates and allocates only when `name` is new.
     ///
     /// # Panics
-    /// - if `self.names.len()` > [`u32::MAX`] (over 4 billion names...)
+    /// - if `self.names.len()` > [`u32::MAX`].
     pub fn intern(&mut self, name: &str) -> SymId {
         if let Some(&id) = self.lookup.get(name) {
             id
@@ -76,8 +79,8 @@ impl Interner {
         }
     }
 
-    /// Get the associated [`SymId`] for a given `name`.
-    /// Returns None iff `name` is not present in `self`.
+    /// Get the associated [`SymId`] for a given `name`, or None if it has not
+    /// been interned.
     #[must_use]
     pub fn get(&self, name: &str) -> Option<SymId> {
         self.lookup.get(name).copied()

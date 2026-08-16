@@ -4,9 +4,9 @@ use crate::{interner::Interner, source::SourceTable};
 
 /// Compilation Context.
 ///
-/// State that is threaded through the differing compilation phases.  It holds
-/// only the _shared_ state of the phases i.e. stuff that must persist
-/// throughout the compilation.
+/// Holds only state that must outlive a single phase.
+/// [`Diagnostics`][crate::diagnostics::Diagnostics] are deliberately absent
+/// since each phase accumulates its own and the driver gates on them.
 pub struct Compilation {
     /// [`SourceTable`] for the current context.
     pub table: SourceTable,

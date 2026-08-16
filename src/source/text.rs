@@ -23,20 +23,20 @@ pub struct Source {
 /// A byte order mark, which may appear once at the head of a source.
 const BYTE_ORDER_MARK: char = '\u{feff}';
 
-/// Maximum source length in bytes.  [Span]'s fields are u32, so they work
-/// happily with content of at most this size.
+/// Maximum source length in bytes.  [Span]'s fields are u32, so a source may
+/// be at most this size.
 pub const MAX_SOURCE_LEN: usize = u32::MAX as usize;
 
 /// Error in constructing a Source.
 #[derive(Debug)]
 pub enum SourceError {
-    /// Given contents for Source construction was too large
+    /// Contents given for Source construction were too large.
     TooLarge {
-        /// Name of source
+        /// Name of the source.
         name: String,
-        /// Length of source
+        /// Length of the contents given.
         len: usize,
-        /// Limit for how large the source may be
+        /// Maximum permitted length.
         limit: usize,
     },
 }
@@ -164,13 +164,13 @@ impl Source {
     /// onwards.
     ///
     /// # Panics
-    /// - if pos is out of bounds for this source.
-    /// - if pos is in a char boundary.
+    /// - if `pos` is out of bounds for this source.
+    /// - if `pos` is not on a character boundary.
     pub fn chars_from(&self, pos: usize) -> std::str::Chars<'_> {
-        assert!(pos <= self.len(), "{pos} is out of bounds");
+        assert!(pos <= self.len(), "`{pos}` is out of bounds");
         assert!(
             self.contents.is_char_boundary(pos),
-            "{pos} is not in a char boundary"
+            "`{pos}` is not on a character boundary"
         );
         self.contents[pos..].chars()
     }
@@ -187,8 +187,7 @@ impl Source {
 
     /// Get the index of the line that contains this `byte` within this Source.
     ///
-    /// NOTE: It is presumed that `byte` is within bounds.  But it doesn't need
-    /// to be in a char boundary for this to work.
+    /// `byte` must be within bounds, but need not be on a character boundary.
     #[must_use]
     fn line_index(&self, byte: u32) -> usize {
         self.line_starts
@@ -201,7 +200,7 @@ impl Source {
     ///
     /// # Panics
     /// - if `byte` is out of bounds for this source.
-    /// - if `byte` is not at a char boundary for this source.
+    /// - if `byte` is not on a character boundary.
     #[must_use]
     pub fn position_at(&self, byte: usize) -> Position {
         assert!(
@@ -211,7 +210,7 @@ impl Source {
 
         assert!(
             self.contents.is_char_boundary(byte),
-            "position_at: byte {byte} is not in a char boundary"
+            "position_at: byte {byte} is not on a character boundary"
         );
 
         let byte = self.clamp(offset(byte));
@@ -228,16 +227,13 @@ impl Source {
         Position::new(line + 1, col)
     }
 
-    /// Converts a [Span] into a tuple of two [Position]'s (p1, p2)
+    /// Convert a [Span] into a tuple of two [Position]s (p1, p2).
     ///
-    /// p1 and p2 match the inclusive-exclusive nature of [Span] itself: p2 is
-    /// *one past* the span's last character.
+    /// p1 and p2 match the half-open nature of [Span]: p2 is *one past* the
+    /// span's last character, including at the end of the content.
     ///
     /// This means span.start == span.end <=> p1 == p2.  A span covering a
     /// single line covers `p2.col - p1.col` characters.
-    ///
-    /// NOTE: A span with an ending position at the EOF of `self.content` will
-    /// produce a p2 pointing to the position just past the last character.
     ///
     /// # Panics
     /// - Based on [`Source::position_at`] conditions for [`Span::start`] _and_
@@ -250,12 +246,10 @@ impl Source {
         )
     }
 
-    /// Get the text of a full line given the line number.
-    ///
-    /// NOTE: `line` is 1-indexed.
+    /// Get the text of a full line given the line number, from 1.
     ///
     /// # Panics
-    /// - if line is out of bounds
+    /// - if `line` is out of bounds.
     #[must_use]
     pub fn line_text(&self, line: usize) -> &str {
         assert!(line > 0, "line must be 1-indexed");
@@ -283,18 +277,14 @@ impl Source {
         self.line_text(line + 1)
     }
 
-    /// Convert a [Span] into a tuple of two line indices (l1, l2) - these are
-    /// 1-indexed.
+    /// Convert a [Span] into a tuple of two line indices (l1, l2), 1-indexed.
     ///
-    /// l1 and l2 do NOT match the inclusive-exclusive nature of [Span]; l2 is
-    /// the line of `span.end - 1` so [l1, l2] represent all the lines the given
-    /// [Span] covers.
-    ///
-    /// If the span is "empty" i.e. `span.start == span.end`, the same line is
-    /// returned twice.
+    /// These do *not* match the half-open nature of [Span]: l2 is the line of
+    /// `span.end - 1`, so [l1, l2] covers every line the [Span] touches.  An
+    /// empty span returns the same line twice.
     ///
     /// # Panics
-    /// - if the given span is "invalid" (see [`Source::valid_span`])
+    /// - if the given span is invalid (see [`Source::valid_span`]).
     #[must_use]
     pub fn span_lines(&self, span: Span) -> (usize, usize) {
         assert!(self.valid_span(span), "{span:?} is invalid for this source");
@@ -353,8 +343,7 @@ mod tests {
 
     #[test]
     fn destructors() {
-        // Test the text destructors for Source as soft-wrappers for the
-        // underlying content string.
+        // The text accessors are thin wrappers over the content string.
 
         let text = "Hello, world!".to_string();
         let source = Source::from_contents("", text.clone())
@@ -439,8 +428,8 @@ mod tests {
         for emoji_position in SAMPLE_EMOJIS {
             let pos = source.position_at(emoji_position);
 
-            // By construction, the character before an emoji won't be another
-            // unicode codepoint, so this will is safe to do.
+            // By construction the character before an emoji is ASCII, so this
+            // is safe.
             let previous_pos = source.position_at(emoji_position - 1);
 
             assert_eq!(previous_pos, Position::new(pos.line, pos.col - 1));
@@ -456,7 +445,7 @@ mod tests {
         for (pos, character) in text
             .bytes()
             .enumerate()
-            // ensure we're not mid char
+            // Skip positions inside a character.
             .filter(|(i, _)| text.is_char_boundary(*i))
         {
             let line = text[..pos].matches('\n').count() + 1;
@@ -470,8 +459,8 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "char boundary")]
-    fn position_at_in_char_boundary() {
+    #[should_panic(expected = "character boundary")]
+    fn position_at_inside_a_character() {
         let text = SAMPLE_TEXT.to_string();
         let source = Source::from_contents("", text).expect("Should not fail");
 

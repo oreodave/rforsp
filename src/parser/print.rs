@@ -1,4 +1,7 @@
-//! Printer for HIR
+//! Printer for HIR.
+//!
+//! Output is exact surface syntax, so it is usable in a diagnostic and not
+//! only in a round trip.
 
 use std::fmt;
 
@@ -7,13 +10,13 @@ use crate::{
     parser::{HirForm, HirKind},
 };
 
-/// Types of objects to print in the stack
+/// Types of objects to print in the stack.
 enum ToPrint<'a> {
     /// Standard [`HirForm`].
     Form(&'a HirForm),
     /// End of a List.
     CloseList,
-    /// End of a Vec.
+    /// End of a Vector.
     CloseVec,
 }
 
@@ -31,10 +34,10 @@ pub fn print_forms(
 
     let mut need_space = false;
     while let Some(form) = stack.pop() {
-        // NOTE(oreo)[2026-08-16 12:32]: we can just put a single space between
-        // each member and it'll parse just fine because of `RESTRICTED_CHARS`
-        // as well as `WHITESPACE_CHARS`; whitespace is always trivia when
-        // tokenised.
+        // NOTE(oreo)[2026-08-16 12:32]: a single space separates any two
+        // forms, because `RESTRICTED_CHARS` keeps the delimiters out of
+        // symbol material and whitespace is always trivia.  Nothing here
+        // needs escaping.
         //
         // Only a form takes a leading space: a closer hugs what it closes,
         // and an opener or quote clears the flag so what follows hugs it.

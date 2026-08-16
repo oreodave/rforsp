@@ -4,19 +4,17 @@
 
 /// Character Line-Column position in some source text.
 ///
-/// NOTE: Default initialisation sets these to {1, 1}.
-///
-/// NOTE: These are not byte-oriented, but character oriented.
+/// Both count characters, not bytes, and both start at 1.
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Copy, Clone)]
 pub struct Position {
-    /// Line count
+    /// Line number.
     pub line: usize,
-    /// Column count, in characters.
+    /// Column number.
     pub col: usize,
 }
 
 impl Position {
-    /// Construct a new postion from the given `line` and `col`.
+    /// Construct a new position from the given `line` and `col`.
     #[must_use]
     pub const fn new(line: usize, col: usize) -> Self {
         Self { line, col }

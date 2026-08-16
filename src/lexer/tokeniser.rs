@@ -1,7 +1,7 @@
 //! Tokeniser from raw text.
 //!
-//! This is the core routine which translates [`Source`]s to a stream of
-//! [`Token`]s.
+//! Translates a [`Source`] into a stream of [`Token`]s.  Trivia never reaches
+//! that stream.
 
 use crate::{
     diagnostics::Diagnostics,
@@ -9,7 +9,7 @@ use crate::{
     source::{Source, SourceId, SourceTable, Span, SyntaxOrigin},
 };
 
-/// Characters that separate scalars, and so CANNOT be part of one.
+/// Characters that separate scalars, and so cannot be part of one.
 const RESTRICTED_CHARS: &str = "'^$()[];\r\n\t ";
 
 /// Characters skipped between tokens.  A strict subset of [`RESTRICTED_CHARS`].
@@ -134,8 +134,8 @@ impl<'a> Tokeniser<'a> {
     /// restricted character or at end-of-source.
     fn scan_scalar(&self) -> Option<(TokenKind, usize)> {
         let len = self.run_len(|c| {
-            // NOTE: we exclude control characters and format characters here as
-            // well.
+            // Control and format characters are excluded too.  Neither is
+            // symbol material.
             !RESTRICTED_CHARS.contains(c) && !c.is_control() && !is_format(c)
         });
 
@@ -143,7 +143,7 @@ impl<'a> Tokeniser<'a> {
             return None;
         }
 
-        // Check if the given text is an integer or not.
+        // A run is a Number only if it matches `-?[0-9]+` entirely.
         let is_integer = {
             let text = &self.rest()[..len];
             let digits = text.strip_prefix('-').unwrap_or(text);
@@ -188,15 +188,13 @@ impl<'a> Tokeniser<'a> {
 
         self.cursor += len;
         if ret_kind == TokenKind::Symbol {
-            // Good path!
             Ok(Token {
                 kind,
                 span: Span::new(start, self.cursor),
             })
         } else {
-            // If we get a non-symbol scalar that's obviously an error.  We do
-            // want to bind it in the diagnostic span so it doesn't get re-used
-            // somewhere else.
+            // A non-symbol scalar after the sigil is an error.  The span
+            // covers it as well, so no later token can claim it.
             Err(self.error(error_kind, Span::new(start, self.cursor)))
         }
     }
@@ -224,10 +222,9 @@ impl<'a> Tokeniser<'a> {
             '$' => self.lex_binding(TokenKind::Bind, LexErrorKind::BindInvalid),
             '^' => self.lex_binding(TokenKind::Load, LexErrorKind::LoadInvalid),
             _ => self.lex_scalar().ok_or_else(|| {
-                // Worst path possible; nothing from the above was able to bind
-                // and we couldn't even get a symbol out of it.  Since we want
-                // to accumulate errors though, we should try and skip just this
-                // character and see what else we could lex.
+                // Nothing above matched and there is no scalar here either.
+                // Skip this one character so the rest of the source still
+                // lexes and reports.
                 let span = self.new_span(c.len_utf8());
                 self.cursor += c.len_utf8();
                 self.error(LexErrorKind::UnknownCharacter, span)
@@ -238,8 +235,8 @@ impl<'a> Tokeniser<'a> {
     /// Skip whitespace and comments from the current cursor, stopping at the
     /// first character that begins a token.
     ///
-    /// NOTE: We do NOT count `\r` as a valid newline starter, only `\n`.  A
-    /// carriage return is simply counted as trivia.
+    /// Only `\n` terminates a line.  A carriage return is trivia, so a CRLF
+    /// source lexes as its LF twin does.
     fn skip_trivia(&mut self) {
         loop {
             self.cursor += self.run_len(|c| WHITESPACE_CHARS.contains(c));
@@ -254,8 +251,8 @@ impl<'a> Tokeniser<'a> {
     /// Skip a comment, from the cursor to the end of its line, reporting any
     /// format character within it.
     ///
-    /// We report format characters despite comments not being tokenised in any
-    /// way because of how *rendering* could be affected by them.
+    /// A comment is never tokenised, but a format character in one attacks
+    /// the *rendering* of the code beside it, so it is still reported.
     fn skip_comment(&mut self) {
         let len = self.run_len(|c| c != '\n');
         if !self.rest()[..len].is_ascii() {
@@ -376,11 +373,11 @@ mod tests {
 
     #[test]
     fn tokens_and_spans() {
-        // Empty and whitespace begets empty
+        // Empty and whitespace-only sources yield no tokens.
         assert_tokens("", &[]);
         assert_tokens("  \n\t ", &[]);
 
-        // All the one-byte tokens should parse 1-1
+        // Each one-byte token lexes on its own.
         assert_tokens(
             "[](')",
             &[
@@ -392,7 +389,7 @@ mod tests {
             ],
         );
 
-        // Symbols are contiguous
+        // A restricted character ends a symbol run.
         assert_tokens(
             "abc[def]",
             &[
@@ -403,10 +400,10 @@ mod tests {
             ],
         );
 
-        // Bind and Load eat up the next symbol.
+        // Bind and Load span the sigil and the symbol as one token.
         assert_tokens("$x ^y", &[(Bind, "$x"), (Load, "^y")]);
 
-        // Complex symbol construction with whitespace
+        // Symbol material is any character outside the restricted set.
         assert_tokens(
             concat!("\t∀x:\n", "\tx≡0mod2\n", "⇔\n", "\t∃k:\n", "\tx=2k"),
             &[
@@ -438,10 +435,10 @@ mod tests {
 
     #[test]
     fn trivia_skipped() {
-        // Empty is empty
+        // A comment closed by end of file yields no tokens.
         assert_tokens(";", &[]);
 
-        // Newlines separate the herd
+        // A comment ends at the newline, and the next line lexes normally.
         assert_tokens(
             concat!("a ; comment [ $ ) \n", "b"),
             &[(Symbol, "a"), (Symbol, "b")],

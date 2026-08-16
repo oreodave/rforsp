@@ -1,18 +1,16 @@
-//! Diagnostics Accumulator
-//!
-//! The accumulator is a collection of diagnostics.  This is used in any phase
-//! of the compiler that may fail.
+//! Diagnostics Accumulator.
 
 use crate::diagnostics::{Diagnostic, Severity};
 
 /// Accumulator of [`Diagnostic`]s.
 ///
-/// Each compiler phase pushes [`Diagnostic`]s into this structure.
+/// Unbounded: a phase records everything it finds, and the cap is applied
+/// once, at rendering.
 #[derive(Debug, Default)]
 pub struct Diagnostics {
     /// Recorded diagnostics.
     items: Vec<Diagnostic>,
-    /// Number of errors recorded
+    /// Number of errors recorded.
     errors: usize,
 }
 
@@ -50,9 +48,9 @@ impl Diagnostics {
     /// produced diagnostics worth keeping, and only its return value decides
     /// whether its *output* is kept.
     ///
-    /// The error count crosses with the items.  [`push`][Diagnostics::push] is
-    /// the only way in and counts an error exactly when it stores one, so the
-    /// counts agree on both sides and adding them preserves that.
+    /// The counts add rather than being recomputed.
+    /// [`push`][Diagnostics::push] is the only way in and counts an error
+    /// exactly when it stores one, so both sides already agree.
     pub fn merge(&mut self, diagnostics: Self) {
         self.errors += diagnostics.errors;
         self.items.extend(diagnostics.items);

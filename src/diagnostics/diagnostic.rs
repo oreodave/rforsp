@@ -1,6 +1,6 @@
-//! Generalised Diagnostic Type
+//! Generalised Diagnostic Type.
 //!
-//! A singular "thing to report to the user".
+//! One condition reported to the user.
 
 use crate::diagnostics::Class;
 use crate::source::{SourceId, SyntaxId, SyntaxOrigin};

@@ -1,7 +1,7 @@
 //! Generalised drivers for each phase of the compiler.
 //!
-//! These are the top level drivers that thread the various phases of the
-//! compiler together.
+//! Each driver attempts every source, accumulates the diagnostics together,
+//! and gates once at the phase boundary.
 
 use crate::{
     context::Compilation,
@@ -23,11 +23,13 @@ pub fn compile(
     log: Log,
     log_out: &mut impl std::fmt::Write,
 ) -> Result<(), Aborted> {
-    // FIXME(oreo)[2026-08-12 15:42]: Wire in parsing, resolution, lowering,
+    // FIXME(oreo)[2026-08-12 15:42]: Wire in resolution, lowering,
     // verification.
     let sources = sources_from_files(filenames, diagnostics, ctx)?;
     let lexes = lex_sources(&sources, diagnostics, ctx)?;
 
+    // `log_out` is a String at every call site, so these cannot fail.  A
+    // failed log must not abort a compilation that otherwise succeeded.
     let _ = log_tokens(&sources, &lexes, log, ctx, log_out);
 
     let body = parse_streams(&sources, &lexes, diagnostics, ctx)?;
@@ -37,8 +39,10 @@ pub fn compile(
     Ok(())
 }
 
-/// The gate that ensures the results of a compiler phase only pass through if
-/// the local [`Diagnostics`] of that phase has no errors.
+/// Pass a phase's results through only if that phase reported no errors.
+///
+/// The merge is unconditional.  The decision reads the phase's own
+/// [`Diagnostics`] so errors from an earlier phase do not gate this one.
 fn gate<T>(
     global_diags: &mut Diagnostics,
     local_diags: Diagnostics,
@@ -94,7 +98,8 @@ fn lex_sources(
         .filter_map(|&id| {
             let (tokens, mut lexer_diags) = tokenise(id, &ctx.table);
 
-            // Internal compiler invariant
+            // `tokenise` withholds its tokens only when it reported.  No
+            // tokens and no errors means the phase dropped its output.
             if tokens.is_none() && !lexer_diags.has_errors() {
                 lexer_diags.push(ice(
                     Class::ICEDroppedOutput,
@@ -143,7 +148,8 @@ fn parse_streams(
                 &mut ctx.interner,
             );
 
-            // Internal compiler invariant - Dropped output for unclean case.
+            // `parse` withholds its body only when it reported.  No body and
+            // no errors means the phase dropped its output.
             if forms.is_none() && !parse_diags.has_errors() {
                 parse_diags.push(ice(
                     Class::ICEDroppedOutput,
@@ -152,13 +158,10 @@ fn parse_streams(
                 ));
             }
 
-            // Internal compiler invariant - Dropped output for clean case.
-            //
-            // The same two counts are asserted over the whole parser corpus
-            // by `parse_text` in `parser::parse`'s tests.  They are computed
-            // separately on purpose: this one catches the parser in the
-            // field, that one catches it in CI.  If the two expressions ever
-            // disagree about what a closer is, one of them is wrong.
+            // Every form comes from exactly one non-closing token, so the two
+            // counts agree on a clean parse.
+            // `parser::parse::tests::parse_text` asserts the same pair.  The
+            // two are computed separately for testing purposes.
             if let Some(forms) = &forms {
                 let expected = token_stream
                     .iter()
@@ -213,8 +216,7 @@ mod tests {
 
     #[test]
     fn gate_polarity() {
-        // `gate` will always return Err if `locals` has a Diagnostic of some
-        // kind.
+        // Any diagnostic in the local accumulator gates.
         let mut global = Diagnostics::new();
         assert_eq!(gate(&mut global, Diagnostics::new(), 7, Phase::Lex), Ok(7));
         assert_eq!(
@@ -225,8 +227,7 @@ mod tests {
 
     #[test]
     fn gate_merges() {
-        // Merges always happen, regardless of whether the global diagnostics
-        // already has an error.
+        // The merge happens even when the caller already holds an error.
         let mut global = Diagnostics::new();
         let mut clean = Diagnostics::new();
         clean.push(err("a"));
@@ -241,9 +242,9 @@ mod tests {
     }
 
     #[test]
-    fn gate_ok_irregardless() {
-        // Errors already present in `global` will not trigger gating; we
-        // presume previous calls should have gated these.
+    fn gate_ignores_earlier_errors() {
+        // An earlier phase's errors do not gate this one.  That phase gated
+        // on them already.
         let mut global = dirty("earlier phase");
         assert_eq!(gate(&mut global, Diagnostics::new(), 7, Phase::Lex), Ok(7));
     }

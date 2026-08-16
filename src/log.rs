@@ -1,6 +1,4 @@
-//! Compiler phase logging
-//!
-//! This provides functionality to log the output of phases of the compiler.
+//! Compiler phase logging.
 
 use crate::{
     context::Compilation,
@@ -12,8 +10,8 @@ use crate::{
 /// Set of compiler phases to log.
 ///
 /// One bit per stage, so several may be requested at once.  The field is
-/// private and the only constructors are the constants below, which is what
-/// keeps a value holding bits no stage owns unconstructible.
+/// private and the constants below are the only constructors, so a value
+/// holding bits no stage owns cannot be built.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct Log(u8);
 
@@ -32,9 +30,6 @@ impl Log {
     }
 
     /// Add every stage in `other` to this set.
-    ///
-    /// Intended for argument parsing, where each flag accumulates rather than
-    /// replacing what came before it.
     pub const fn insert(&mut self, other: Self) {
         self.0 |= other.0;
     }

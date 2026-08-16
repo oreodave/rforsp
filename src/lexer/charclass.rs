@@ -4,7 +4,7 @@
 //! equivalent for `Cf` - the format characters - and no general-category
 //! accessor to derive one from.  The class is therefore carried here as data.
 //!
-//! NOTE: this module is LLM generated.
+//! NOTE: this module is LLM generated.  The table is regenerated, not edited.
 
 use std::cmp::Ordering;
 
@@ -46,8 +46,8 @@ const FORMAT_RANGES: [(char, char); 21] = [
 /// are used together: both classes render as nothing, so neither may enter a
 /// symbol.
 pub(super) fn is_format(c: char) -> bool {
-    // A character below the first range is the overwhelmingly common case and
-    // is worth not paying a search for.
+    // A character below the first range is the common case, and skips the
+    // search.
     c >= FORMAT_RANGES[0].0
         && FORMAT_RANGES
             .binary_search_by(|&(low, high)| {

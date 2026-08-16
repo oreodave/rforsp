@@ -1,7 +1,8 @@
 //! Source shaped IR the parser produces.
 //!
-//! This is the first top level representation of a user program.  This maps to
-//! the generalised semihomoiconic AST of rForsp as a language.
+//! The first representation of a user program: the semihomoiconic AST of
+//! rForsp.  It preserves every distinction the source makes and drops only
+//! notation.
 
 use std::mem;
 
@@ -10,13 +11,13 @@ use crate::{interner::SymId, source::SyntaxId};
 /// Syntactic category of an [`HirForm`].
 #[derive(Debug)]
 pub enum HirKind {
-    /// An integer literal, converted.
+    /// An integer literal, already converted to `i64`.
     Int(i64),
     /// `'f`, wrapping exactly the next form.
     Quote(Box<HirForm>),
     /// `( .. )`, self-evaluating data.
     List(Vec<HirForm>),
-    /// `[ .. ]`
+    /// `[ .. ]`.  Whether this is code or data is not known until resolution.
     Vector(Vec<HirForm>),
     /// `$x`
     Bind(SymId),
@@ -78,17 +79,12 @@ impl HirForm {
 impl Drop for HirForm {
     /// Dismantle this [`HirForm`] iteratively.
     ///
-    /// A derived Drop naively recurs through all forms that potentially own
-    /// other [`HirForm`]s.  On pathological inputs this will overflow the stack
-    /// which is not good behaviour.
-    ///
-    /// This manual implementation iterates through children rather than
-    /// recurring, bypassing the machine stack.  This avoids the stack overflow
-    /// possibility entirely.
+    /// A derived Drop recurses through every owned form, so a deep tree
+    /// overflows the machine stack.  This walks the children through a
+    /// worklist instead.
     fn drop(&mut self) {
-        // A leaf owns no forms, so the glue is already safe for it and
-        // allocating a worklist per leaf would dominate the cost of freeing
-        // a tree.
+        // A leaf owns no forms, so the derived glue is already safe for it.
+        // A worklist per leaf would dominate the cost of freeing a tree.
         if !self.kind.has_children() {
             return;
         }
@@ -204,11 +200,10 @@ mod tests {
 
     #[test]
     fn deep_nesting_walks_and_drops() {
-        // Deeper than the compiler's own drop glue, or a recursive walk,
-        // survives on a test thread's stack.  Both are under test: the walk
-        // here, and the drop of `forms` when this function returns.  A
-        // recursive version of either aborts the process rather than
-        // reporting anything.
+        // Deeper than a recursive walk or the derived drop glue survives on a
+        // test thread's stack.  Both are under test: the walk here, and the
+        // drop of `forms` when this function returns.  A recursive version of
+        // either aborts the process rather than reporting anything.
         const DEPTH: usize = 200_000;
 
         let id = any_id();

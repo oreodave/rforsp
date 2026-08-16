@@ -41,8 +41,6 @@ struct Parser<'a> {
     interner: &'a mut Interner,
     /// [`Diagnostics`] to accumulate in.
     diagnostics: &'a mut Diagnostics,
-    /// Remaining tokens to parse.
-    remtokens: &'a [Token],
     /// Stack of [`Frame`]s used during parsing.
     stack: Vec<Frame>,
     /// Accumulation of [`HirForm`]s.
@@ -56,14 +54,12 @@ impl<'a> Parser<'a> {
         table: &'a mut SourceTable,
         interner: &'a mut Interner,
         diagnostics: &'a mut Diagnostics,
-        tokens: &'a [Token],
     ) -> Self {
         Self {
             source_id,
             table,
             interner,
             diagnostics,
-            remtokens: tokens,
             stack: Vec::new(),
             forms: Vec::new(),
         }

@@ -4,11 +4,11 @@
 //! [`HirForm`]s.
 
 use crate::{
-    diagnostics::Diagnostics,
+    diagnostics::{Diagnostic, Diagnostics},
     interner::Interner,
     lexer::Token,
-    parser::HirForm,
-    source::{SourceId, SourceTable},
+    parser::{HirForm, HirKind, ParseError, ParseErrorKind},
+    source::{SourceId, SourceTable, Span, SyntaxOrigin},
 };
 
 /// Parse the token stream of the source given by [`SourceId`] in a
@@ -19,8 +19,7 @@ use crate::{
 /// caller.
 ///
 /// `table` is taken mutably because every form registers its origin through
-/// [`SourceTable::add_origin`]; no [`Source`][crate::source::Source] reference
-/// may be held across that call.
+/// [`SourceTable::add_origin`].
 #[must_use]
 #[expect(clippy::todo, unused_variables, reason = "phase 2 stub")]
 pub fn parse(
@@ -30,4 +29,44 @@ pub fn parse(
     interner: &mut Interner,
 ) -> (Option<Vec<HirForm>>, Diagnostics) {
     todo!("phase 2: the container stack")
+}
+
+/// Parser state structure.
+struct Parser<'a> {
+    /// [`SourceId`] of the Source being parsed.
+    source_id: SourceId,
+    /// Source Table.
+    table: &'a mut SourceTable,
+    /// Symbol Interner.
+    interner: &'a mut Interner,
+    /// [`Diagnostics`] to accumulate in.
+    diagnostics: &'a mut Diagnostics,
+    /// Remaining tokens to parse.
+    remtokens: &'a [Token],
+    /// Stack of [`Frame`]s used during parsing.
+    stack: Vec<Frame>,
+    /// Accumulation of [`HirForm`]s.
+    forms: Vec<HirForm>,
+}
+
+/// Types of [`Frame`]s.
+#[derive(Debug, PartialEq, Eq)]
+enum FrameKind {
+    /// Vector.
+    Vector(Vec<HirForm>),
+    /// List.
+    List(Vec<HirForm>),
+    /// Quote.
+    Quote,
+}
+
+/// A frame which accumulates [`HirForm`]s.
+#[derive(Debug)]
+struct Frame {
+    /// Type of Frame.
+    kind: FrameKind,
+    /// The Span this frame started on.
+    opening: Span,
+    /// Is this frame supposed to accumulate datums?
+    is_datum: bool,
 }

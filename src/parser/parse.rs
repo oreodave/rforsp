@@ -21,14 +21,20 @@ use crate::{
 /// `table` is taken mutably because every form registers its origin through
 /// [`SourceTable::add_origin`].
 #[must_use]
-#[expect(clippy::todo, unused_variables, reason = "phase 2 stub")]
 pub fn parse(
     source_id: SourceId,
     tokens: &[Token],
     table: &mut SourceTable,
     interner: &mut Interner,
 ) -> (Option<Vec<HirForm>>, Diagnostics) {
-    todo!("phase 2: the container stack")
+    let mut diagnostics = Diagnostics::new();
+    let mut parser = Parser::new(source_id, table, interner, &mut diagnostics);
+    for &token in tokens {
+        parser.parse_singular(token);
+    }
+    parser.report_unclosed();
+    let forms = parser.forms;
+    ((!diagnostics.has_errors()).then_some(forms), diagnostics)
 }
 
 /// Parser state structure.

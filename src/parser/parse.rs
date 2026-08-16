@@ -467,29 +467,11 @@ mod tests {
     }
 
     /// Render a form back to source-like text, ignoring [`SyntaxId`]s.
-    ///
-    /// [`HirForm`]'s [`PartialEq`] compares [`SyntaxId`]s, so a hand-written
-    /// expected tree would compare identities rather than shape.  Rendering
-    /// sidesteps that and reads as the program it came from.
     fn shape(form: &HirForm, interner: &Interner) -> String {
-        match &form.kind {
-            HirKind::Int(n) => n.to_string(),
-            HirKind::Call(s) => interner.resolve(*s).to_string(),
-            HirKind::Bind(s) => format!("${}", interner.resolve(*s)),
-            HirKind::Load(s) => format!("^{}", interner.resolve(*s)),
-            HirKind::Quote(f) => format!("'{}", shape(f, interner)),
-            HirKind::List(fs) => format!("({})", shapes(fs, interner)),
-            HirKind::Vector(fs) => format!("[{}]", shapes(fs, interner)),
-        }
-    }
-
-    /// Render a body of forms, space separated.
-    fn shapes(forms: &[HirForm], interner: &Interner) -> String {
-        forms
-            .iter()
-            .map(|f| shape(f, interner))
-            .collect::<Vec<_>>()
-            .join(" ")
+        let mut out = String::new();
+        print_forms(std::slice::from_ref(form), interner, &mut out)
+            .expect("writing to a String cannot fail");
+        out
     }
 
     /// Lex and parse `text` as its own source, resolving every span back to

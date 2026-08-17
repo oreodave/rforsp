@@ -1,0 +1,248 @@
+//! Conversions from phase-specific Errors to Diagnostic.
+//!
+//! Every phase error a user can see is converted here.
+//!
+//! Diagnostics with no error type behind them are constructed here too, by a
+//! named constructor per [`Class`].  Construction lives in one module so that
+//! every user-facing string in the compiler has a single home.
+
+use std::fmt;
+use std::fmt::Write as _;
+
+use crate::{
+    diagnostics::{Aborted, Class, Diagnostic, Phase, Site},
+    lexer::{LexError, LexErrorKind},
+    parser::{ParseError, ParseErrorKind},
+    source::{SourceError, SourceTableError},
+};
+
+impl From<SourceError> for Diagnostic {
+    fn from(e: SourceError) -> Self {
+        match e {
+            SourceError::TooLarge { name, len, limit } => Self::new(
+                Class::SourceTooLarge,
+                Site::None,
+                format!("{name}: contains {len} bytes when limit is {limit}"),
+            ),
+        }
+    }
+}
+
+impl From<SourceTableError> for Diagnostic {
+    fn from(e: SourceTableError) -> Self {
+        match e {
+            SourceTableError::SourceCreate(e) => Self::from(e),
+            SourceTableError::Io { name, err } => Self::new(
+                Class::SourceReadError,
+                Site::None,
+                format!("{name}: {err}"),
+            ),
+        }
+    }
+}
+
+impl From<LexError> for Diagnostic {
+    fn from(e: LexError) -> Self {
+        let site = Site::Raw(e.origin);
+        let message = match e.kind {
+            LexErrorKind::UnknownCharacter => "Unrecognised character",
+            LexErrorKind::BindInvalid => {
+                "Expected Symbol immediately after Bind ($)"
+            }
+            LexErrorKind::LoadInvalid => {
+                "Expected Symbol immediately after Load (^)"
+            }
+        };
+
+        Self::new(e.kind.into(), site, message)
+    }
+}
+
+impl From<ParseError> for Diagnostic {
+    fn from(e: ParseError) -> Self {
+        let site = Site::Raw(e.origin);
+        let message = match e.kind {
+            ParseErrorKind::IntOverflow => {
+                "Integer literal does not fit in a 64 bit signed integer"
+            }
+            ParseErrorKind::NestedQuote => {
+                "Expected a form after Quote ('), found another Quote"
+            }
+            ParseErrorKind::QuoteWithoutForm => {
+                "Expected a form after Quote (')"
+            }
+            ParseErrorKind::BindingInDatum => {
+                "Expected a datum, found a Bind ($) or Load (^)"
+            }
+            ParseErrorKind::UnterminatedVector => {
+                "Vector opened with [ was never closed"
+            }
+            ParseErrorKind::UnterminatedList => {
+                "List opened with ( was never closed"
+            }
+            ParseErrorKind::MismatchedCloser => {
+                "Closer does not match the innermost open Vector or List"
+            }
+            ParseErrorKind::UnexpectedCloser => {
+                "Closer with no matching opener"
+            }
+        };
+
+        Self::new(e.kind.into(), site, message)
+    }
+}
+
+impl fmt::Display for Aborted {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Compilation failed during the {} phase", self.0.as_str())
+    }
+}
+
+/// Tag a compiler bug with the location in the *compiler's* source that
+/// detected it.
+///
+/// Call this directly at the point of detection.  If it is ever wrapped in a
+/// per-class constructor, that constructor needs `#[track_caller]` too, or the
+/// location reported is the wrapper's.
+///
+/// # Panics
+/// - If `diag` is not a [`Phase::ICE`] diagnostic, since nothing else has a
+///   detection site to report.
+#[must_use]
+#[track_caller]
+pub fn ice(class: Class, site: Site, message: impl Into<String>) -> Diagnostic {
+    assert_eq!(
+        class.phase(),
+        Phase::ICE,
+        "only a compiler bug carries a detection site"
+    );
+
+    let mut message: String = message.into();
+    let location = std::panic::Location::caller();
+    let _ = write!(message, ", detected at {location}");
+    Diagnostic::new(class, site, message)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source::{SourceTable, Span, SyntaxOrigin};
+
+    fn sample_source_error() -> SourceError {
+        SourceError::TooLarge {
+            name: "hello".to_string(),
+            len: 1000,
+            limit: 100,
+        }
+    }
+
+    #[test]
+    fn source_err() {
+        let source_error = sample_source_error();
+        let diag = Diagnostic::from(source_error);
+        assert_eq!(diag.class, Class::SourceTooLarge);
+        assert_eq!(diag.class.phase(), Phase::Source);
+        assert!(diag.message.contains("hello"));
+        assert!(diag.message.contains("contains 1000"));
+        assert!(diag.message.contains("limit is 100"));
+    }
+
+    #[test]
+    fn source_table_err() {
+        let source_error = sample_source_error();
+        let diag = Diagnostic::from(SourceTableError::from(source_error));
+        assert_eq!(diag.class, Class::SourceTooLarge);
+        assert_eq!(diag.class.phase(), Phase::Source);
+        assert!(diag.message.contains("hello"));
+        assert!(diag.message.contains("contains 1000"));
+        assert!(diag.message.contains("limit is 100"));
+    }
+
+    #[test]
+    fn source_table_io_err() {
+        use std::io;
+        let name = "hello".to_string();
+        let err = io::Error::from(io::ErrorKind::NotFound);
+        let diag = Diagnostic::from(SourceTableError::Io { name, err });
+        assert_eq!(diag.class, Class::SourceReadError);
+        assert_eq!(diag.class.phase(), Phase::Source);
+        assert!(diag.message.contains("hello"));
+    }
+
+    #[test]
+    fn lex_err() {
+        let mut table = SourceTable::new();
+        let source = table
+            .add_source_raw("t", "$12".into())
+            .expect("within bound");
+        let origin = SyntaxOrigin {
+            source,
+            span: Span::new(0, 3),
+        };
+
+        for kind in [
+            LexErrorKind::UnknownCharacter,
+            LexErrorKind::BindInvalid,
+            LexErrorKind::LoadInvalid,
+        ] {
+            let diag = Diagnostic::from(LexError { origin, kind });
+            assert_eq!(
+                diag.site,
+                Site::Raw(origin),
+                "{kind:?} lost its origin"
+            );
+            assert!(!diag.message.is_empty(), "{kind:?} needs a message");
+        }
+    }
+
+    #[test]
+    fn parse_err() {
+        let mut table = SourceTable::new();
+        let source = table
+            .add_source_raw("t", "''x".into())
+            .expect("within bound");
+        let origin = SyntaxOrigin {
+            source,
+            span: Span::new(0, 2),
+        };
+
+        for kind in [
+            ParseErrorKind::IntOverflow,
+            ParseErrorKind::NestedQuote,
+            ParseErrorKind::QuoteWithoutForm,
+            ParseErrorKind::BindingInDatum,
+            ParseErrorKind::UnterminatedVector,
+            ParseErrorKind::UnterminatedList,
+            ParseErrorKind::MismatchedCloser,
+            ParseErrorKind::UnexpectedCloser,
+        ] {
+            let diag = Diagnostic::from(ParseError { origin, kind });
+            assert_eq!(
+                diag.site,
+                Site::Raw(origin),
+                "{kind:?} lost its origin"
+            );
+            assert!(!diag.message.is_empty(), "{kind:?} needs a message");
+        }
+    }
+
+    #[test]
+    fn ice_reports_its_call_site() {
+        // Without `#[track_caller]` the location would be `ice`'s own line
+        // rather than this one, so pinning the line is what checks the
+        // attribute is in effect.
+        let line = line!() + 1;
+        let diag = ice(
+            Class::ICEDroppedOutput,
+            Site::None,
+            "lex discarded output from a call that reported nothing",
+        );
+
+        assert!(
+            diag.message
+                .contains(&format!(", detected at {}:{line}:", file!())),
+            "{}",
+            diag.message
+        );
+    }
+}

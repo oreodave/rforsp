@@ -5,13 +5,13 @@
 
 pub mod diagnostics;
 pub mod interner;
-
-pub mod context;
+pub mod runtime;
 
 pub mod lexer;
 pub mod parser;
 pub mod resolution;
 pub mod source;
 
+pub mod context;
 pub mod drivers;
 pub mod log;

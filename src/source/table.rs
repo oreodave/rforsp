@@ -150,6 +150,12 @@ impl SourceTable {
         &self.origins[id]
     }
 
+    /// Get the number of [`SyntaxOrigin`]s.
+    #[must_use]
+    pub const fn origin_count(&self) -> usize {
+        self.origins.len()
+    }
+
     /// Get the [Location] of a [`SyntaxOrigin`].
     #[must_use]
     pub fn location_of(&self, origin: &SyntaxOrigin) -> Location<'_> {
@@ -204,6 +210,14 @@ impl Default for SourceTable {
 impl From<SourceError> for SourceTableError {
     fn from(e: SourceError) -> Self {
         Self::SourceCreate(e)
+    }
+}
+
+impl SyntaxId {
+    /// Get the index for the current [`SyntaxId`].
+    #[must_use]
+    pub const fn index(&self) -> usize {
+        self.0 as usize
     }
 }
 

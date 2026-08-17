@@ -5,3 +5,6 @@
 
 mod closure;
 pub use closure::{CaptureId, CaptureLayout, CaptureSource, LocalId};
+
+mod types;
+pub use types::{ArmRole, BindingId, PrimitiveId, Resolution, Target};

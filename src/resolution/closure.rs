@@ -1,6 +1,6 @@
 //! Closure capture types.
 
-use crate::resolution::PrimitiveId;
+use crate::runtime::PrimitiveId;
 
 /// ID for a local within a closure frame.
 pub struct LocalId(u32);

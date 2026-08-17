@@ -10,6 +10,7 @@ pub mod context;
 
 pub mod lexer;
 pub mod parser;
+pub mod resolution;
 pub mod source;
 
 pub mod drivers;

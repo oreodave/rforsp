@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+
+set -xe
+
+cargo build
+cargo test
+cargo clippy --all-targets
+cargo fmt -- --check
+cargo doc --no-deps --document-private-items

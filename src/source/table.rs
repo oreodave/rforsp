@@ -61,12 +61,6 @@ pub enum SourceTableError {
     },
 }
 
-impl From<SourceError> for SourceTableError {
-    fn from(e: SourceError) -> Self {
-        Self::SourceCreate(e)
-    }
-}
-
 impl SourceTable {
     /// Construct a new source table.
     #[must_use]
@@ -204,6 +198,12 @@ impl SourceTable {
 impl Default for SourceTable {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl From<SourceError> for SourceTableError {
+    fn from(e: SourceError) -> Self {
+        Self::SourceCreate(e)
     }
 }
 

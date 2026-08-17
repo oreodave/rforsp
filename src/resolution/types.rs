@@ -4,13 +4,12 @@ use std::collections::BTreeMap;
 
 use crate::{
     resolution::{CaptureId, CaptureLayout},
+    runtime::PrimitiveId,
     source::SyntaxId,
 };
 
 /// ID for a binding introduced by a binding form.
 pub struct BindingId(u32);
-/// ID for an entry in the primordial primitive registry.
-pub struct PrimitiveId(u32);
 
 /// Target for a reference (call or load).
 pub enum Target {
@@ -50,7 +49,7 @@ pub enum Resolution {
     Poison,
 }
 
-/// Side table of [`Resolution`]s made from Resolution pass.
+/// Side table of [`Resolution`]s indexed by [`SyntaxId`]s.
 pub struct ResolutionMap {
     /// Raw mapping.
     mapping: BTreeMap<SyntaxId, Resolution>,

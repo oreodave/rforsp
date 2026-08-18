@@ -1,6 +1,6 @@
 //! Closure output results from Resolution.
 
-use crate::runtime::PrimitiveId;
+use crate::u32_index;
 
 /// ID for a local within a closure frame.
 pub struct LocalId(u32);

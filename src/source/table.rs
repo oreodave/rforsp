@@ -4,7 +4,10 @@
 //! unique [`SourceId`], registers [`SyntaxOrigin`]s as [`SyntaxId`]s, and
 //! resolves them back to [`Location`]s and text for diagnostics.
 
-use crate::source::{Position, Source, SourceError, Span};
+use crate::{
+    source::{Position, Source, SourceError, Span},
+    u32_index,
+};
 
 /// ID for a [Source] in the [`SourceTable`]
 ///
@@ -103,9 +106,7 @@ impl SourceTable {
         contents: String,
     ) -> Result<SourceId, SourceTableError> {
         let source = Source::from_contents(source_name, contents)?;
-        let id = SourceId(
-            u32::try_from(self.sources.len()).expect("|sources| > u32::MAX"),
-        );
+        let id = SourceId(u32_index(self.sources.len()));
         self.sources.push(source);
         Ok(id)
     }
@@ -132,9 +133,7 @@ impl SourceTable {
             source.valid_span(span),
             "{span:?} components out of bounds for {id:?}"
         );
-        let syn_id = SyntaxId(
-            u32::try_from(self.origins.len()).expect("|origins| > u32::MAX"),
-        );
+        let syn_id = SyntaxId(u32_index(self.origins.len()));
         self.origins.push(SyntaxOrigin { source: id, span });
         syn_id
     }

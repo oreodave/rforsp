@@ -32,10 +32,10 @@ pub enum Resolution {
     Bound(BindingId),
     /// Form is a reference to some target.
     Ref(Target),
-    /// Form makes a closure with the given [`CaptureLayout`].
-    MakesClosure(CaptureLayout),
-    /// Form makes a recursive closure with the given [`CaptureLayout`].
-    MakesRecursiveClosure(CaptureLayout),
+    /// Form makes a closure with the given [`ClosureLayout`].
+    MakesClosure(ClosureLayout),
+    /// Form makes a recursive closure with the given [`ClosureLayout`].
+    MakesRecursiveClosure(ClosureLayout),
     /// Form is a branch in a conditional.
     BranchArm(ArmRole),
     /// Form is recognised as the conditional primitive `if`.

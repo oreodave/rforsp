@@ -3,13 +3,10 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    resolution::{CaptureId, CaptureLayout},
+    resolution::{BindingId, CaptureId, ClosureLayout},
     runtime::PrimitiveId,
     source::SyntaxId,
 };
-
-/// ID for a binding introduced by a binding form.
-pub struct BindingId(u32);
 
 /// Target for a reference (call or load).
 pub enum Target {
@@ -51,6 +48,6 @@ pub enum Resolution {
 
 /// Side table of [`Resolution`]s indexed by [`SyntaxId`]s.
 pub struct ResolutionMap {
-    /// Raw mapping.
+    /// Map between [`SyntaxId`]s and their resultant [`Resolution`].
     mapping: BTreeMap<SyntaxId, Resolution>,
 }

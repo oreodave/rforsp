@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    resolution::{BindingId, CaptureId, ClosureLayout},
+    resolution::{BindingId, BodyLayout, CaptureId},
     runtime::PrimitiveId,
     source::SyntaxId,
 };
@@ -32,10 +32,10 @@ pub enum Resolution {
     Bound(BindingId),
     /// Form is a reference to some target.
     Ref(Target),
-    /// Form makes a closure with the given [`ClosureLayout`].
-    MakesClosure(ClosureLayout),
-    /// Form makes a recursive closure with the given [`ClosureLayout`].
-    MakesRecursiveClosure(ClosureLayout),
+    /// Form makes a closure with the given [`BodyLayout`].
+    MakesClosure(BodyLayout),
+    /// Form makes a recursive closure with the given [`BodyLayout`].
+    MakesRecursiveClosure(BodyLayout),
     /// Form is a branch in a conditional.
     BranchArm(ArmRole),
     /// Form is recognised as the conditional primitive `if`.

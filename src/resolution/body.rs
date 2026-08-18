@@ -1,34 +1,34 @@
-//! Closure output results from Resolution.
+//! Body analysis data.
 
 use crate::u32_index;
 
-/// ID for a local within a closure frame.
+/// ID for a local within a body.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct LocalId(u32);
 
-/// ID for a capture within a closure frame.
+/// ID for a capture within a body.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct CaptureId(u32);
 
-/// Source for a value captured by a closure.
+/// Source for a value captured by a body.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum CaptureSource {
-    /// Capture a local within the enclosing frame.
+    /// Capture a local within the enclosing body.
     Local(LocalId),
-    /// Capture another capture within the enclosing frame.
+    /// Capture another capture within the enclosing body.
     Captured(CaptureId),
 }
 
-/// Layout of a closure after analysis.
-pub struct ClosureLayout {
-    /// Captures for this closure, indexed by [`CaptureId`].
+/// Layout of a body after analysis.
+pub struct BodyLayout {
+    /// Captures for this Body, indexed by [`CaptureId`].
     captures: Vec<CaptureSource>,
-    /// Number of locals for this closure.
+    /// Number of locals for this Body.
     local_count: usize,
 }
 
-impl ClosureLayout {
-    /// Construct new [`ClosureLayout`].
+impl BodyLayout {
+    /// Construct new [`BodyLayout`].
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -37,7 +37,7 @@ impl ClosureLayout {
         }
     }
 
-    /// Add a new local to this closure layout, returning [`LocalId`].
+    /// Add a new local to this body layout, returning [`LocalId`].
     #[must_use]
     pub const fn add_local(&mut self) -> LocalId {
         let id = LocalId(u32_index(self.local_count));
@@ -45,7 +45,7 @@ impl ClosureLayout {
         id
     }
 
-    /// Add a new capture to this closure layout, returning [`CaptureId`]
+    /// Add a new capture to this body layout, returning [`CaptureId`]
     ///
     /// # Panics
     /// - if number of captures exceeds `u32::MAX`.
@@ -56,20 +56,20 @@ impl ClosureLayout {
         id
     }
 
-    /// Get a count of the number of locals in this Closure.
+    /// Get a count of the number of locals in this Body.
     #[must_use]
     pub const fn local_count(&self) -> usize {
         self.local_count
     }
 
-    /// Get the Captures within this Closure.
+    /// Get the Captures within this Body.
     #[must_use]
     pub fn captures(&self) -> &[CaptureSource] {
         &self.captures
     }
 }
 
-impl Default for ClosureLayout {
+impl Default for BodyLayout {
     fn default() -> Self {
         Self::new()
     }

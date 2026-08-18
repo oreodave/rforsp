@@ -1,6 +1,6 @@
 //! Unique IDs for every binding.
 
-use crate::source::SyntaxId;
+use crate::{resolution::LocalId, source::SyntaxId};
 
 /// Fresh minted ID for a binding.
 pub struct BindingId(usize);
@@ -9,6 +9,7 @@ pub struct BindingId(usize);
 pub struct BindingInfo {
     /// Where did this originate from in the source code?
     origin: SyntaxId,
+    local: LocalId,
 }
 
 /// Table that mints new Bindings.
@@ -26,7 +27,7 @@ impl BindingTable {
 
     /// Mint new [`BindingId`].
     #[must_use]
-    pub fn add(&mut self, origin: SyntaxId) -> BindingId {
+    pub fn add(&mut self, origin: SyntaxId, local_id: LocalId) -> BindingId {
         let id = BindingId(self.table.len());
         self.table.push(BindingInfo { origin });
         id

@@ -51,22 +51,6 @@ impl Span {
     }
 }
 
-/// Return `pos` as an offset (usize -> u32).
-///
-/// # Panics
-/// - if `pos > MAX_SOURCE_LEN`.
-#[track_caller]
-pub(super) const fn offset(pos: usize) -> u32 {
-    assert!(pos <= MAX_SOURCE_LEN, "pos out of bounds of any source");
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "MUST: `contents.len() <= MAX_SOURCE_LEN`."
-    )]
-    {
-        pos as u32
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

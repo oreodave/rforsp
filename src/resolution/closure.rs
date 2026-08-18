@@ -3,12 +3,15 @@
 use crate::u32_index;
 
 /// ID for a local within a closure frame.
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct LocalId(u32);
 
 /// ID for a capture within a closure frame.
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct CaptureId(u32);
 
 /// Source for a value captured by a closure.
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum CaptureSource {
     /// Capture a local within the enclosing frame.
     Local(LocalId),

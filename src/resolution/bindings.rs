@@ -3,9 +3,11 @@
 use crate::{resolution::LocalId, source::SyntaxId, u32_index};
 
 /// Fresh minted ID for a binding.
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct BindingId(u32);
 
 /// Information attached to a binding.
+#[derive(Debug, Copy, Clone)]
 pub struct BindingInfo {
     /// Where did this originate from in the source code?
     origin: SyntaxId,

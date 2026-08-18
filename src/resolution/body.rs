@@ -74,3 +74,34 @@ impl Default for BodyLayout {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn layout_assigns_dense_slots() {
+        let mut layout = BodyLayout::new();
+
+        assert_eq!(layout.local_count(), 0);
+        assert!(layout.captures().is_empty());
+
+        let first_local = layout.add_local();
+        let second_local = layout.add_local();
+        let first_capture =
+            layout.add_capture(CaptureSource::Local(first_local));
+        let second_capture =
+            layout.add_capture(CaptureSource::Captured(first_capture));
+
+        assert_ne!(first_local, second_local);
+        assert_ne!(first_capture, second_capture);
+        assert_eq!(layout.local_count(), 2);
+        assert_eq!(
+            layout.captures(),
+            [
+                CaptureSource::Local(first_local),
+                CaptureSource::Captured(first_capture),
+            ]
+        );
+    }
+}

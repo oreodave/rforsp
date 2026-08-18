@@ -14,13 +14,11 @@ pub enum CaptureSource {
     Local(LocalId),
     /// Capture another capture within the enclosing frame.
     Captured(CaptureId),
-    /// Capture a primordial primitive.
-    Primitive(PrimitiveId),
 }
 
 /// Layout of a closure after analysis.
 pub struct ClosureLayout {
-    /// Capture sources indexed by [`CaptureId`].
+    /// Sources of captures for this closure, indexed by [`CaptureId`].
     captures: Vec<CaptureSource>,
     /// Number of locals for this closure.
     local_count: usize,

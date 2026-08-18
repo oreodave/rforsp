@@ -6,8 +6,8 @@
 mod bindings;
 pub use bindings::{BindingId, BindingInfo, BindingTable};
 
-mod closure;
-pub use closure::{CaptureId, CaptureSource, ClosureLayout, LocalId};
+mod body;
+pub use body::{BodyLayout, CaptureId, CaptureSource, LocalId};
 
 mod types;
 pub use types::{ArmRole, Resolution, Target};

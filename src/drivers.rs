@@ -142,8 +142,8 @@ fn parse_streams(
         .zip(token_streams.iter())
         .filter_map(|(&source_id, token_stream)| {
             let (forms, mut parse_diags) = parse(
-                source_id,
                 token_stream,
+                source_id,
                 &mut ctx.table,
                 &mut ctx.interner,
             );

@@ -42,6 +42,12 @@ impl BindingTable {
         id
     }
 
+    /// Get the [`BindingInfo`]s currently available.
+    #[must_use]
+    pub fn bindings(&self) -> &[BindingInfo] {
+        &self.table
+    }
+
     /// Get the [`BindingInfo`] for an ID.
     ///
     /// # Panics
@@ -54,16 +60,47 @@ impl BindingTable {
             .get(id.0 as usize)
             .expect("Invalid BindingId for this binding table")
     }
-
-    /// Get the [`BindingInfo`]s currently available.
-    #[must_use]
-    pub fn bindings(&self) -> &[BindingInfo] {
-        &self.table
-    }
 }
 
 impl Default for BindingTable {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        resolution::BodyLayout,
+        source::{SourceTable, Span},
+    };
+
+    fn origin(table: &mut SourceTable) -> SyntaxId {
+        let source = table
+            .add_source_raw("test", "x".into())
+            .expect("test source should be valid");
+        table.add_origin(source, Span::new(0, 1))
+    }
+
+    #[test]
+    fn additions_preserve_their_metadata() {
+        let mut sources = SourceTable::new();
+        let first_origin = origin(&mut sources);
+        let second_origin = origin(&mut sources);
+        let mut layout = BodyLayout::new();
+        let first_local = layout.add_local();
+        let second_local = layout.add_local();
+        let mut bindings = BindingTable::new();
+
+        let first = bindings.add(first_origin, first_local);
+        let second = bindings.add(second_origin, second_local);
+
+        assert_ne!(first, second);
+        assert_eq!(bindings.get(first).origin, first_origin);
+        assert_eq!(bindings.get(first).local, first_local);
+        assert_eq!(bindings.get(second).origin, second_origin);
+        assert_eq!(bindings.get(second).local, second_local);
+        assert_eq!(bindings.bindings().len(), 2);
     }
 }

@@ -1,9 +1,10 @@
-//! Closure capture types.
+//! Closure output results from Resolution.
 
 use crate::runtime::PrimitiveId;
 
 /// ID for a local within a closure frame.
 pub struct LocalId(u32);
+
 /// ID for a capture within a closure frame.
 pub struct CaptureId(u32);
 
@@ -17,8 +18,10 @@ pub enum CaptureSource {
     Primitive(PrimitiveId),
 }
 
-/// Capture sources indexed by [`CaptureId`].
-pub struct CaptureLayout {
-    /// Source of each capture slot.
-    sources: Vec<CaptureSource>,
+/// Layout of a closure after analysis.
+pub struct ClosureLayout {
+    /// Capture sources indexed by [`CaptureId`].
+    captures: Vec<CaptureSource>,
+    /// Number of locals for this closure.
+    local_count: usize,
 }

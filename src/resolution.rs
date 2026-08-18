@@ -5,6 +5,8 @@
 
 mod capture;
 pub use capture::{CaptureId, CaptureLayout, CaptureSource, LocalId};
+mod bindings;
+pub use bindings::{BindingId, BindingInfo, BindingTable};
 
 mod types;
-pub use types::{ArmRole, BindingId, Resolution, Target};
+pub use types::{ArmRole, Resolution, Target};

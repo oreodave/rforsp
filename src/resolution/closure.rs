@@ -26,3 +26,51 @@ pub struct ClosureLayout {
     /// Number of locals for this closure.
     local_count: usize,
 }
+
+impl ClosureLayout {
+    /// Construct new [`ClosureLayout`].
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            captures: Vec::new(),
+            local_count: 0,
+        }
+    }
+
+    /// Add a new local to this closure layout, returning [`LocalId`].
+    #[must_use]
+    pub const fn add_local(&mut self) -> LocalId {
+        let id = LocalId(u32_index(self.local_count));
+        self.local_count += 1;
+        id
+    }
+
+    /// Add a new capture to this closure layout, returning [`CaptureId`]
+    ///
+    /// # Panics
+    /// - if number of captures exceeds `u32::MAX`.
+    #[must_use]
+    pub fn add_capture(&mut self, source: CaptureSource) -> CaptureId {
+        let id = CaptureId(u32_index(self.captures.len()));
+        self.captures.push(source);
+        id
+    }
+
+    /// Get a count of the number of locals in this Closure.
+    #[must_use]
+    pub const fn local_count(&self) -> usize {
+        self.local_count
+    }
+
+    /// Get the Captures within this Closure.
+    #[must_use]
+    pub fn captures(&self) -> &[CaptureSource] {
+        &self.captures
+    }
+}
+
+impl Default for ClosureLayout {
+    fn default() -> Self {
+        Self::new()
+    }
+}

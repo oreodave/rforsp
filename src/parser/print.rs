@@ -114,7 +114,7 @@ mod tests {
             .add_source_raw("t", text.into())
             .expect("within bound");
         let tokens = tokenise(id, &table).0.expect("lexes cleanly");
-        let (forms, _) = parse(id, &tokens, &mut table, &mut interner);
+        let (forms, _) = parse(&tokens, id, &mut table, &mut interner);
         let forms = forms.expect("parses cleanly");
 
         let mut out = String::new();

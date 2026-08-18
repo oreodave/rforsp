@@ -8,6 +8,8 @@
 
 use std::collections::HashMap;
 
+use crate::u32_index;
+
 /// ID representing an interned symbol - only returnable by the Interner.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct SymId(u32);
@@ -69,9 +71,7 @@ impl Interner {
         if let Some(&id) = self.lookup.get(name) {
             id
         } else {
-            let id = SymId(
-                u32::try_from(self.names.len()).expect("|names| > u32::MAX"),
-            );
+            let id = SymId(u32_index(self.names.len()));
             let name: String = name.into();
             self.names.push(name.clone());
             self.lookup.insert(name, id);

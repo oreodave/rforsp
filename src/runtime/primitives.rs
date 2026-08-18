@@ -3,6 +3,7 @@
 use crate::interner::{Interner, SymId};
 
 /// ID for an entry in the primitive registry.
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct PrimitiveId(usize);
 
 /// Type for primitive
@@ -56,6 +57,16 @@ impl PrimitiveRegistry {
         let id = PrimitiveId(self.primitives.len());
         self.primitives.push(Primitive { sym });
         id
+    }
+
+    /// Return an iterator over the [`SymId`] of all primitives within the
+    /// registry.
+    #[must_use]
+    pub fn iter_syms(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (PrimitiveId, SymId)> {
+        (0..self.primitives.len())
+            .map(|i| (PrimitiveId(i), self.primitives[i].sym))
     }
 }
 

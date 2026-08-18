@@ -21,7 +21,7 @@ pub enum CaptureSource {
 
 /// Layout of a closure after analysis.
 pub struct ClosureLayout {
-    /// Sources of captures for this closure, indexed by [`CaptureId`].
+    /// Captures for this closure, indexed by [`CaptureId`].
     captures: Vec<CaptureSource>,
     /// Number of locals for this closure.
     local_count: usize,

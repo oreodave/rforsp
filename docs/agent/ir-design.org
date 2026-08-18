@@ -796,8 +796,8 @@ place:
 #+begin_src text
 Resolution = Bound(BindingId)                 ; for Bind
            | Ref(Target)                      ; for LoadRef / CallRef
-           | MakesClosure(CaptureLayout)      ; for Vector in value position
-           | MakesRecursiveClosure(CaptureLayout)
+           | MakesClosure(BodyLayout)         ; for Vector in value position
+           | MakesRecursiveClosure(BodyLayout)
                                               ; for Vector recognized as a rec operand
            | BranchArm(ArmRole)               ; for Vector recognized as an arm
            | Conditional                      ; for CallRef(if) recognized
@@ -810,8 +810,13 @@ Target = Local(BindingId)
 
 ArmRole = Then | Else
 
-ResolutionMap = Map<SyntaxId, Resolution>
+ResolutionMap    = Map<SyntaxId, Resolution>
+ResolutionResult = { map: ResolutionMap, entry: BodyLayout }
 #+end_src
+
+~BodyLayout~ is defined under [[*Captures]].  Every body carries one:
+a vector's rides on its own resolution entry, and the entry body, which
+has no form to key on, carries its layout on the result.
 
 A recognition records one entry per form it consumes.  The conditional
 records ~BranchArm(ArmRole)~ for each arm and ~Conditional~ for the
@@ -896,14 +901,88 @@ works without mutable lexical bindings.
 #+begin_src text
 CaptureSource = LOCAL(LocalId)
               | CAPTURED(CaptureId)
-              | PRIMITIVE(PrimitiveId)
 
 CapturePlan = Vec<CaptureSource>
+BodyLayout  = { captures: CapturePlan, local_count: Nat }
 #+end_src
 
-Capture sources are evaluated at closure creation. A primitive source
-may be eliminated from the runtime capture array when all uses are
-call-position primitive uses.
+Capture sources are evaluated at closure creation, in the frame that
+executes the ~MAKE_CLOSURE~: ~LOCAL~ reads that frame's local slot,
+~CAPTURED~ reads that frame's own closure array.  Both are reads at a
+fixed offset, so evaluating a plan consults no name, no registry, and
+no heap.
+
+~Target~ and ~CaptureSource~ answer different questions, and their
+answer sets differ accordingly.  ~Target~ answers what a reference
+denotes.  ~CaptureSource~ answers where a slot's value comes from.  A
+slot exists only to carry a value from a frame the body cannot reach
+into one it can, and a primitive needs no such carriage: its value is
+reconstructible from its ~PrimitiveId~ in any frame at any depth,
+which is what ~PUSH_PRIMITIVE~ does.  ~Primitive~ is therefore an
+answer to the first question and never to the second, and a capture
+array holds no primitive slot to eliminate.
+
+Part III's ~Body.captures~ is this plan's shape seen from inside the
+body: its length bounds the ~CaptureId~s the body may reference.
+*** Capture-slot order
+Slots are assigned in order of first *demand* on the enclosing body.  A
+demand is a reference in that body's own forms, or a transitive demand
+raised by a nested body at the point that nested body is resolved.
+This is a specification rule, not an implementation detail:
+~CaptureId~ is observable in the resolution map, in SIR, in logging,
+and in test fixtures.
+
+The nested case is not first textual mention.  A name free in both a
+middle and an inner body takes its middle-body slot when the *inner*
+reference asks for it, which may precede any reference in the middle
+body's own text.
+
+Traversal order is therefore observable too, and is fixed: a nested
+body is resolved at its point of occurrence, depth first.  A worklist
+that defers nested bodies until the enclosing body is finished is
+equally deterministic, but it orders all direct demands before any
+transitive one, and the rule stops being readable from the source.
+Depth first does not mean recursive; an explicit stack is depth first.
+
+Declaration order and symbol order produce correct runtime values too,
+and were rejected on two counts.  Resolution records
+~Ref(Captured(id))~ when it meets the name, so any order other than
+first demand defers assignment to body exit and rewrites entries
+already written, which is a second source of truth for the same
+integers.  And under first demand a ~CaptureId~ is monotone in the
+position of its first reference, so a new reference appends; under
+declaration order, adding a *use* of an early-declared binding
+renumbers every slot after it.
+*** Frame layout is resolution's output
+Resolution owns all HIR-relative frame layout: binding ownership,
+~LocalId~ assignment, capture layout, and per-body ~local_count~.
+Lowering consumes those facts and does not derive them again.  It has
+no scope context to derive them from, and it emits no diagnostics, so a
+disagreement between the two derivations would have no reporting path.
+
+The count rides on the layout entry the body already has, so there is
+no second table to keep in step and no joint invariant to violate.
+
+Re-counting ~Bind~ forms in lowering would also establish the wrong
+property.  ~PUSH_LOCAL(l)~ requires ~l~ below ~local_count~, which
+constrains the *range* of the assigned ids; counting binds constrains
+their *number*.  The two agree only while allocation is dense and one
+slot per bind — an assumption ~Poison~ strains and a later slot-reuse
+pass breaks.  Lowering would additionally have to repeat the
+attribution rule, that arm-scoped binds belong to the enclosing body
+and nested-closure binds do not, which is the part that fails quietly.
+
+The redundancy worth keeping is a check, not a second derivation.  The
+verifier confirms that every ~LocalId~ a body references is below its
+~local_count~ and every ~CaptureId~ below its plan's length, and
+reports ~Bug~ otherwise.
+
+The criterion for later cases: resolution owns a fact when computing it
+requires the binding context.  ~local_count~, capture plans, and
+reference targets qualify.  Tail position does not — it is decided from
+HIR position alone, and recording it would add a map entry that only
+lowering reads.  Resolution has no ~BodyId~, no ~BlockId~, and emits no
+SIR.
 *** Why capture-by-value: the measured case
 This is the compiler's primary motivation, not an incidental design
 preference. In the reference interpreter, ~env_find~ — the linked-list
@@ -1149,7 +1228,11 @@ diagnostics perform a direct source-table lookup.
 
 The ~entry~ body is the session frame: the top-level form sequence,
 evaluated directly with no wrapping closure (see [[*Part IX: REPL
-semantics]]).
+semantics]]).  Its ~captures~ is empty.
+
+~local_count~ and ~captures~ are taken from resolution's ~BodyLayout~
+for that body, not recomputed here; see [[*Frame layout is
+resolution's output]].
 ** Instructions
 #+begin_src text
 PUSH_DATA(DataId)
@@ -1198,9 +1281,9 @@ Int(n)                          -> PUSH_DATA(d)
 Quote(f)                        -> PUSH_DATA(d)
 List(..)                        -> PUSH_DATA(d)
 
-Vector(..) with MakesClosure    -> MAKE_CLOSURE(body, plan)
+Vector(..) with MakesClosure    -> MAKE_CLOSURE(body, layout.captures)
 Vector(..) with MakesRecursiveClosure
-                                -> MAKE_RECURSIVE_CLOSURE(body, plan)
+                                -> MAKE_RECURSIVE_CLOSURE(body, layout.captures)
 Vector(..) with BranchArm       -> a block in the enclosing body
 
 Bind(x)                         -> POP_LOCAL(l)
@@ -2041,6 +2124,30 @@ self receiver. Generic opaque calls use the fallback runtime ABI.
 - No assumption that every bound executable value has a fixed
   monomorphic stack effect.
 * Revision notes
+Changes in the 2026-08-17 revision.  *Part II is phase 3, which is in
+flight.*  All three changes are cheap now and expensive after the
+resolver's API is depended upon by lowering:
+
+- ~CaptureSource~ loses ~PRIMITIVE(PrimitiveId)~, and the sentence
+  licensing elimination of a primitive source from the runtime capture
+  array goes with it.  A capture slot bridges frames; a primitive needs
+  no bridge, since ~PUSH_PRIMITIVE~ reconstructs its value at any
+  depth.  ~Target~ keeps ~Primitive~: a reference denotes one, a slot
+  never carries one.  Capture arrays are dense and no ~CaptureId~ is
+  ever vacated.
+- Part II gains =Capture-slot order=.  Slots are assigned in order of
+  first *demand* on the enclosing body, where a demand may be raised
+  transitively by a nested body, and nested bodies are resolved at
+  their point of occurrence, depth first.  ~CaptureId~ becomes an
+  observable compiler invariant that fixtures may assert.
+- Part II gains =Frame layout is resolution's output=.  ~local_count~
+  is resolution's, carried on a new ~BodyLayout~ that replaces the
+  ~CaptureLayout~ operand of ~MakesClosure~ and
+  ~MakesRecursiveClosure~; the entry body's rides on a new
+  ~ResolutionResult~.  Lowering consumes the count rather than
+  re-deriving it, and the verifier gains a range check on ~LocalId~ and
+  ~CaptureId~ instead.
+
 Changes in the 2026-08-14 revision:
 
 - Part I gains =Datum position=.  Nothing-to-denote is a property of the

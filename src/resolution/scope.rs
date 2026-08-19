@@ -17,13 +17,28 @@ pub enum ScopeBinding {
     Binding(BindingId),
 }
 
-/// A scope is a map between [`SymId`] and [`ScopeBinding`].
+/// Types of scopes that may be created.
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum ScopeKind {
+    /// Primordial scope - initialised at the start, cannot be popped.  Should
+    /// not be constructed by hand.
+    Primordial,
+    /// Body scope - part of a genuine new body.
+    Body,
+    /// Arm scope - part of a conditional branch.
+    Arm,
+}
+
+/// A scope is a map between [`SymId`] and [`ScopeBinding`], lexically closed
+/// under itself and its parents.
 struct Scope(HashMap<SymId, ScopeBinding>);
 
 /// Generalised builder of scopes.
 pub struct ScopeBuilder {
     /// Scopes being built.
     scopes: Vec<Scope>,
+    /// Kinds of scope.
+    kinds: Vec<ScopeKind>,
 }
 
 /// The result of lookup in a [`ScopeBuilder`].
@@ -31,10 +46,11 @@ pub struct ScopeBuilder {
 pub struct ScopeLookup {
     /// Which [`ScopeBinding`] does the lookup resolve to?
     pub binding: ScopeBinding,
-    /// How many scopes outwards from the most recent scope does the
-    /// corresponding [`ScopeBinding`] reside?  Is 0 if and only if lookup
-    /// resolved within the most recent scope.
-    pub lexical_distance: usize,
+    /// Number of scopes of kind [`ScopeKind::Body`] from the most recent scope
+    /// where [`ScopeBinding`] was found.
+    /// Is 0 for arm/local lookup within an enclosing body, and positive for a
+    /// genuine enclosing closure.
+    pub body_distance: usize,
 }
 
 impl ScopeBuilder {
@@ -43,56 +59,89 @@ impl ScopeBuilder {
     pub fn new(registry: &PrimitiveRegistry) -> Self {
         // NOTE: The first scope is pre-initialised with primitives.
         let mut first = Scope::new();
+        let names = &mut first.0;
         for (id, sym) in registry.iter_syms() {
-            let lookup = &mut first.0;
-            lookup.insert(sym, ScopeBinding::Primitive(id));
+            names.insert(sym, ScopeBinding::Primitive(id));
         }
 
         Self {
             scopes: vec![first],
+            kinds: vec![ScopeKind::Primordial],
         }
-    }
-
-    /// Construct a new [`Scope`] in the [`ScopeBuilder`].
-    pub fn push_scope(&mut self) {
-        self.scopes.push(Scope(HashMap::new()));
-    }
-
-    /// Pop a [`Scope`] off the stack.
-    ///
-    /// # Panics
-    /// - If there is only one scope on the stack.
-    pub fn pop_scope(&mut self) {
-        assert!(
-            self.scopes.len() > 1,
-            "First [`Scope`] in [`ScopeBuilder`] cannot be popped"
-        );
-        let _ = self.scopes.pop();
     }
 
     /// Bind onto the most recent [`Scope`] in the [`ScopeBuilder`].
     ///
     /// # Panics
-    /// - If there are no scopes present.
+    /// - If there are no non-primordial scopes present.
     pub fn bind(&mut self, sym: SymId, binding: BindingId) {
-        let scope = self
-            .scopes
-            .last_mut()
-            .expect("Expect at least one [`Scope`] to be in ScopeBuilder");
+        assert!(
+            self.scopes.len() > 1,
+            "Expected at least one actual scope on the stack"
+        );
+        let scope = self.scopes.last_mut().expect("Checked via assert!");
         let binding = ScopeBinding::Binding(binding);
         scope.0.insert(sym, binding);
+    }
+
+    /// Construct a new [`Scope`] of kind [`ScopeKind::Body`] in the
+    /// [`ScopeBuilder`].
+    pub fn push_body(&mut self) {
+        self.scopes.push(Scope::new());
+        self.kinds.push(ScopeKind::Body);
+    }
+
+    /// Construct a new [`Scope`] of kind [`ScopeKind::Arm`] in the
+    /// [`ScopeBuilder`].
+    pub fn push_arm(&mut self) {
+        self.scopes.push(Scope::new());
+        self.kinds.push(ScopeKind::Arm);
+    }
+
+    /// Pop a [`Scope`] of kind [`ScopeKind::Body`] off the stack.
+    ///
+    /// # Panics
+    /// - If the most recent scope on the stack is not of kind
+    ///   [`ScopeKind::Body`].
+    pub fn pop_body(&mut self) {
+        assert!(
+            self.kinds.last().is_some_and(|&x| x == ScopeKind::Body),
+            "pop_body expected ScopeKind::Body as last scope"
+        );
+        let _ = self.scopes.pop();
+        let _ = self.kinds.pop();
+    }
+
+    /// Pop a [`Scope`] of kind [`ScopeKind::Arm`] off the stack.
+    ///
+    /// # Panics
+    /// - If the most recent scope on the stack is not of kind
+    ///   [`ScopeKind::Arm`].
+    pub fn pop_arm(&mut self) {
+        assert!(
+            self.kinds.last().is_some_and(|&x| x == ScopeKind::Arm),
+            "pop_arm expected ScopeKind::Arm as last scope"
+        );
+        let _ = self.scopes.pop();
+        let _ = self.kinds.pop();
     }
 
     /// Attempt to resolve a name from the most recent scope of this
     /// [`ScopeBuilder`], returning a [`ScopeLookup`] if successful.  Returns
     /// `None` otherwise.
     pub fn lookup(&self, sym: SymId) -> Option<ScopeLookup> {
-        for (lexical_distance, scope) in self.scopes.iter().rev().enumerate() {
+        let mut body_distance = 0;
+        for (scope, &kind) in
+            self.scopes.iter().rev().zip(self.kinds.iter().rev())
+        {
             if let Some(&binding) = scope.0.get(&sym) {
                 return Some(ScopeLookup {
                     binding,
-                    lexical_distance,
+                    body_distance,
                 });
+            }
+            if kind == ScopeKind::Body {
+                body_distance += 1;
             }
         }
         None

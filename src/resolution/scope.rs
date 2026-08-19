@@ -186,13 +186,13 @@ mod tests {
         let later = binding(&mut bindings, &mut layout);
         let inner = binding(&mut bindings, &mut layout);
 
-        scopes.push_scope();
+        scopes.push_body();
         scopes.bind(x, outer);
         assert_eq!(
             scopes.lookup(x),
             Some(ScopeLookup {
                 binding: ScopeBinding::Binding(outer),
-                lexical_distance: 0,
+                body_distance: 0
             })
         );
         scopes.bind(x, later);
@@ -200,16 +200,16 @@ mod tests {
             scopes.lookup(x),
             Some(ScopeLookup {
                 binding: ScopeBinding::Binding(later),
-                lexical_distance: 0,
+                body_distance: 0,
             })
         );
 
-        scopes.push_scope();
+        scopes.push_body();
         assert_eq!(
             scopes.lookup(x),
             Some(ScopeLookup {
                 binding: ScopeBinding::Binding(later),
-                lexical_distance: 1,
+                body_distance: 1,
             })
         );
         scopes.bind(x, inner);
@@ -218,19 +218,64 @@ mod tests {
             scopes.lookup(x),
             Some(ScopeLookup {
                 binding: ScopeBinding::Binding(inner),
-                lexical_distance: 0,
+                body_distance: 0,
             })
         );
 
-        scopes.pop_scope();
+        scopes.pop_body();
         assert_eq!(
             scopes.lookup(x),
             Some(ScopeLookup {
                 binding: ScopeBinding::Binding(later),
-                lexical_distance: 0,
+                body_distance: 0,
             })
         );
         assert_eq!(scopes.lookup(y), None);
+    }
+
+    #[test]
+    fn arm_scopes_preserve_body_distance() {
+        let mut interner = Interner::new();
+        let outer_name = interner.intern("outer");
+        let arm_name = interner.intern("arm");
+        let registry = PrimitiveRegistry::new();
+        let mut scopes = ScopeBuilder::new(&registry);
+        let mut bindings = BindingTable::new();
+        let mut outer_layout = BodyLayout::new();
+        let outer = binding(&mut bindings, &mut outer_layout);
+        let arm = binding(&mut bindings, &mut outer_layout);
+
+        scopes.push_body();
+        scopes.bind(outer_name, outer);
+        scopes.push_arm();
+        scopes.bind(arm_name, arm);
+        assert_eq!(
+            scopes.lookup(outer_name),
+            Some(ScopeLookup {
+                binding: ScopeBinding::Binding(outer),
+                body_distance: 0,
+            })
+        );
+
+        scopes.push_body();
+        assert_eq!(
+            scopes.lookup(arm_name),
+            Some(ScopeLookup {
+                binding: ScopeBinding::Binding(arm),
+                body_distance: 1,
+            })
+        );
+        assert_eq!(
+            scopes.lookup(outer_name),
+            Some(ScopeLookup {
+                binding: ScopeBinding::Binding(outer),
+                body_distance: 1,
+            })
+        );
+
+        scopes.pop_body();
+        scopes.pop_arm();
+        assert_eq!(scopes.lookup(arm_name), None);
     }
 
     #[test]
@@ -248,34 +293,34 @@ mod tests {
             scopes.lookup(sym),
             Some(ScopeLookup {
                 binding: ScopeBinding::Primitive(primitive),
-                lexical_distance: 0,
+                body_distance: 0,
             })
         );
 
-        scopes.push_scope();
+        scopes.push_body();
         scopes.bind(sym, binding);
         assert_eq!(
             scopes.lookup(sym),
             Some(ScopeLookup {
                 binding: ScopeBinding::Binding(binding),
-                lexical_distance: 0,
+                body_distance: 0,
             })
         );
 
-        scopes.pop_scope();
+        scopes.pop_body();
         assert_eq!(
             scopes.lookup(sym),
             Some(ScopeLookup {
                 binding: ScopeBinding::Primitive(primitive),
-                lexical_distance: 0,
+                body_distance: 0,
             })
         );
     }
 
     #[test]
-    #[should_panic(expected = "cannot be popped")]
+    #[should_panic(expected = "expected ScopeKind::Body")]
     fn primordial_scope_cannot_be_popped() {
         let registry = PrimitiveRegistry::new();
-        ScopeBuilder::new(&registry).pop_scope();
+        ScopeBuilder::new(&registry).pop_body();
     }
 }

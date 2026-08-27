@@ -45,15 +45,29 @@ impl BodyLayout {
         id
     }
 
-    /// Add a new capture to this body layout, returning [`CaptureId`]
+    /// Add a capture to this body layout, returning [`CaptureId`]
+    ///
+    /// If the given `source` is already within the capture list then return the
+    /// [`CaptureId`] for it, otherwise mint a new one.
     ///
     /// # Panics
     /// - if number of captures exceeds `u32::MAX`.
     #[must_use]
     pub fn add_capture(&mut self, source: CaptureSource) -> CaptureId {
-        let id = CaptureId(u32_index(self.captures.len()));
-        self.captures.push(source);
-        id
+        // TODO(oreo)[2026-08-28 00:00]: Potential backwards lookup HashMap like
+        // interner.
+        if let Some((id, _)) = self
+            .captures
+            .iter()
+            .enumerate()
+            .find(|(_, other)| source == **other)
+        {
+            CaptureId(u32_index(id))
+        } else {
+            let id = CaptureId(u32_index(self.captures.len()));
+            self.captures.push(source);
+            id
+        }
     }
 
     /// Get a count of the number of locals in this Body.
@@ -103,5 +117,18 @@ mod tests {
                 CaptureSource::Captured(first_capture),
             ]
         );
+    }
+
+    #[test]
+    fn repeated_capture_sources_reuse_their_slot() {
+        let mut layout = BodyLayout::new();
+        let local = layout.add_local();
+        let source = CaptureSource::Local(local);
+
+        let first = layout.add_capture(source);
+        let repeated = layout.add_capture(source);
+
+        assert_eq!(first, repeated);
+        assert_eq!(layout.captures(), [source]);
     }
 }

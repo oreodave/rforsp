@@ -58,7 +58,7 @@ configuration then this has to be adjusted.
 
 [[file:src/diagnostics/class.rs::pub const fn severity(self) ->
 Severity {]]
-* IN-PROGRESS Reader phase
+* COMPLETE Reader phase
 The reader will take raw rForsp source code and generate HIR.
 [[file:docs/agent/ir-design.org::*Part I: HIR][Part I: HIR]]
 ** DONE Sources
@@ -67,25 +67,27 @@ throughout the lifetime of the compiler for the purposes of
 diagnostics.
 *** DONE Source data type
 *** DONE Source Table
-** TODO Tokeniser
+** DONE Tokeniser
 Convert the raw text from a Source/Sources in the Source Table into a
 slightly nicer tokenised format.
 
 - [[file:docs/agent/ir-design.org::*Phase 1: lexing][Phase 1: lexing]]
 - [[file:docs/agent/ir-design.org::- Phase 1 (lexing):]].
-** TODO Parser
+** DONE Parser
 Generates HIR from the output of Tokeniser.
 
 - [[file:docs/agent/ir-design.org::*Phase 2: parsing][Phase 2: parsing]]
 - [[file:docs/agent/ir-design.org::- Phase 2 (parsing):]].
 
-* PROJ Resolution
+* IN-PROGRESS Resolution
 After we have generated HIR, the resolver walks the HIR to generate a
 resolution side table.  This table has annotations regarding bindings,
 closure construction and lifting, and branch recognition.
 
 [[file:docs/agent/ir-design.org::*Phase 3: resolution][Phase 3:
 resolution]]
+
+See [[file:src/resolution]].
 * PROJ SIR generation
 The HIR + Resolution table is then lowered to SIR, which is the
 executable format for this first attempt compiler.

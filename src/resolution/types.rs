@@ -1,11 +1,8 @@
 //! Types for the Resolution pass
 
-use std::collections::BTreeMap;
-
 use crate::{
     resolution::{BindingId, BodyLayout, CaptureId},
     runtime::PrimitiveId,
-    source::SyntaxId,
 };
 
 /// Target for a reference (call or load).
@@ -44,10 +41,4 @@ pub enum Resolution {
     Recursive,
     /// Resolution failed for this form, but the walk continued.
     Poison,
-}
-
-/// Side table of [`Resolution`]s indexed by [`SyntaxId`]s.
-pub struct ResolutionMap {
-    /// Map between [`SyntaxId`]s and their resultant [`Resolution`].
-    mapping: BTreeMap<SyntaxId, Resolution>,
 }

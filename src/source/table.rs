@@ -16,8 +16,8 @@ use crate::{
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Copy, Clone)]
 pub struct SourceId(u32);
 
-/// ID for a [`SyntaxOrigin`] in the [`SourceTable`]
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+/// ID for a [`SyntaxOrigin`] in the [`SourceTable`].
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Copy, Clone)]
 pub struct SyntaxId(u32);
 
 /// Special syntactical structure within a [Source], specified by a [Span].

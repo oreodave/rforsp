@@ -139,8 +139,7 @@ impl ScopeBuilder {
                     binding,
                     body_distance,
                 });
-            }
-            if kind == ScopeKind::Body {
+            } else if kind == ScopeKind::Body {
                 body_distance += 1;
             }
         }

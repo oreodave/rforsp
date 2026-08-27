@@ -13,3 +13,6 @@ mod scope;
 
 mod types;
 pub use types::{ArmRole, Resolution, Target};
+
+mod resolver;
+pub use resolver::{ResolutionMap, ResolutionResult, resolve};

@@ -241,9 +241,9 @@ impl<'a> Parser<'a> {
             "parse_int called with non number token {token:?}"
         );
 
-        // FIXME(oreo)[2026-08-16 02:33]:: this relies on the tokeniser
-        // emitting TokenKind::Number for `-?[0-9]+` and nothing else.  A
-        // wider Number shape makes every other parse failure an overflow.
+        // FIXME(oreo)[2026-08-16 02:33]: this relies on the tokeniser emitting
+        // TokenKind::Number for `-?[0-9]+` and nothing else.  A wider Number
+        // shape makes every other parse failure an overflow.
         let parsed = str::parse::<i64>(self.text_of(token.span));
         let value = parsed.unwrap_or_else(|_| {
             self.report(self.error(token.span, ParseErrorKind::IntOverflow));

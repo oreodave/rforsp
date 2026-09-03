@@ -60,28 +60,44 @@ impl Resolver {
 
         while let Some(action) = work.pop() {
             match action {
-                // This is a finished body, so pop the related scope and body
-                // form to generate a complete entry in the [`ResolutionMap`].
+                // Data forms (integers, quotes, lists) have no affect on the
+                // resolution map.
+                Work::Form(HirForm {
+                    kind: HirKind::Int(_) | HirKind::Quote(_) | HirKind::List(_),
+                    ..
+                }) => {}
+
+                // Binding a symbol within the current scope.
+                Work::Form(&HirForm {
+                    id,
+                    kind: HirKind::Bind(sym),
+                }) => self.bind(id, sym),
+
+                // Referencing a symbol.
+                Work::Form(&HirForm {
+                    id,
+                    kind: HirKind::Load(sym) | HirKind::Call(sym),
+                }) => self.reference(id, sym),
+
+                // An unquoted vector is a body, so must have all its members
+                // resolved first within their own lexical scope.
+                Work::Form(HirForm {
+                    id,
+                    kind: HirKind::Vector(forms),
+                }) => {
+                    self.environment.open_body();
+                    // We push this first so once all the member forms are
+                    // resolved we can close this body.
+                    work.push(Work::FinishBody(*id));
+                    work.extend(forms.iter().rev().map(Work::Form));
+                }
+
+                // This is a completed body, so pop the related body form to
+                // generate a complete entry in the [`ResolutionMap`].
                 Work::FinishBody(id) => {
                     let body = self.environment.close_body();
                     self.map.insert(id, Resolution::MakesClosure(body));
                 }
-                Work::Form(form) => match &form.kind {
-                    // These have no effect on the resolution map.
-                    HirKind::Int(_) | HirKind::Quote(_) | HirKind::List(_) => {}
-                    // Delegate to helpers
-                    HirKind::Bind(sym) => self.bind(form.id, *sym),
-                    HirKind::Load(sym) | HirKind::Call(sym) => {
-                        self.reference(form.id, *sym);
-                    }
-                    // A vector is a new body (closure), and has forms to
-                    // resolve within that lexical scope.
-                    HirKind::Vector(forms) => {
-                        self.environment.open_body();
-                        work.push(Work::FinishBody(form.id));
-                        work.extend(forms.iter().rev().map(Work::Form));
-                    }
-                },
             }
         }
     }

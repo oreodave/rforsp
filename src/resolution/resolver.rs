@@ -95,7 +95,7 @@ impl Resolver {
     /// Resolve a reference in the current environment.
     fn reference(&mut self, origin: SyntaxId, sym: SymId) {
         let Some(target) = self.environment.resolve(sym) else {
-            // FIXME: Add diagnostic here.
+            // FIXME(oreo)[2026-09-03 15:48]: Add diagnostic here.
             self.map.insert(origin, Resolution::Poison);
             return;
         };

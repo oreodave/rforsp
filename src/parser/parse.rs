@@ -22,8 +22,8 @@ use crate::{
 /// [`SourceTable::add_origin`].
 #[must_use]
 pub fn parse(
-    source_id: SourceId,
     tokens: &[Token],
+    source_id: SourceId,
     table: &mut SourceTable,
     interner: &mut Interner,
 ) -> (Option<Vec<HirForm>>, Diagnostics) {
@@ -241,9 +241,9 @@ impl<'a> Parser<'a> {
             "parse_int called with non number token {token:?}"
         );
 
-        // FIXME(oreo)[2026-08-16 02:33]:: this relies on the tokeniser
-        // emitting TokenKind::Number for `-?[0-9]+` and nothing else.  A
-        // wider Number shape makes every other parse failure an overflow.
+        // FIXME(oreo)[2026-08-16 02:33]: this relies on the tokeniser emitting
+        // TokenKind::Number for `-?[0-9]+` and nothing else.  A wider Number
+        // shape makes every other parse failure an overflow.
         let parsed = str::parse::<i64>(self.text_of(token.span));
         let value = parsed.unwrap_or_else(|_| {
             self.report(self.error(token.span, ParseErrorKind::IntOverflow));
@@ -472,7 +472,7 @@ mod tests {
             .add_source_raw("t", text.into())
             .expect("within bound");
         let tokens = tokenise(id, &table).0.expect("lexes cleanly");
-        let (forms, diags) = parse(id, &tokens, &mut table, &mut interner);
+        let (forms, diags) = parse(&tokens, id, &mut table, &mut interner);
 
         // Test the compiler invariant of bijection between the count of forms
         // and tokens.
@@ -504,7 +504,7 @@ mod tests {
                 .0
                 .expect("a printed body lexes cleanly");
             let (reparsed, _) =
-                parse(reprint, &tokens, &mut table, &mut interner);
+                parse(&tokens, reprint, &mut table, &mut interner);
             let reparsed = reparsed.expect("a printed body parses cleanly");
 
             // Origins are excluded by construction: the reprint is a

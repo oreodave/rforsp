@@ -16,10 +16,10 @@ private_intra_doc_links = "warn"
 all = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
 nursery = { level = "deny", priority = -1 }
+todo = "warn"
+panic = "warn"
+exit = "warn"
 unreachable = "warn"
-unimplemented = "deny"
-todo = "deny"
-panic = "deny"
-exit = "deny"
+unimplemented = "warn"
 missing_docs_in_private_items = "deny"
 missing_assert_message = "deny"

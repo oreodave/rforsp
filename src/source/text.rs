@@ -3,7 +3,10 @@
 //! [`Source`] is a raw in-memory text buffer, capped at [`MAX_SOURCE_LEN`],
 //! with byte-to-[`Position`] mapping used by the rest of the source stage.
 
-use crate::source::{Position, Span, span::offset};
+use crate::{
+    source::{Position, Span},
+    u32_index,
+};
 
 /// Contiguous collection of text for scanning purposes.
 #[derive(Debug)]
@@ -52,7 +55,7 @@ fn compute_line_starts(contents: &str, content_start: u32) -> Vec<u32> {
             .bytes()
             .enumerate()
             .filter(|(_, c)| *c == b'\n')
-            .map(|(i, _)| offset(i + 1)),
+            .map(|(i, _)| u32_index(i + 1)),
     );
     line_starts
 }
@@ -85,7 +88,7 @@ impl Source {
         }
 
         let content_start = if contents.starts_with(BYTE_ORDER_MARK) {
-            offset(BYTE_ORDER_MARK.len_utf8())
+            u32_index(BYTE_ORDER_MARK.len_utf8())
         } else {
             0
         };
@@ -213,7 +216,7 @@ impl Source {
             "position_at: byte {byte} is not on a character boundary"
         );
 
-        let byte = self.clamp(offset(byte));
+        let byte = self.clamp(u32_index(byte));
 
         let line = self.line_index(byte);
 
@@ -257,7 +260,7 @@ impl Source {
         let start = self.line_starts[line - 1];
         let end = {
             if line == self.line_starts.len() {
-                u32::try_from(self.len()).expect("self.len() <= MAX_SOURCE_LEN")
+                u32_index(self.len())
             } else {
                 self.line_starts[line] - 1
             }
@@ -272,7 +275,7 @@ impl Source {
     #[must_use]
     pub fn line_text_of(&self, byte: usize) -> &str {
         assert!(byte <= self.len(), "{byte} is out of bounds");
-        let offset = offset(byte);
+        let offset = u32_index(byte);
         let line = self.line_index(offset);
         self.line_text(line + 1)
     }

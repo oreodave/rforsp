@@ -54,8 +54,8 @@ impl BodyLayout {
     /// - if number of captures exceeds `u32::MAX`.
     #[must_use]
     pub fn add_capture(&mut self, source: CaptureSource) -> CaptureId {
-        // TODO(oreo)[2026-08-28 00:00]: Potential backwards lookup HashMap like
-        // interner.
+        // TODO(oreo)[2026-08-28 00:00]: Potential backwards lookup HashMap,
+        // like interner.
         if let Some((id, _)) = self
             .captures
             .iter()

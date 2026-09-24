@@ -1,11 +1,12 @@
 //! Main resolution routine.
 
 use crate::{
-    diagnostics::Diagnostics,
+    diagnostics::{Diagnostic, Diagnostics},
     interner::{Interner, SymId},
     parser::{HirForm, HirKind},
     resolution::{
-        Resolution, ResolutionMap, ResolutionResult, builder::Environment,
+        Resolution, ResolutionError, ResolutionErrorKind, ResolutionMap,
+        ResolutionResult, builder::Environment,
     },
     runtime::PrimitiveRegistry,
     source::{SourceTable, SyntaxId},
@@ -22,10 +23,11 @@ pub fn resolve(
     _interner: &Interner,
     primitives: &PrimitiveRegistry,
 ) -> (Option<ResolutionResult>, Diagnostics) {
-    let mut resolver = Resolver::new(primitives);
+    let mut diags = Diagnostics::new();
+    let mut resolver = Resolver::new(primitives, &mut diags);
     resolver.walk(forms);
     let result = resolver.finish();
-    (Some(result), Diagnostics::new())
+    (Some(result), diags)
 }
 
 /// An explicit traversal action.
@@ -37,19 +39,25 @@ enum Work<'a> {
 }
 
 /// Resolver state machine.
-struct Resolver {
+struct Resolver<'a> {
     /// Active lexical environment and body builders.
     environment: Environment,
     /// Resolutions recorded so far.
     map: ResolutionMap,
+    /// Diagnostic set that we need to add to.
+    diagnostics: &'a mut Diagnostics,
 }
 
-impl Resolver {
+impl<'a> Resolver<'a> {
     /// Construct resolver state for an entry body.
-    fn new(registry: &PrimitiveRegistry) -> Self {
+    fn new(
+        registry: &PrimitiveRegistry,
+        diagnostics: &'a mut Diagnostics,
+    ) -> Self {
         Self {
             environment: Environment::new(registry),
             map: ResolutionMap::default(),
+            diagnostics,
         }
     }
 
@@ -67,13 +75,11 @@ impl Resolver {
                     ..
                 }) => {}
 
-                // Binding a symbol within the current scope.
                 Work::Form(&HirForm {
                     id,
                     kind: HirKind::Bind(sym),
                 }) => self.bind(id, sym),
 
-                // Referencing a symbol.
                 Work::Form(&HirForm {
                     id,
                     kind: HirKind::Load(sym) | HirKind::Call(sym),
@@ -111,8 +117,8 @@ impl Resolver {
     /// Resolve a reference in the current environment.
     fn reference(&mut self, origin: SyntaxId, sym: SymId) {
         let Some(target) = self.environment.resolve(sym) else {
-            // FIXME(oreo)[2026-09-03 15:48]: Add diagnostic here.
             self.map.insert(origin, Resolution::Poison);
+            self.error(origin, ResolutionErrorKind::UnresolvedSymbol(sym));
             return;
         };
         self.map.insert(origin, Resolution::Ref(target));
@@ -127,7 +133,14 @@ impl Resolver {
             entry,
         }
     }
+
+    /// Push a new error into the diagnostics set
+    fn error(&mut self, origin: SyntaxId, kind: ResolutionErrorKind) {
+        self.diagnostics
+            .push(Diagnostic::from(ResolutionError { origin, kind }));
+    }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,15 +178,17 @@ mod tests {
             self.compilation.interner.intern(name)
         }
 
-        fn resolve(&self, forms: &[HirForm]) -> ResolutionResult {
-            let (result, diagnostics) = super::resolve(
+        fn resolve(
+            &self,
+            forms: &[HirForm],
+        ) -> (ResolutionResult, Diagnostics) {
+            let (results, diagnostics) = super::resolve(
                 forms,
                 &self.compilation.table,
                 &self.compilation.interner,
                 &self.compilation.primitives,
             );
-            assert!(!diagnostics.has_errors());
-            result.expect("the standalone walk returns its partial result")
+            (results.expect("Resolution never returns None"), diagnostics)
         }
     }
 
@@ -239,7 +254,7 @@ mod tests {
         ];
 
         // Quotes and lists are data, so neither they nor their children resolve.
-        let result = fixture.resolve(&forms);
+        let (result, _) = fixture.resolve(&forms);
         assert!(result.map.is_empty());
         assert_eq!(result.entry.local_count(), 0);
     }
@@ -264,7 +279,12 @@ mod tests {
             HirForm::new(primitive, HirKind::Call(plus)),
         ];
 
-        let result = fixture.resolve(&forms);
+        let (result, diagnostics) = fixture.resolve(&forms);
+
+        assert!(
+            diagnostics.has_errors(),
+            "Expected diagnostics to have errors given call before bind"
+        );
 
         // A reference before its bind poisons.
         assert!(matches!(result.map.get(before), Some(Resolution::Poison)));
@@ -316,7 +336,7 @@ mod tests {
             ),
         ];
 
-        let result = fixture.resolve(&forms);
+        let (result, _) = fixture.resolve(&forms);
 
         // The inner body demands y before x, fixing the middle slot order.
         let y_slot = captured(&result.map, inner_y);
@@ -351,7 +371,7 @@ mod tests {
         }
 
         // This depth exceeds a recursive visitor's safe host stack.
-        let result = fixture.resolve(&[form]);
+        let (result, _) = fixture.resolve(&[form]);
         assert_eq!(result.map.len(), DEPTH);
     }
 }

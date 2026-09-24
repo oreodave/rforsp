@@ -3,7 +3,10 @@
 //! One conversion per phase.  A phase's error kinds map only into that
 //! phase's classes.
 
-use crate::{diagnostics::Class, lexer::LexErrorKind, parser::ParseErrorKind};
+use crate::{
+    diagnostics::Class, lexer::LexErrorKind, parser::ParseErrorKind,
+    resolution::ResolutionErrorKind,
+};
 
 impl From<LexErrorKind> for Class {
     fn from(k: LexErrorKind) -> Self {
@@ -30,10 +33,20 @@ impl From<ParseErrorKind> for Class {
     }
 }
 
+impl From<ResolutionErrorKind> for Class {
+    fn from(e: ResolutionErrorKind) -> Self {
+        match e {
+            ResolutionErrorKind::UnresolvedSymbol(_) => {
+                Self::ResolutionUnresolvedSymbol
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::diagnostics::Phase;
+    use crate::{diagnostics::Phase, interner::Interner};
 
     #[test]
     fn lex_kinds_classify_within_lex() {
@@ -84,6 +97,28 @@ mod tests {
             assert_eq!(
                 Class::from(kind).phase(),
                 Phase::Parse,
+                "{kind:?} escaped its phase"
+            );
+        }
+    }
+
+    #[test]
+    fn resolution_kinds_classify_within_resolution() {
+        let mut interner = Interner::new();
+        let unresolved = interner.intern("missing");
+
+        #[expect(
+            clippy::single_element_loop,
+            reason = "Later support for multiple resolution error kinds"
+        )]
+        for (kind, class) in [(
+            ResolutionErrorKind::UnresolvedSymbol(unresolved),
+            Class::ResolutionUnresolvedSymbol,
+        )] {
+            assert_eq!(Class::from(kind), class, "{kind:?}");
+            assert_eq!(
+                Class::from(kind).phase(),
+                Phase::Resolution,
                 "{kind:?} escaped its phase"
             );
         }

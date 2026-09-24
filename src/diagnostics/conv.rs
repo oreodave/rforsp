@@ -13,6 +13,7 @@ use crate::{
     diagnostics::{Aborted, Class, Diagnostic, Phase, Site},
     lexer::{LexError, LexErrorKind},
     parser::{ParseError, ParseErrorKind},
+    resolution::{ResolutionError, ResolutionErrorKind},
     source::{SourceError, SourceTableError},
 };
 
@@ -92,6 +93,17 @@ impl From<ParseError> for Diagnostic {
     }
 }
 
+impl From<ResolutionError> for Diagnostic {
+    fn from(e: ResolutionError) -> Self {
+        let site = Site::Syntax(e.origin);
+        let message = match e.kind {
+            ResolutionErrorKind::UnresolvedSymbol(_) => "Unresolved symbol",
+        };
+
+        Self::new(e.kind.into(), site, message)
+    }
+}
+
 impl fmt::Display for Aborted {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Compilation failed during the {} phase", self.0.as_str())
@@ -126,7 +138,10 @@ pub fn ice(class: Class, site: Site, message: impl Into<String>) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::source::{SourceTable, Span, SyntaxOrigin};
+    use crate::{
+        interner::Interner,
+        source::{SourceTable, Span, SyntaxOrigin},
+    };
 
     fn sample_source_error() -> SourceError {
         SourceError::TooLarge {
@@ -220,6 +235,35 @@ mod tests {
             assert_eq!(
                 diag.site,
                 Site::Raw(origin),
+                "{kind:?} lost its origin"
+            );
+            assert!(!diag.message.is_empty(), "{kind:?} needs a message");
+        }
+    }
+
+    #[test]
+    fn resolution_err() {
+        let mut table = SourceTable::new();
+        let source = table
+            .add_source_raw("t", "missing".into())
+            .expect("within bound");
+        let origin = table.add_origin(source, Span::new(0, 7));
+        let mut interner = Interner::new();
+        let unresolved = interner.intern("missing");
+
+        #[expect(
+            clippy::single_element_loop,
+            reason = "Later support for multiple resolution error kinds"
+        )]
+        for (kind, class) in [(
+            ResolutionErrorKind::UnresolvedSymbol(unresolved),
+            Class::ResolutionUnresolvedSymbol,
+        )] {
+            let diag = Diagnostic::from(ResolutionError { origin, kind });
+            assert_eq!(diag.class, class);
+            assert_eq!(
+                diag.site,
+                Site::Syntax(origin),
                 "{kind:?} lost its origin"
             );
             assert!(!diag.message.is_empty(), "{kind:?} needs a message");

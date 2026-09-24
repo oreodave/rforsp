@@ -146,7 +146,6 @@ impl Environment {
         );
 
         match binding {
-            // 0 distance binds are locals
             Some((binding, 0)) => Some(Target::Local(binding)),
             Some((binding, distance)) => {
                 Some(Target::Captured(self.capture(binding, distance)))

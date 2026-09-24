@@ -1,12 +1,12 @@
 //! Errors from Resolution.
 
-use crate::{interner::SymId, source::SyntaxId};
+use crate::source::SyntaxId;
 
 /// Possible types of error that may arise during Resolution.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum ResolutionErrorKind {
     /// A symbol that couldn't be resolved was used in a Call or Load.
-    UnresolvedSymbol(SymId),
+    UnresolvedSymbol,
 }
 
 /// Resolution error.

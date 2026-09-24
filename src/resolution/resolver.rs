@@ -118,7 +118,7 @@ impl<'a> Resolver<'a> {
     fn reference(&mut self, origin: SyntaxId, sym: SymId) {
         let Some(target) = self.environment.resolve(sym) else {
             self.map.insert(origin, Resolution::Poison);
-            self.error(origin, ResolutionErrorKind::UnresolvedSymbol(sym));
+            self.error(origin, ResolutionErrorKind::UnresolvedSymbol);
             return;
         };
         self.map.insert(origin, Resolution::Ref(target));

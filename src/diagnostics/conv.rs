@@ -97,7 +97,7 @@ impl From<ResolutionError> for Diagnostic {
     fn from(e: ResolutionError) -> Self {
         let site = Site::Syntax(e.origin);
         let message = match e.kind {
-            ResolutionErrorKind::UnresolvedSymbol(_) => "Unresolved symbol",
+            ResolutionErrorKind::UnresolvedSymbol => "Unresolved symbol",
         };
 
         Self::new(e.kind.into(), site, message)
@@ -248,15 +248,13 @@ mod tests {
             .add_source_raw("t", "missing".into())
             .expect("within bound");
         let origin = table.add_origin(source, Span::new(0, 7));
-        let mut interner = Interner::new();
-        let unresolved = interner.intern("missing");
 
         #[expect(
             clippy::single_element_loop,
             reason = "Later support for multiple resolution error kinds"
         )]
         for (kind, class) in [(
-            ResolutionErrorKind::UnresolvedSymbol(unresolved),
+            ResolutionErrorKind::UnresolvedSymbol,
             Class::ResolutionUnresolvedSymbol,
         )] {
             let diag = Diagnostic::from(ResolutionError { origin, kind });

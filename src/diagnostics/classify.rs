@@ -36,7 +36,7 @@ impl From<ParseErrorKind> for Class {
 impl From<ResolutionErrorKind> for Class {
     fn from(e: ResolutionErrorKind) -> Self {
         match e {
-            ResolutionErrorKind::UnresolvedSymbol(_) => {
+            ResolutionErrorKind::UnresolvedSymbol => {
                 Self::ResolutionUnresolvedSymbol
             }
         }
@@ -104,15 +104,12 @@ mod tests {
 
     #[test]
     fn resolution_kinds_classify_within_resolution() {
-        let mut interner = Interner::new();
-        let unresolved = interner.intern("missing");
-
         #[expect(
             clippy::single_element_loop,
             reason = "Later support for multiple resolution error kinds"
         )]
         for (kind, class) in [(
-            ResolutionErrorKind::UnresolvedSymbol(unresolved),
+            ResolutionErrorKind::UnresolvedSymbol,
             Class::ResolutionUnresolvedSymbol,
         )] {
             assert_eq!(Class::from(kind), class, "{kind:?}");

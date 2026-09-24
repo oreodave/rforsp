@@ -4,6 +4,7 @@ use crate::{
     context::Compilation,
     lexer::Token,
     parser::{HirForm, HirKind, dfs},
+    resolution::{Resolution, ResolutionResult},
     source::SourceId,
 };
 
@@ -22,6 +23,8 @@ impl Log {
     pub const TOKENS: Self = Self(1 << 0);
     /// Log the [`HirForm`]s produced by phase 2.
     pub const HIR: Self = Self(1 << 1);
+    /// Log the [`ResolutionResult`] produced by phase 3.
+    pub const RESOLUTION: Self = Self(1 << 2);
 
     /// Whether every stage in `other` is set in this set.
     #[must_use]
@@ -84,50 +87,152 @@ pub fn log_hir(
     ctx: &Compilation,
     log_out: &mut impl std::fmt::Write,
 ) -> std::fmt::Result {
+    if !log.contains(Log::HIR) {
+        return Ok(());
+    }
+
     let mut result = Ok(());
-    if log.contains(Log::HIR) {
-        let mut form_count = 0;
-        dfs(forms, |_, _| form_count += 1);
-        let token_count = token_streams.iter().map(Vec::len).sum::<usize>();
+    let mut form_count = 0;
+    dfs(forms, |_, _| form_count += 1);
+    let token_count = token_streams.iter().map(Vec::len).sum::<usize>();
 
-        writeln!(
+    writeln!(
+        log_out,
+        "{} {} => {} {}",
+        token_count,
+        if token_count == 1 { "token" } else { "tokens" },
+        form_count,
+        if form_count == 1 { "form" } else { "forms" },
+    )?;
+
+    dfs(forms, |form, depth| {
+        if result.is_err() {
+            return;
+        }
+
+        result = write!(
             log_out,
-            "{} {} => {} {}",
-            token_count,
-            if token_count == 1 { "token" } else { "tokens" },
-            form_count,
-            if form_count == 1 { "form" } else { "forms" },
-        )?;
+            "{:width$}{} ",
+            "",
+            form.kind.label_str(),
+            width = depth * 2
+        )
+        .and_then(|()| match &form.kind {
+            HirKind::Int(_)
+            | HirKind::Bind(_)
+            | HirKind::Load(_)
+            | HirKind::Call(_) => {
+                writeln!(
+                    log_out,
+                    "`{}`",
+                    ctx.table.text_of(ctx.table.get_origin(form.id))
+                )
+            }
+            HirKind::Vector(xs) | HirKind::List(xs) => {
+                writeln!(log_out, "[{}]", xs.len())
+            }
+            HirKind::Quote(_) => writeln!(log_out),
+        });
+    });
 
-        dfs(forms, |form, depth| {
-            if result.is_err() {
-                return;
+    result
+}
+
+/// Log the results of Resolution if and only if `log` contains
+/// [`Log::RESOLUTION`].
+///
+/// This amounts to walking the associated parse stream `body` and, if an entry
+/// is present for a particular form, printing that form along with the
+/// resolution judgement made for it.
+///
+/// # Errors
+/// - From repeated `writeln` calls.
+pub fn log_resolution(
+    body: &[HirForm],
+    resolution: &ResolutionResult,
+    log: Log,
+    ctx: &Compilation,
+    log_out: &mut impl std::fmt::Write,
+) -> std::fmt::Result {
+    if !log.contains(Log::RESOLUTION) {
+        return Ok(());
+    }
+
+    let mut result: std::fmt::Result = Ok(());
+    let mut form_count = 0;
+    dfs(body, |_, _| form_count += 1);
+
+    writeln!(
+        log_out,
+        "{} {} => {} {}, {} {}",
+        form_count,
+        if form_count == 1 { "form" } else { "forms" },
+        resolution.map.len(),
+        if resolution.map.len() == 1 {
+            "resolution"
+        } else {
+            "resolutions"
+        },
+        resolution.bindings.bindings().len(),
+        if resolution.bindings.bindings().len() == 1 {
+            "binding"
+        } else {
+            "bindings"
+        },
+    )?;
+
+    dfs(body, |form, depth| {
+        if result.is_err() {
+            return;
+        }
+
+        let Some(res) = resolution.map.get(form.id) else {
+            return;
+        };
+
+        result = write!(
+            log_out,
+            "{:width$}{} ",
+            "",
+            form.kind.label_str(),
+            width = depth * 2
+        )
+        .and_then(|()| match (&form.kind, res) {
+            // NOTE: should be impossible as we never have resolution for data
+            (HirKind::Int(_) | HirKind::Quote(_) | HirKind::List(_), _) => {
+                Ok(())
             }
 
-            result = write!(
-                log_out,
-                "{:width$}{} ",
-                "",
-                form.kind.label_str(),
-                width = depth * 2
-            )
-            .and_then(|()| match &form.kind {
-                HirKind::Int(_)
-                | HirKind::Bind(_)
-                | HirKind::Load(_)
-                | HirKind::Call(_) => {
-                    writeln!(
-                        log_out,
-                        "`{}`",
-                        ctx.table.text_of(ctx.table.get_origin(form.id))
-                    )
-                }
-                HirKind::Vector(xs) | HirKind::List(xs) => {
-                    writeln!(log_out, "[{}]", xs.len())
-                }
-                HirKind::Quote(_) => writeln!(log_out),
-            });
+            (HirKind::Bind(sym_id), Resolution::Bound(bind_id)) => {
+                writeln!(
+                    log_out,
+                    "`{}`, {:?}",
+                    ctx.interner.resolve(*sym_id),
+                    bind_id
+                )
+            }
+
+            (
+                HirKind::Load(sym_id) | HirKind::Call(sym_id),
+                Resolution::Ref(target),
+            ) => {
+                writeln!(
+                    log_out,
+                    "`{}`, {:?}",
+                    ctx.interner.resolve(*sym_id),
+                    target
+                )
+            }
+
+            (HirKind::Vector(forms), res) => {
+                writeln!(log_out, "[{}], {:?}", forms.len(), res)
+            }
+
+            _ => {
+                unreachable!();
+            }
         });
-    }
+    });
+
     result
 }

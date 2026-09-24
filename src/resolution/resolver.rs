@@ -2,11 +2,13 @@
 
 use crate::{
     diagnostics::{Diagnostic, Diagnostics},
-    interner::{Interner, SymId},
+    interner::Interner,
     parser::{HirForm, HirKind},
     resolution::{
-        Resolution, ResolutionError, ResolutionErrorKind, ResolutionMap,
-        ResolutionResult, builder::Environment,
+        ArmRole, Resolution, ResolutionError, ResolutionErrorKind,
+        ResolutionMap, ResolutionResult,
+        builder::Environment,
+        recognition::{self, Recognition},
     },
     runtime::PrimitiveRegistry,
     source::{SourceTable, SyntaxId},
@@ -31,28 +33,34 @@ pub fn resolve(
 }
 
 /// An explicit traversal action.
-enum Work<'a> {
-    /// Resolve one form.
-    Form(&'a HirForm),
-    /// Finish the closure body belonging to this vector.
+enum Work<'forms> {
+    /// A body of forms to resolve.
+    Body(&'forms [HirForm]),
+    /// Finish a closure body, recording it.
     FinishBody(SyntaxId),
+    /// Finish a recursive closure body, recording it.
+    FinishRecursiveBody(SyntaxId),
+    /// A branch of a conditional that needs to be resolved
+    Arm(&'forms HirForm, ArmRole),
+    /// Finish the branch arm.
+    FinishArm,
 }
 
 /// Resolver state machine.
-struct Resolver<'a> {
+struct Resolver<'diags> {
     /// Active lexical environment and body builders.
     environment: Environment,
     /// Resolutions recorded so far.
     map: ResolutionMap,
     /// Diagnostic set that we need to add to.
-    diagnostics: &'a mut Diagnostics,
+    diagnostics: &'diags mut Diagnostics,
 }
 
-impl<'a> Resolver<'a> {
+impl<'diags> Resolver<'diags> {
     /// Construct resolver state for an entry body.
     fn new(
         registry: &PrimitiveRegistry,
-        diagnostics: &'a mut Diagnostics,
+        diagnostics: &'diags mut Diagnostics,
     ) -> Self {
         Self {
             environment: Environment::new(registry),
@@ -62,66 +70,172 @@ impl<'a> Resolver<'a> {
     }
 
     /// Resolve all forms without using the host call stack.
-    fn walk(&mut self, forms: &[HirForm]) {
-        let mut work = Vec::new();
-        work.extend(forms.iter().rev().map(Work::Form));
-
+    fn walk<'forms>(&mut self, forms: &'forms [HirForm]) {
+        let mut work: Vec<Work<'forms>> = vec![Work::Body(forms)];
         while let Some(action) = work.pop() {
             match action {
-                // Data forms (integers, quotes, lists) have no affect on the
-                // resolution map.
-                Work::Form(HirForm {
-                    kind: HirKind::Int(_) | HirKind::Quote(_) | HirKind::List(_),
-                    ..
-                }) => {}
+                // A sequence of forms pending resolution.
+                Work::Body(forms) => {
+                    // Check if the current sequence of forms is "recognisable".
+                    if let Some((recognition, remaining)) =
+                        recognition::recognise(forms, &self.environment)
+                    {
+                        work.push(Work::Body(remaining));
+                        self.resolve_recognition(recognition, &mut work);
+                        continue;
+                    }
 
-                Work::Form(&HirForm {
-                    id,
-                    kind: HirKind::Bind(sym),
-                }) => self.bind(id, sym),
+                    // Otherwise, we need to resolve the top most form of the
+                    // current work.
+                    let Some((form, remaining)) = forms.split_first() else {
+                        continue;
+                    };
 
-                Work::Form(&HirForm {
-                    id,
-                    kind: HirKind::Load(sym) | HirKind::Call(sym),
-                }) => self.reference(id, sym),
+                    // Push the remaining forms onto the work stack before we
+                    // resolve this form.
+                    work.push(Work::Body(remaining));
 
-                // An unquoted vector is a body, so must have all its members
-                // resolved first within their own lexical scope.
-                Work::Form(HirForm {
-                    id,
-                    kind: HirKind::Vector(forms),
-                }) => {
-                    self.environment.open_body();
-                    // We push this first so once all the member forms are
-                    // resolved we can close this body.
-                    work.push(Work::FinishBody(*id));
-                    work.extend(forms.iter().rev().map(Work::Form));
+                    // Resolve topmost form.
+                    self.resolve_form(form, &mut work);
                 }
 
-                // This is a completed body, so pop the related body form to
-                // generate a complete entry in the [`ResolutionMap`].
+                // This is a completed body, so record its complete layout.
                 Work::FinishBody(id) => {
                     let body = self.environment.close_body();
                     self.map.insert(id, Resolution::MakesClosure(body));
+                }
+
+                // This is a completed recursive body, so record its complete
+                // layout.
+                Work::FinishRecursiveBody(id) => {
+                    let body = self.environment.close_body();
+                    self.map
+                        .insert(id, Resolution::MakesRecursiveClosure(body));
+                }
+
+                // A to-be-resolved arm requires recording that it's a branch
+                // arm then resolving its innards.
+                Work::Arm(form, role) => {
+                    self.map.insert(form.id, Resolution::BranchArm(role));
+                    if let HirForm {
+                        kind: HirKind::Vector(forms),
+                        ..
+                    } = form
+                    {
+                        self.environment.enter_arm();
+                        work.push(Work::FinishArm);
+                        work.push(Work::Body(forms));
+                    }
+                }
+
+                // A fully resolved arm should already have an entry in the
+                // resolution map, so we just need to clean up.
+                Work::FinishArm => {
+                    self.environment.leave_arm();
                 }
             }
         }
     }
 
-    /// Resolve a binding in the current environment.
-    fn bind(&mut self, origin: SyntaxId, sym: SymId) {
-        let binding = self.environment.bind(origin, sym);
-        self.map.insert(origin, Resolution::Bound(binding));
+    /// Resolve a form, mutating the resolution map and potentially adding extra
+    /// work to the work stack if required.
+    fn resolve_form<'forms>(
+        &mut self,
+        form: &'forms HirForm,
+        work: &mut Vec<Work<'forms>>,
+    ) {
+        match form {
+            // Data forms have no effect on the resolution map.
+            HirForm {
+                kind: HirKind::Int(_) | HirKind::Quote(_) | HirKind::List(_),
+                ..
+            } => {}
+
+            // A binding requires environment mutation and a Bound resolution
+            // map entry.
+            &HirForm {
+                id,
+                kind: HirKind::Bind(sym),
+            } => {
+                let binding = self.environment.bind(id, sym);
+                self.map.insert(id, Resolution::Bound(binding));
+            }
+
+            // A reference (call or load) requires resolution in the environment
+            // as well as a Reference resolution map entry.
+            &HirForm {
+                id,
+                kind: HirKind::Load(sym) | HirKind::Call(sym),
+            } => {
+                let Some(target) = self.environment.resolve(sym) else {
+                    self.map.insert(id, Resolution::Poison);
+                    self.error(id, ResolutionErrorKind::UnresolvedSymbol);
+                    return;
+                };
+                self.map.insert(id, Resolution::Ref(target));
+            }
+
+            // An unquoted vector is a body, which requires a new lexical scope
+            // and further work on all its members
+            HirForm {
+                id,
+                kind: HirKind::Vector(forms),
+            } => {
+                self.environment.open_body();
+                // This is a marker to ensure the main loop actually adds a
+                // resolution map entry for this body once it is fully resolved.
+                work.push(Work::FinishBody(*id));
+                work.push(Work::Body(forms));
+            }
+        }
     }
 
-    /// Resolve a reference in the current environment.
-    fn reference(&mut self, origin: SyntaxId, sym: SymId) {
-        let Some(target) = self.environment.resolve(sym) else {
-            self.map.insert(origin, Resolution::Poison);
-            self.error(origin, ResolutionErrorKind::UnresolvedSymbol);
-            return;
-        };
-        self.map.insert(origin, Resolution::Ref(target));
+    /// Resolve one recognised HIR pattern.
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "a recognition is consumed exactly once"
+    )]
+    fn resolve_recognition<'forms>(
+        &mut self,
+        recognition: Recognition<'forms>,
+        work: &mut Vec<Work<'forms>>,
+    ) {
+        match recognition {
+            Recognition::Conditional {
+                then_arm,
+                else_arm,
+                operator,
+            } => {
+                // Mark the operator as a conditional
+                self.map.insert(operator.id, Resolution::Conditional);
+                // Push the then and else branches in REVERSE order (so the
+                // `then` branch is resolved first).
+                work.push(Work::Arm(else_arm, ArmRole::Else));
+                work.push(Work::Arm(then_arm, ArmRole::Then));
+            }
+
+            Recognition::Recursive {
+                operand_id,
+                body,
+                operator,
+            } => {
+                // Mark the operator as recursive.
+                self.map.insert(operator.id, Resolution::Recursive);
+                // Setup the work environment to resolve the inner body.
+                self.environment.open_body();
+                work.push(Work::FinishRecursiveBody(operand_id));
+                work.push(Work::Body(body));
+            }
+
+            Recognition::RecursiveData {
+                operand_id,
+                operator_id,
+            } => {
+                self.map.insert(operator_id, Resolution::Recursive);
+                self.map.insert(operand_id, Resolution::Poison);
+                self.error(operand_id, ResolutionErrorKind::RecDataOperand);
+            }
+        }
     }
 
     /// Finish the entry body and return the durable result.

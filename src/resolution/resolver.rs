@@ -261,6 +261,7 @@ mod tests {
     use crate::{
         context::Compilation,
         diagnostics::{Class, Site},
+        interner::{SYM_IF, SYM_REC, SymId},
         resolution::{BindingId, BodyLayout, CaptureId, CaptureSource, Target},
         source::{SourceId, Span},
     };
@@ -522,6 +523,170 @@ mod tests {
                 CaptureSource::Captured(x_slot),
             ]
         );
+    }
+
+    #[test]
+    fn conditional_recognition_drives_arm_scopes_and_remainder() {
+        let mut fixture = Fixture::new();
+        let x = fixture.sym("x");
+        let then_binding = fixture.id();
+        let then_arm = fixture.id();
+        let else_load = fixture.id();
+        let else_arm = fixture.id();
+        let operator = fixture.id();
+        let trailing_binding = fixture.id();
+        let forms = vec![
+            HirForm::new(
+                then_arm,
+                HirKind::Vector(vec![HirForm::new(
+                    then_binding,
+                    HirKind::Bind(x),
+                )]),
+            ),
+            HirForm::new(
+                else_arm,
+                HirKind::Vector(vec![HirForm::new(
+                    else_load,
+                    HirKind::Load(x),
+                )]),
+            ),
+            HirForm::new(operator, HirKind::Call(SYM_IF)),
+            HirForm::new(trailing_binding, HirKind::Bind(x)),
+        ];
+
+        let (result, diagnostics) = fixture.resolve(&forms);
+
+        assert!(matches!(
+            result.map.get(then_arm),
+            Some(Resolution::BranchArm(ArmRole::Then))
+        ));
+        assert!(matches!(
+            result.map.get(else_arm),
+            Some(Resolution::BranchArm(ArmRole::Else))
+        ));
+        assert!(matches!(
+            result.map.get(operator),
+            Some(Resolution::Conditional)
+        ));
+        assert!(matches!(
+            result.map.get(else_load),
+            Some(Resolution::Poison)
+        ));
+        assert!(matches!(
+            result.map.get(then_binding),
+            Some(Resolution::Bound(_))
+        ));
+        assert!(matches!(
+            result.map.get(trailing_binding),
+            Some(Resolution::Bound(_))
+        ));
+        assert_eq!(diagnostics.error_count(), 1);
+        assert_eq!(diagnostics.items()[0].site, Site::Syntax(else_load));
+    }
+
+    #[test]
+    fn recursive_recognition_builds_recursive_closure_and_continues() {
+        let mut fixture = Fixture::new();
+        let x = fixture.sym("x");
+        let outer_binding = fixture.id();
+        let inner_load = fixture.id();
+        let operand = fixture.id();
+        let operator = fixture.id();
+        let trailing_load = fixture.id();
+        let forms = vec![
+            HirForm::new(outer_binding, HirKind::Bind(x)),
+            HirForm::new(
+                operand,
+                HirKind::Vector(vec![HirForm::new(
+                    inner_load,
+                    HirKind::Load(x),
+                )]),
+            ),
+            HirForm::new(operator, HirKind::Call(SYM_REC)),
+            HirForm::new(trailing_load, HirKind::Load(x)),
+        ];
+
+        let (result, diagnostics) = fixture.resolve(&forms);
+
+        let recursive_layout = result
+            .map
+            .get(operand)
+            .and_then(|resolution| match resolution {
+                Resolution::MakesRecursiveClosure(layout) => Some(layout),
+                _ => None,
+            })
+            .expect("expected a recursive closure layout");
+        assert!(matches!(
+            recursive_layout.captures(),
+            [CaptureSource::Local(_)]
+        ));
+        assert!(matches!(
+            result.map.get(operator),
+            Some(Resolution::Recursive)
+        ));
+        assert!(matches!(
+            result.map.get(inner_load),
+            Some(Resolution::Ref(Target::Captured(_)))
+        ));
+        assert_eq!(
+            local(&result.map, trailing_load),
+            bound(&result.map, outer_binding)
+        );
+        assert!(!diagnostics.has_errors());
+    }
+
+    #[test]
+    fn recursive_data_reports_and_continues() {
+        let mut fixture = Fixture::new();
+        let x = fixture.sym("x");
+        let operand = fixture.id();
+        let operator = fixture.id();
+        let trailing_binding = fixture.id();
+        let forms = vec![
+            HirForm::new(operand, HirKind::Int(1)),
+            HirForm::new(operator, HirKind::Call(SYM_REC)),
+            HirForm::new(trailing_binding, HirKind::Bind(x)),
+        ];
+
+        let (result, diagnostics) = fixture.resolve(&forms);
+
+        assert!(matches!(result.map.get(operand), Some(Resolution::Poison)));
+        assert!(matches!(
+            result.map.get(operator),
+            Some(Resolution::Recursive)
+        ));
+        assert!(matches!(
+            result.map.get(trailing_binding),
+            Some(Resolution::Bound(_))
+        ));
+        assert_eq!(diagnostics.error_count(), 1);
+        assert_eq!(
+            diagnostics.items()[0].class,
+            Class::ResolutionRecDataOperand
+        );
+        assert_eq!(diagnostics.items()[0].site, Site::Syntax(operand));
+    }
+
+    #[test]
+    fn shadowed_conditional_operator_uses_normal_resolution() {
+        let mut fixture = Fixture::new();
+        let binding = fixture.id();
+        let then_data = fixture.id();
+        let else_data = fixture.id();
+        let operator = fixture.id();
+        let forms = vec![
+            HirForm::new(binding, HirKind::Bind(SYM_IF)),
+            HirForm::new(then_data, HirKind::Int(1)),
+            HirForm::new(else_data, HirKind::Int(0)),
+            HirForm::new(operator, HirKind::Call(SYM_IF)),
+        ];
+
+        let (result, diagnostics) = fixture.resolve(&forms);
+
+        assert_eq!(local(&result.map, operator), bound(&result.map, binding));
+        assert!(result.map.get(then_data).is_none());
+        assert!(result.map.get(else_data).is_none());
+        assert!(!diagnostics.has_errors());
     }
 
     #[test]

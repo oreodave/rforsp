@@ -198,9 +198,8 @@ pub fn log_resolution(
             width = depth * 2
         )
         .and_then(|()| match (&form.kind, res) {
-            // NOTE: should be impossible as we never have resolution for data
-            (HirKind::Int(_) | HirKind::Quote(_) | HirKind::List(_), _) => {
-                Ok(())
+            (HirKind::Int(_) | HirKind::Quote(_) | HirKind::List(_), res) => {
+                writeln!(log_out, "{res:?}")
             }
 
             (HirKind::Bind(sym_id), Resolution::Bound(bind_id)) => {
@@ -212,15 +211,12 @@ pub fn log_resolution(
                 )
             }
 
-            (
-                HirKind::Load(sym_id) | HirKind::Call(sym_id),
-                Resolution::Ref(target),
-            ) => {
+            (HirKind::Load(sym_id) | HirKind::Call(sym_id), res) => {
                 writeln!(
                     log_out,
                     "`{}`, {:?}",
                     ctx.interner.resolve(*sym_id),
-                    target
+                    res
                 )
             }
 

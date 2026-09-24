@@ -46,7 +46,7 @@ impl From<ResolutionErrorKind> for Class {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{diagnostics::Phase, interner::Interner};
+    use crate::diagnostics::Phase;
 
     #[test]
     fn lex_kinds_classify_within_lex() {

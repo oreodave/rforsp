@@ -20,6 +20,7 @@ pub enum CaptureSource {
 }
 
 /// Layout of a body after analysis.
+#[derive(Debug)]
 pub struct BodyLayout {
     /// Captures for this Body, indexed by [`CaptureId`].
     captures: Vec<CaptureSource>,

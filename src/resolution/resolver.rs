@@ -2,7 +2,6 @@
 
 use crate::{
     diagnostics::{Diagnostic, Diagnostics},
-    interner::Interner,
     parser::{HirForm, HirKind},
     resolution::{
         ArmRole, Resolution, ResolutionError, ResolutionErrorKind,
@@ -11,7 +10,7 @@ use crate::{
         recognition::{self, Recognition},
     },
     runtime::PrimitiveRegistry,
-    source::{SourceTable, SyntaxId},
+    source::SyntaxId,
 };
 
 /// Resolve a complete sequence of [`HirForm`]s.
@@ -21,15 +20,13 @@ use crate::{
 #[must_use]
 pub fn resolve(
     forms: &[HirForm],
-    _source_table: &SourceTable,
-    _interner: &Interner,
     primitives: &PrimitiveRegistry,
-) -> (Option<ResolutionResult>, Diagnostics) {
+) -> (ResolutionResult, Diagnostics) {
     let mut diags = Diagnostics::new();
     let mut resolver = Resolver::new(primitives, &mut diags);
     resolver.walk(forms);
     let result = resolver.finish();
-    (Some(result), diags)
+    (result, diags)
 }
 
 /// An explicit traversal action.
@@ -298,13 +295,7 @@ mod tests {
             &self,
             forms: &[HirForm],
         ) -> (ResolutionResult, Diagnostics) {
-            let (results, diagnostics) = super::resolve(
-                forms,
-                &self.compilation.table,
-                &self.compilation.interner,
-                &self.compilation.primitives,
-            );
-            (results.expect("Resolution never returns None"), diagnostics)
+            super::resolve(forms, &self.compilation.primitives)
         }
     }
 

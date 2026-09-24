@@ -9,6 +9,7 @@ use crate::{
 };
 
 /// Target for a reference (call or load).
+#[derive(Debug)]
 pub enum Target {
     /// Local binding.
     Local(BindingId),
@@ -19,6 +20,7 @@ pub enum Target {
 }
 
 /// Role of an arm in a recognised conditional.
+#[derive(Debug)]
 pub enum ArmRole {
     /// True branch.
     Then,
@@ -27,6 +29,7 @@ pub enum ArmRole {
 }
 
 /// Resolution recorded for a HIR form.
+#[derive(Debug)]
 pub enum Resolution {
     /// Form is a binding.
     Bound(BindingId),

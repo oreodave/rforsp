@@ -136,7 +136,9 @@ impl Environment {
     }
 
     /// Resolve a symbol to a specific [`Target`] given the current state of the
-    /// [`Environment`].
+    /// [`Environment`].  This may mutate as captures may ripple through all the
+    /// environments between the point where the symbol is first established as
+    /// a local and the current top-level scope.
     pub(super) fn resolve(&mut self, sym: SymId) -> Option<Target> {
         // TODO(oreo)[2026-08-28 01:20]: Can this be faster?
         let binding = self.bodies.iter().rev().enumerate().find_map(
@@ -153,6 +155,17 @@ impl Environment {
             // We try to resolve to primitives as a last resort.
             _ => self.primitives.get(&sym).copied().map(Target::Primitive),
         }
+    }
+
+    /// Check if a symbol is a primitive within the current [`Environment`]
+    /// i.e. has not been lexically bound within one of the scopes.
+    pub(super) fn is_primitive(&self, sym: SymId) -> bool {
+        !self
+            .bodies
+            .iter()
+            .rev()
+            .any(|body| body.lookup(sym).is_some())
+            && self.primitives.contains_key(&sym)
     }
 
     /// Finish the entry body and return all durable environment output.

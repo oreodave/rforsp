@@ -138,6 +138,10 @@ classes! {
     /// [`UnresolvedSymbol`][crate::resolution::ResolutionErrorKind::UnresolvedSymbol].
     ResolutionUnresolvedSymbol => Resolution, Error, "UNRESOLVED_SYMBOL";
 
+    /// A data operand was provided for the recursion operator.  Mirrors
+    /// [`RecDataOperand`][crate::resolution::ResolutionErrorKind::RecDataOperand].
+    ResolutionRecDataOperand => Resolution, Error, "DATA_OPERAND_REC";
+
     /// Poisoned/dropped output from a compiler phase despite no new Diagnostics
     /// generated in a phase.
     ICEDroppedOutput => ICE, Bug, "DROPPED_OUTPUT";

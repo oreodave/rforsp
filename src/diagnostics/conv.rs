@@ -98,6 +98,9 @@ impl From<ResolutionError> for Diagnostic {
         let site = Site::Syntax(e.origin);
         let message = match e.kind {
             ResolutionErrorKind::UnresolvedSymbol => "Unresolved symbol",
+            ResolutionErrorKind::RecDataOperand => {
+                "Data operand before recursive operator"
+            }
         };
 
         Self::new(e.kind.into(), site, message)

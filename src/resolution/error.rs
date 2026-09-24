@@ -7,6 +7,8 @@ use crate::source::SyntaxId;
 pub enum ResolutionErrorKind {
     /// A symbol that couldn't be resolved was used in a Call or Load.
     UnresolvedSymbol,
+    /// Data present as operand to recursive operator.
+    RecDataOperand,
 }
 
 /// Resolution error.

@@ -39,6 +39,9 @@ impl From<ResolutionErrorKind> for Class {
             ResolutionErrorKind::UnresolvedSymbol => {
                 Self::ResolutionUnresolvedSymbol
             }
+            ResolutionErrorKind::RecDataOperand => {
+                Self::ResolutionRecDataOperand
+            }
         }
     }
 }

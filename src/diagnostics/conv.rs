@@ -138,10 +138,7 @@ pub fn ice(class: Class, site: Site, message: impl Into<String>) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        interner::Interner,
-        source::{SourceTable, Span, SyntaxOrigin},
-    };
+    use crate::source::{SourceTable, Span, SyntaxOrigin};
 
     fn sample_source_error() -> SourceError {
         SourceError::TooLarge {

@@ -146,6 +146,7 @@ mod tests {
     use super::*;
     use crate::{
         context::Compilation,
+        diagnostics::{Class, Site},
         resolution::{BindingId, BodyLayout, CaptureId, CaptureSource, Target},
         source::{SourceId, Span},
     };
@@ -304,6 +305,55 @@ mod tests {
             result.map.get(primitive),
             Some(Resolution::Ref(Target::Primitive(_)))
         ));
+    }
+
+    #[test]
+    fn unresolved_references_report_and_continue() {
+        let mut fixture = Fixture::new();
+        let x = fixture.sym("x");
+        let y = fixture.sym("y");
+        let missing_x = fixture.id();
+        let missing_y = fixture.id();
+        let vector = fixture.id();
+        let bind_x = fixture.id();
+        let resolved_x = fixture.id();
+        let forms = vec![
+            HirForm::new(missing_x, HirKind::Call(x)),
+            HirForm::new(
+                vector,
+                HirKind::Vector(vec![HirForm::new(
+                    missing_y,
+                    HirKind::Load(y),
+                )]),
+            ),
+            HirForm::new(bind_x, HirKind::Bind(x)),
+            HirForm::new(resolved_x, HirKind::Call(x)),
+        ];
+
+        let (result, diagnostics) = fixture.resolve(&forms);
+
+        assert_eq!(diagnostics.error_count(), 2);
+        assert_eq!(diagnostics.items().len(), 2);
+        for (diagnostic, origin) in
+            diagnostics.items().iter().zip([missing_x, missing_y])
+        {
+            assert_eq!(diagnostic.class, Class::ResolutionUnresolvedSymbol);
+            assert_eq!(diagnostic.site, Site::Syntax(origin));
+        }
+
+        assert!(matches!(
+            result.map.get(missing_x),
+            Some(Resolution::Poison)
+        ));
+        assert!(matches!(
+            result.map.get(missing_y),
+            Some(Resolution::Poison)
+        ));
+        assert!(matches!(
+            result.map.get(vector),
+            Some(Resolution::MakesClosure(_))
+        ));
+        assert_eq!(local(&result.map, resolved_x), bound(&result.map, bind_x));
     }
 
     #[test]

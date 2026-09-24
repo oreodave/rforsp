@@ -17,5 +17,7 @@ pub use types::{ArmRole, Resolution, ResolutionMap, ResolutionResult, Target};
 mod error;
 pub use error::{ResolutionError, ResolutionErrorKind};
 
+mod recognition;
+
 mod resolver;
 pub use resolver::resolve;

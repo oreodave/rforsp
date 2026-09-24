@@ -2187,14 +2187,12 @@ Changes in the 2026-08-14 revision:
 Changes in the 2026-08-13 revision:
 
 - =Recovery and partial output= is restated formulation-neutrally.  The
-  ~parse_form~/~Option<HirForm>~ and poison-upward contract is
-  withdrawn: it was a consequence of the recursive formulation, not a
-  requirement, and phase 2 is built as an explicit stack (see
-  [[file:logs/builder.org][B-045]]).  A failed form is absent from the
-  output; error-path output is partial and carries no well-formedness
-  contract; clean-path output is complete.  The collect-based ICE is
-  replaced by the ~forms == tokens - closers~ bijection, reported as
-  ~ice::DROPPED_OUTPUT~.
+  ~parse_form~/~Option<HirForm>~ and poison-upward contract is withdrawn: it was
+  a consequence of the recursive formulation, not a requirement, and phase 2 is
+  built as an explicit stack.  A failed form is absent from the output;
+  error-path output is partial and carries no well-formedness contract;
+  clean-path output is complete.  The collect-based ICE is replaced by the
+  ~forms == tokens - closers~ bijection, reported as ~ice::DROPPED_OUTPUT~.
 - =The phase gate= binds phase *drivers*, not every fallible function.
   The per-source form of an N-wide phase returns ~(Option<T>,
   Diagnostics)~ — output alongside its own accumulator, ~None~ meaning

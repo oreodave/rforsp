@@ -189,19 +189,17 @@ mod tests {
             "expected recursive recognition"
         );
 
-        let Recognition::Recursive {
+        if let Recognition::Recursive {
             operand_id: recognised_operand,
             body,
             operator,
         } = recognition
-        else {
-            unreachable!();
-        };
-
-        assert_eq!(recognised_operand, operand_id);
-        assert_eq!(body.len(), 1);
-        assert_eq!(body[0].id, body_form_id);
-        assert_eq!(operator.id, operator_id);
+        {
+            assert_eq!(recognised_operand, operand_id);
+            assert_eq!(body.len(), 1);
+            assert_eq!(body[0].id, body_form_id);
+            assert_eq!(operator.id, operator_id);
+        }
     }
 
     #[test]
@@ -281,18 +279,16 @@ mod tests {
             "expected conditional recognition"
         );
 
-        let Recognition::Conditional {
+        if let Recognition::Conditional {
             then_arm,
             else_arm,
             operator,
         } = recognition
-        else {
-            unreachable!();
-        };
-
-        assert_eq!(then_arm.id, then_id);
-        assert_eq!(else_arm.id, else_id);
-        assert_eq!(operator.id, operator_id);
+        {
+            assert_eq!(then_arm.id, then_id);
+            assert_eq!(else_arm.id, else_id);
+            assert_eq!(operator.id, operator_id);
+        }
     }
 
     #[test]

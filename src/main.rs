@@ -42,6 +42,7 @@ fn parse_cli() -> Result<CliConfig, CliExit> {
         match args.next().unwrap_or_default().as_str() {
             "--log-tokens" => config.log.insert(Log::TOKENS),
             "--log-hir" => config.log.insert(Log::HIR),
+            "--log-resolution" => config.log.insert(Log::RESOLUTION),
             "--help" => {
                 usage(std::io::stdout());
                 return Err(CliExit::Success);
@@ -75,10 +76,11 @@ fn usage(mut out: impl std::io::Write) {
             "Usage: rforsp [OPTIONS] [FILES]\n",
             "Compile the given FILES sequentially as rforsp source code.\n",
             "Options:\n",
-            "  --help:       Print this help and exit.\n",
-            "  --version:    Print version of program.\n",
-            "  --log-tokens: Print tokens generated per FILE.\n",
-            "  --log-hir:    Print AST generated over all FILES.\n",
+            "  --help:            Print this help and exit.\n",
+            "  --version:         Print version of program.\n",
+            "  --log-tokens:      Print tokens generated per FILE.\n",
+            "  --log-hir:         Print AST generated over all FILES.\n",
+            "  --log-resolution:  Print resolutions derived from parse tree.\n",
         )
     );
 }

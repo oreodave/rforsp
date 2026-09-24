@@ -7,8 +7,9 @@ use crate::{
     context::Compilation,
     diagnostics::{Aborted, Class, Diagnostics, Phase, Site, conv::ice},
     lexer::{Token, TokenKind, tokenise},
-    log::{Log, log_hir, log_tokens},
+    log::{Log, log_hir, log_resolution, log_tokens},
     parser::{HirForm, dfs, parse},
+    resolution::{ResolutionResult, resolve},
     source::SourceId,
 };
 
@@ -26,15 +27,15 @@ pub fn compile(
     // FIXME(oreo)[2026-08-12 15:42]: Wire in resolution, lowering,
     // verification.
     let sources = sources_from_files(filenames, diagnostics, ctx)?;
-    let lexes = lex_sources(&sources, diagnostics, ctx)?;
 
-    // `log_out` is a String at every call site, so these cannot fail.  A
-    // failed log must not abort a compilation that otherwise succeeded.
+    let lexes = lex_sources(&sources, diagnostics, ctx)?;
     let _ = log_tokens(&sources, &lexes, log, ctx, log_out);
 
     let body = parse_streams(&sources, &lexes, diagnostics, ctx)?;
-
     let _ = log_hir(&lexes, &body, log, ctx, log_out);
+
+    let resolution = resolve_body(&body, diagnostics, ctx)?;
+    let _ = log_resolution(&body, &resolution, log, ctx, log_out);
 
     Ok(())
 }
@@ -162,6 +163,7 @@ fn parse_streams(
             // counts agree on a clean parse.
             // `parser::parse::tests::parse_text` asserts the same pair.  The
             // two are computed separately for testing purposes.
+            #[cfg(debug_assertions)]
             if let Some(forms) = &forms {
                 let expected = token_stream
                     .iter()
@@ -194,6 +196,21 @@ fn parse_streams(
         .collect::<Vec<_>>();
 
     gate(diagnostics, local, body, Phase::Parse)
+}
+
+/// Perform a resolution pass across a parse stream, producing a
+/// [`ResolutionResult`].
+///
+/// # Errors
+/// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created
+///   while performing a resolution pass over the given [`HirForm`]s.
+fn resolve_body(
+    body: &[HirForm],
+    diagnostics: &mut Diagnostics,
+    ctx: &Compilation,
+) -> Result<ResolutionResult, Aborted> {
+    let (res, local) = resolve(body, &ctx.primitives);
+    gate(diagnostics, local, res, Phase::Resolution)
 }
 
 #[cfg(test)]

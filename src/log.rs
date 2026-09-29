@@ -181,6 +181,8 @@ pub fn log_resolution(
         },
     )?;
 
+    writeln!(log_out, "Entry, {:?}", resolution.entry)?;
+
     dfs(body, |form, depth| {
         if result.is_err() {
             return;
@@ -195,7 +197,7 @@ pub fn log_resolution(
             "{:width$}{} ",
             "",
             form.kind.label_str(),
-            width = depth * 2
+            width = (depth + 1) * 2
         )
         .and_then(|()| match (&form.kind, res) {
             (HirKind::Int(_) | HirKind::Quote(_) | HirKind::List(_), res) => {
@@ -203,11 +205,12 @@ pub fn log_resolution(
             }
 
             (HirKind::Bind(sym_id), Resolution::Bound(bind_id)) => {
+                let info = resolution.bindings.get(*bind_id);
                 writeln!(
                     log_out,
-                    "`{}`, {:?}",
+                    "`{}`, {bind_id:?} -> {:?}",
                     ctx.interner.resolve(*sym_id),
-                    bind_id
+                    info.local,
                 )
             }
 

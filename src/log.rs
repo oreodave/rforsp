@@ -228,7 +228,10 @@ pub fn log_resolution(
             }
 
             _ => {
-                unreachable!();
+                #[expect(clippy::unreachable, reason="Any state that is possible from resolution has already been dealt with.")]
+                {
+                    unreachable!();
+                }
             }
         });
     });

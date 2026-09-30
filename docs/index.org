@@ -11,8 +11,8 @@ file maps the supporting documents and records Org formatting conventions.
   interfaces, and settled constraints.
 - [[file:speculative-ir-2026-08.org]] - archived exploratory design.  Use it as
   background, not as the compiler contract.
-- ~<phase>.org~ - disposable planning and handover state for an active compiler
-  phase, when one exists.
+- ~<phase>.org~ - disposable planning and handover state for later active
+  phases.
 * Link conventions
 All links, unless explicitly specified, are relative to the document being
 read or generated.  For example, [[file:../src/main.rs]] points to

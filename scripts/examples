@@ -2,9 +2,12 @@
 
 set -e
 
-cargo build;
+examples="bigrange-list.rfp bigrange-vec.rfp boxed.rfp church-numerals.rfp
+collatz.rfp combinators.rfp currying.rfp factorial.rfp fibonacci-functional.rfp
+fibonacci-imperative.rfp higher-order-functions.rfp loads-of-cons.rfp
+sieve-of-erastosthenes.rfp tutorial.rfp vectors.rfp";
 
-for example in examples/*.rfp
+for example in $examples
 do
-    cargo run -- $@ $example
+    cargo run -- --std examples/$example
 done

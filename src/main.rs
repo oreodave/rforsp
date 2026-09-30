@@ -5,7 +5,7 @@ use std::process::ExitCode;
 use rforsp::{
     context::Compilation,
     diagnostics::{Diagnostics, render_diagnostics},
-    drivers::compile,
+    drivers::{SourceInput, compile},
     log::Log,
 };
 
@@ -13,8 +13,8 @@ use rforsp::{
 struct CliConfig {
     /// Stages to log.
     log: Log,
-    /// Files to compile, in the order given.
-    files: Vec<String>,
+    /// Source inputs to compile, in the order given.
+    inputs: Vec<SourceInput>,
 }
 
 /// Immediate exit requested while parsing arguments.
@@ -32,9 +32,10 @@ enum CliExit {
 fn parse_cli() -> Result<CliConfig, CliExit> {
     let mut config = CliConfig {
         log: Log::NONE,
-        files: Vec::new(),
+        inputs: Vec::new(),
     };
     let mut args = std::env::args().skip(1).peekable();
+    let mut std_included = false;
 
     while let Some(arg) = args.peek()
         && arg.starts_with("--")
@@ -42,6 +43,19 @@ fn parse_cli() -> Result<CliConfig, CliExit> {
         match args.next().unwrap_or_default().as_str() {
             "--log-tokens" => config.log.insert(Log::TOKENS),
             "--log-hir" => config.log.insert(Log::HIR),
+            "--log-resolution" => config.log.insert(Log::RESOLUTION),
+            "--std" => {
+                if !std_included {
+                    std_included = true;
+                    config.inputs.push(SourceInput::Embedded {
+                        name: concat!(
+                            env!("CARGO_MANIFEST_DIR"),
+                            "/lib/std.rfp"
+                        ),
+                        contents: include_str!("../lib/std.rfp"),
+                    });
+                }
+            }
             "--help" => {
                 usage(std::io::stdout());
                 return Err(CliExit::Success);
@@ -60,7 +74,7 @@ fn parse_cli() -> Result<CliConfig, CliExit> {
     if args.len() == 0 {
         Err(CliExit::Failure)
     } else {
-        config.files = args.collect();
+        config.inputs.extend(args.map(SourceInput::File));
         Ok(config)
     }
 }
@@ -75,10 +89,12 @@ fn usage(mut out: impl std::io::Write) {
             "Usage: rforsp [OPTIONS] [FILES]\n",
             "Compile the given FILES sequentially as rforsp source code.\n",
             "Options:\n",
-            "  --help:       Print this help and exit.\n",
-            "  --version:    Print version of program.\n",
-            "  --log-tokens: Print tokens generated per FILE.\n",
-            "  --log-hir:    Print AST generated over all FILES.\n",
+            "  --help:            Print this help and exit.\n",
+            "  --version:         Print version of program.\n",
+            "  --log-tokens:      Print tokens generated per FILE.\n",
+            "  --log-hir:         Print AST generated over all FILES.\n",
+            "  --log-resolution:  Print resolutions derived from parse tree.\n",
+            "  --std:             Include the standard library during compilation.\n",
         )
     );
 }
@@ -95,14 +111,18 @@ fn main() -> ExitCode {
         Ok(cfg) => cfg,
     };
 
-    let args = config.files;
-
+    let inputs = config.inputs;
     let mut ctx = Compilation::new();
     let mut diagnostics = Diagnostics::new();
 
     let mut log_buf = String::new();
-    let compile_result =
-        compile(&args, &mut ctx, &mut diagnostics, config.log, &mut log_buf);
+    let compile_result = compile(
+        &inputs,
+        &mut ctx,
+        &mut diagnostics,
+        config.log,
+        &mut log_buf,
+    );
 
     print!("{log_buf}");
 

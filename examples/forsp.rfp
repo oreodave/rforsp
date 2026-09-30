@@ -30,7 +30,7 @@
   ;; env-find
   [$self $key $env
     ^env is-nil
-    ['NOT_FOUND_IN_ENV ^key cons print FAIL]
+    ['NOT_FOUND_IN_ENV ^key cons print 1 exit]
     [
       ^env car car ^key eq
       [^env car cdr]
@@ -135,27 +135,27 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Input: factorial
 (
-  ($x x)                       $force
-  (force cswap $_ force)       $if
-  ($f $t $c $fn ^f ^t ^c fn)   $endif
+  (quote x pop x)                       quote force pop
+  (force cswap quote _ pop force)       quote if pop
+  (quote f pop quote t pop quote c pop quote fn pop quote f push quote t push quote c push fn)   quote endif pop
 
   ;; Y-Combinator
-  ($f
-    ($x (^x x) f)
-    ($x (^x x) f)
+  (quote f pop
+    (quote x pop (quote x push x) f)
+    (quote x pop (quote x push x) f)
     force
-  ) $Y
+  ) quote Y pop
 
   ;; rec: syntax sugar for applying the Y-Combinator
-  ($g (^g Y)) $rec
+  (quote g pop (quote g push Y)) quote rec pop
 
   ;; factorial
-  ($self $n
-    ^if (^n 0 eq)
+  (quote self pop quote n pop
+    quote if push (quote n push 0 eq)
       (1)
-      (^n 1 - self ^n *)
+      (quote n push 1 - self quote n push *)
     endif
-  ) rec $factorial
+  ) rec quote factorial pop
 
   18 factorial print
 )

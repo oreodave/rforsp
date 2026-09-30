@@ -13,6 +13,7 @@ use crate::{
     diagnostics::{Aborted, Class, Diagnostic, Phase, Site},
     lexer::{LexError, LexErrorKind},
     parser::{ParseError, ParseErrorKind},
+    resolution::{ResolutionError, ResolutionErrorKind},
     source::{SourceError, SourceTableError},
 };
 
@@ -85,6 +86,20 @@ impl From<ParseError> for Diagnostic {
             }
             ParseErrorKind::UnexpectedCloser => {
                 "Closer with no matching opener"
+            }
+        };
+
+        Self::new(e.kind.into(), site, message)
+    }
+}
+
+impl From<ResolutionError> for Diagnostic {
+    fn from(e: ResolutionError) -> Self {
+        let site = Site::Syntax(e.origin);
+        let message = match e.kind {
+            ResolutionErrorKind::UnresolvedSymbol => "Unresolved symbol",
+            ResolutionErrorKind::RecDataOperand => {
+                "Data operand before recursive operator"
             }
         };
 
@@ -220,6 +235,33 @@ mod tests {
             assert_eq!(
                 diag.site,
                 Site::Raw(origin),
+                "{kind:?} lost its origin"
+            );
+            assert!(!diag.message.is_empty(), "{kind:?} needs a message");
+        }
+    }
+
+    #[test]
+    fn resolution_err() {
+        let mut table = SourceTable::new();
+        let source = table
+            .add_source_raw("t", "missing".into())
+            .expect("within bound");
+        let origin = table.add_origin(source, Span::new(0, 7));
+
+        #[expect(
+            clippy::single_element_loop,
+            reason = "Later support for multiple resolution error kinds"
+        )]
+        for (kind, class) in [(
+            ResolutionErrorKind::UnresolvedSymbol,
+            Class::ResolutionUnresolvedSymbol,
+        )] {
+            let diag = Diagnostic::from(ResolutionError { origin, kind });
+            assert_eq!(diag.class, class);
+            assert_eq!(
+                diag.site,
+                Site::Syntax(origin),
                 "{kind:?} lost its origin"
             );
             assert!(!diag.message.is_empty(), "{kind:?} needs a message");

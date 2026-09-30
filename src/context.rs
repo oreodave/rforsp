@@ -1,6 +1,10 @@
 //! Compilation context.
 
-use crate::{interner::Interner, source::SourceTable};
+use crate::{
+    interner::Interner,
+    runtime::{PrimitiveRegistry, RuntimeVariableRegistry},
+    source::SourceTable,
+};
 
 /// Compilation Context.
 ///
@@ -12,15 +16,25 @@ pub struct Compilation {
     pub table: SourceTable,
     /// [`Interner`] for the current context.
     pub interner: Interner,
+    /// [`PrimitiveRegistry`] for the current context.
+    pub primitives: PrimitiveRegistry,
+    /// [`RuntimeVariableRegistry`] for the current context.
+    pub variables: RuntimeVariableRegistry,
 }
 
 impl Compilation {
     /// Construct a new Compilation Context.
     #[must_use]
     pub fn new() -> Self {
+        let mut interner = Interner::new();
+        let primitives = PrimitiveRegistry::with_builtins(&mut interner);
+        let variables = RuntimeVariableRegistry::with_builtins(&mut interner);
+
         Self {
             table: SourceTable::new(),
-            interner: Interner::new(),
+            interner,
+            primitives,
+            variables,
         }
     }
 }

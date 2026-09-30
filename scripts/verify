@@ -6,10 +6,11 @@ cargo build
 cargo clippy --all-targets
 cargo fmt -- --check
 cargo doc --no-deps --document-private-items
-cargo test
+./scripts/examples
 
 if command -v cargo-llvm-cov >/dev/null 2>&1; then
     cargo llvm-cov
 else
     printf '%s\n' 'cargo-llvm-cov is unavailable; skipping coverage report.'
+    cargo test
 fi

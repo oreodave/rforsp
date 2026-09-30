@@ -2,7 +2,7 @@
 //!
 //! Defines [`Span`], a byte range within a [`Source`][crate::source::Source].
 
-use crate::source::MAX_SOURCE_LEN;
+use crate::u32_index;
 
 /// A byte span, composed of a start and end position.
 ///
@@ -19,11 +19,12 @@ impl Span {
     /// Construct a new Span from usize components.
     ///
     /// # Panics
-    /// - If either component is greater than [`MAX_SOURCE_LEN`].
+    /// - If either component is greater than
+    ///   [`MAX_SOURCE_LEN`][crate::source::MAX_SOURCE_LEN].
     /// - If `start > end`.
     #[must_use]
     pub const fn new(start: usize, end: usize) -> Self {
-        Self::from_u32(offset(start), offset(end))
+        Self::from_u32(u32_index(start), u32_index(end))
     }
 
     /// Construct a new [Span] from u32 components.
@@ -48,22 +49,6 @@ impl Span {
     #[must_use]
     pub fn join(self, other: Self) -> Self {
         Self::from_u32(self.start.min(other.start), self.end.max(other.end))
-    }
-}
-
-/// Return `pos` as an offset (usize -> u32).
-///
-/// # Panics
-/// - if `pos > MAX_SOURCE_LEN`.
-#[track_caller]
-pub(super) const fn offset(pos: usize) -> u32 {
-    assert!(pos <= MAX_SOURCE_LEN, "pos out of bounds of any source");
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "MUST: `contents.len() <= MAX_SOURCE_LEN`."
-    )]
-    {
-        pos as u32
     }
 }
 

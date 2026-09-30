@@ -1,75 +1,70 @@
 ;;; higher-order-functions.rfp: Demonstrating functional programming in rForsp.
 ;; A demonstration of `map` + `reduce` in rForsp.
 
-[
-  ;; core utilities
-  [$x ^x ^x]          $dup
-  [$x $y ^x ^y]       $swap
-  [$a $b $c ^b ^a ^c] $rot
-  ['()]               $nil
-  [nil eq]            $null?
+;; definitions
+['()]               $nil
 
-  ;; bit operations
-  [dup ~&]      $~
-  [~& ~]        $&
-  [~ swap ~ ~&] $|
+;; bit operations
+[dup ~&]      $~
+[~& ~]        $&
+[~ swap ~ ~&] $|
 
-  ;; logical operations
-  [['f] ['t] if]          $!
-  [! !]                   $!!
-  [$a $b a [b] [nil] if]  $and
-  [$a $b a ['t] [b] if]   $or
+;; logical operations
+[['f] ['t] if]          $!
+[! !]                   $!!
+[$a $b a [b] [nil] if]  $and
+[$a $b a ['t] [b] if]   $or
 
-  ;; comparisons
-  [55 >> 0 eq !] $is-neg
-  [- is-neg]     $<
-  [< !]          $>=
-  [swap <]       $>
-  [swap >=]      $<=
+;; comparisons
+[55 >> 0 eq !] $is-neg
+[- is-neg]     $<
+[< !]          $>=
+[swap <]       $>
+[swap >=]      $<=
 
-  ;; range
-  [$self $start $end
-    ^start ^end eq
-    [nil]
-    [^end ^start 1 + self ^start cons]
+;; range
+[$self $start $end
+  ^start ^end eq
+  [nil]
+  [^end ^start 1 + self ^start cons]
+  if
+] rec $range
+
+;; map [$fn $list -> $out-list]
+[$self $fn $list
+  ^list null?
+  [nil]
+  [^list car fn ^list cdr ^fn self swap cons]
+  if
+] rec $map
+
+;; filter [$pred $list -> $out-list]
+[$self $pred $list
+  ^list null?
+  [nil]
+  [^list cdr ^pred self
+    ^list car pred
+    [^list car cons]
+    []
     if
-  ] rec $range
+  ]
+  if
+] rec $filter
 
-  ;; map [$fn $list -> $out-list]
-  [$self $fn $list
-    ^list null?
-    [nil]
-    [^list car fn ^list cdr ^fn self swap cons]
-    if
-  ] rec $map
+;; reduce [$fn $init $list -> $out]
+[$self $fn $init $list
+  ^list null?
+  [^init]
+  [^list cdr ^list car ^init fn ^fn self]
+  if
+] rec $reduce
 
-  ;; filter [$pred $list -> $out-list]
-  [$self $pred $list
-    ^list null?
-    [nil]
-    [^list cdr ^pred self
-      ^list car pred
-      [^list car cons]
-      []
-      if
-    ]
-    if
-  ] rec $filter
+;; is-even
+[1 & 0 eq] $even?
 
-  ;; reduce [$fn $init $list -> $out]
-  [$self $fn $init $list
-    ^list null?
-    [^init]
-    [^list cdr ^list car ^init fn ^fn self]
-    if
-  ] rec $reduce
+10 0 range
+[3 *] map
+[$x [^x even?] [^x 10 >] and] filter
+0 ^+ reduce
+print
 
-  ;; is-even
-  [1 & 0 eq] $even?
-
-  10 0 range
-  [3 *] map
-  [$x [^x even?] [^x 10 >] and] filter
-  0 ^+ reduce
-  print
-]

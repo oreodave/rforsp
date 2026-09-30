@@ -35,6 +35,7 @@ fn parse_cli() -> Result<CliConfig, CliExit> {
         inputs: Vec::new(),
     };
     let mut args = std::env::args().skip(1).peekable();
+    let mut std_included = false;
 
     while let Some(arg) = args.peek()
         && arg.starts_with("--")
@@ -43,6 +44,13 @@ fn parse_cli() -> Result<CliConfig, CliExit> {
             "--log-tokens" => config.log.insert(Log::TOKENS),
             "--log-hir" => config.log.insert(Log::HIR),
             "--log-resolution" => config.log.insert(Log::RESOLUTION),
+            "--std" if !std_included => {
+                std_included = true;
+                config.inputs.push(SourceInput::Embedded {
+                    name: concat!(env!("CARGO_MANIFEST_DIR"), "/lib/std.rfp"),
+                    contents: include_str!("../lib/std.rfp"),
+                });
+            }
             "--help" => {
                 usage(std::io::stdout());
                 return Err(CliExit::Success);
@@ -81,6 +89,7 @@ fn usage(mut out: impl std::io::Write) {
             "  --log-tokens:      Print tokens generated per FILE.\n",
             "  --log-hir:         Print AST generated over all FILES.\n",
             "  --log-resolution:  Print resolutions derived from parse tree.\n",
+            "  --std:             Include the standard library during compilation.\n",
         )
     );
 }

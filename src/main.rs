@@ -44,12 +44,17 @@ fn parse_cli() -> Result<CliConfig, CliExit> {
             "--log-tokens" => config.log.insert(Log::TOKENS),
             "--log-hir" => config.log.insert(Log::HIR),
             "--log-resolution" => config.log.insert(Log::RESOLUTION),
-            "--std" if !std_included => {
-                std_included = true;
-                config.inputs.push(SourceInput::Embedded {
-                    name: concat!(env!("CARGO_MANIFEST_DIR"), "/lib/std.rfp"),
-                    contents: include_str!("../lib/std.rfp"),
-                });
+            "--std" => {
+                if !std_included {
+                    std_included = true;
+                    config.inputs.push(SourceInput::Embedded {
+                        name: concat!(
+                            env!("CARGO_MANIFEST_DIR"),
+                            "/lib/std.rfp"
+                        ),
+                        contents: include_str!("../lib/std.rfp"),
+                    });
+                }
             }
             "--help" => {
                 usage(std::io::stdout());

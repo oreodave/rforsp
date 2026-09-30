@@ -6,9 +6,9 @@
 use crate::{
     context::Compilation,
     diagnostics::{Aborted, Class, Diagnostics, Phase, Site, conv::ice},
-    lexer::{Token, TokenKind, tokenise},
+    lexer::{Token, tokenise},
     log::{Log, log_hir, log_resolution, log_tokens},
-    parser::{HirForm, dfs, parse},
+    parser::{HirForm, parse},
     resolution::{ResolutionResult, resolve},
     source::SourceId,
 };
@@ -188,12 +188,13 @@ fn parse_streams(
                     .filter(|t| {
                         !matches!(
                             t.kind,
-                            TokenKind::VecEnd | TokenKind::ListEnd
+                            crate::lexer::TokenKind::VecEnd
+                                | crate::lexer::TokenKind::ListEnd
                         )
                     })
                     .count();
                 let mut got = 0usize;
-                dfs(forms, |_, _| got += 1);
+                crate::parser::dfs(forms, |_, _| got += 1);
 
                 if got != expected {
                     let message = format!(

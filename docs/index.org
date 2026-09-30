@@ -1,20 +1,21 @@
-#+title: Index for Agents
+#+title: Documentation Index
 #+author: Aryadev Chavali
 #+date: 2026-08-07
 
-The repository entry point is [[file:../../AGENTS.md]].  It defines the shared
-working approach for design, implementation, review, testing, and
-documentation.  This file maps the supporting documents and records Org
-formatting conventions.
+The repository entry point is [[file:../AGENTS.md]].  It defines the working
+approach for design, implementation, review, testing, and documentation.  This
+file maps the supporting documents and records Org formatting conventions.
 * Documents
-- [[file:../summary.org]] - a basic summary of the language.
-- [[file:ir-design.org]] - earlier exploratory work on the compiler and IRs.
-  Use it as background rather than authority over the implementation.
+- [[file:summary.org]] - a short language summary.
+- [[file:compiler.org]] - implemented compiler behaviour, current phase
+  interfaces, and settled constraints.
+- [[file:speculative-ir-2026-08.org]] - archived exploratory design.  Use it as
+  background, not as the compiler contract.
 - ~<phase>.org~ - disposable planning and handover state for an active compiler
   phase, when one exists.
 * Link conventions
 All links, unless explicitly specified, are relative to the document being
-read or generated.  For example, [[file:../../src/main.rs]] points to
+read or generated.  For example, [[file:../src/main.rs]] points to
 ~src/main.rs~ from this document.
 * Document guidelines
 When generating an Org document, follow these guidelines along with the style

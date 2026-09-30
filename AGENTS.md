@@ -18,7 +18,7 @@ semantics. Explain project-specific reasoning rather than general background.
 
 ## Documentation
 
-Read `docs/agent/index.org` for the document map and Org formatting
+Read `docs/index.org` for the document map and Org formatting
 conventions. Consult only the documents relevant to the current task.
 
 Treat exploratory designs and plans as context, not settled requirements.

@@ -1,6 +1,11 @@
 #+TITLE: rForsp Compiler IRs: HIR and SIR
 #+DATE: 2026-08-02
 
+This document is an archived design exploration begun in August 2026.  It is
+useful background, but it does not describe the current compiler contract and
+is not authoritative over the implementation.  See [[file:compiler.org]] for
+established behaviour.
+
 * Status and scope
 This document specifies the first two compiler intermediate
 representations for rForsp:

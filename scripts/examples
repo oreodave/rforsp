@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+set -e
+
+cargo build;
+
+for example in examples/*.rfp
+do
+    cargo run -- $@ $example
+done

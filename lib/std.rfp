@@ -2,16 +2,22 @@
 ;; These are common definitions to help with the development of new rForsp
 ;; programs.  Use the `--std` flag when compiling to include these.
 
-;; combinators and execution
+;; combinators
 [$n ^n ^n]           $dup
 [$_]                 $drop
 ['t cswap]           $swap
 [$a $b $c ^b ^a ^c]  $rot
-[$x x]               $force
 
-;; booleans
+;; functions and execution
+[$x x]                $force
+[$fn $arg [^arg fn]]  $curry
+
+;; boolean operators
 [['f] ['t] if]                 $not
 [$snd $fst fst [snd] ['f] if]  $and
+
+;; predicates
+['() eq]            $null?
 
 ;; I/O
 [*stdout* swap write drop]  $print

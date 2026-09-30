@@ -3,44 +3,36 @@
 ;; `fibonacci-functional` program (which see).  It exploits Vectors to memoize
 ;; the results of prior fibonacci computations.
 
-[
-  ;; Core: Helpers
-  [$x $y ^x ^y]         $swap
-  [$fn $arg [^arg fn]]  $partial
-  [$x x]                $force
-  [$x ^x ^x]            $dup
-  [$a $b $c ^b ^a ^c]   $rot
+;; For loop
+[$self $start $end $body
+  ^start ^end eq
+  []
+  [^start body ^body ^end ^start 1 + self]
+  if
+] rec                     $for
+[$b $e $s $f ^b ^e ^s f]  $endfor
 
-  ;; For loop
-  [$self $start $end $body
-    ^start ^end eq
-    []
-    [^start body ^body ^end ^start 1 + self]
-    if
-  ] rec                     $for
-  [$b $e $s $f ^b ^e ^s f]  $endfor
+;; Memoised container
+9                              $n
+n vmake                        $container
+[container swap vget]          $fib
+[container rot rot vset]       $fib-set
+[^for 0 n [fib print] endfor]  $fib-print
 
-  ;; Memoised container
-  9                              $n
-  n vmake                        $container
-  [container swap vget]          $fib
-  [container rot rot vset]       $fib-set
-  [^for 0 n [fib print] endfor]  $fib-print
+;; Fibonacci recurrence relation: fib(x) = fib(x - 1) + fib(x - 2)
+[$x
+  x 1 - fib
+  x 2 - fib
+  +
+] $fib-recur
 
-  ;; Fibonacci recurrence relation: fib(x) = fib(x - 1) + fib(x - 2)
-  [$x
-    x 1 - fib
-    x 2 - fib
-    +
-  ] $fib-recur
+;; Initialise the first two numbers of the fibonacci sequence
+0 1 fib-set
+1 1 fib-set
 
-  ;; Initialise the first two numbers of the fibonacci sequence
-  0 1 fib-set
-  1 1 fib-set
+^for 2 n
+[dup fib-recur fib-set]
+endfor
 
-  ^for 2 n
-    [dup fib-recur fib-set]
-  endfor
+fib-print
 
-  fib-print
-]

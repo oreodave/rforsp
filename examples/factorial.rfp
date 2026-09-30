@@ -6,15 +6,14 @@
 ;; make this possible, the recursive function is in Accumulator-Passing Style
 ;; (the $acc parameter).
 
-[
-  [$self $n $acc
-    n 0 eq
-    [acc]
-    [acc n *
-      n 1 -
-      self]
-    if
-  ] rec $factorial
+[$self $n $acc
+  n 0 eq
+  [acc]
+  [acc n *
+    n 1 -
+    self]
+  if
+] rec $factorial
 
-  1 18 factorial print
-]
+1 18 factorial print
+

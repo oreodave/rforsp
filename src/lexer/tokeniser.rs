@@ -286,7 +286,7 @@ impl<'a> Tokeniser<'a> {
 
 /// Compile time check that [`WHITESPACE_CHARS`] ⊂ [`RESTRICTED_CHARS`].
 const _: () = {
-    // TODO(oreo)[2026-08-11 00:06]: This rigamarole is only necessary because
+    // FIXME(oreo)[2026-08-11 00:06]: This rigamarole is only necessary because
     // iterating and `.contains` aren't const-stable yet in Rust.  Might be
     // worth looking back at this later.
     let whitespace = WHITESPACE_CHARS.as_bytes();

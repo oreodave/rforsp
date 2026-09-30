@@ -13,20 +13,32 @@ use crate::{
     source::SourceId,
 };
 
-/// Compile a set of `filenames`.
+/// Types of source inputs for compilation.
+pub enum SourceInput {
+    /// File with a filename
+    File(String),
+    /// Embedded content.
+    Embedded {
+        /// Internal name of source.
+        name: &'static str,
+        /// Contents of source.
+        contents: &'static str,
+    },
+}
+
+/// Compile a set of `inputs`.
 ///
 /// # Errors
 /// - If a compilation phase fails
 pub fn compile(
-    filenames: &[String],
+    inputs: &[SourceInput],
     ctx: &mut Compilation,
     diagnostics: &mut Diagnostics,
     log: Log,
     log_out: &mut impl std::fmt::Write,
 ) -> Result<(), Aborted> {
-    // FIXME(oreo)[2026-08-12 15:42]: Wire in resolution, lowering,
-    // verification.
-    let sources = sources_from_files(filenames, diagnostics, ctx)?;
+    // TODO(oreo)[2026-08-12 15:42]: Wire in lowering, verification.
+    let sources = sources_from_inputs(inputs, diagnostics, ctx)?;
 
     let lexes = lex_sources(&sources, diagnostics, ctx)?;
     let _ = log_tokens(&sources, &lexes, log, ctx, log_out);
@@ -59,24 +71,30 @@ fn gate<T>(
     }
 }
 
-/// Add a set of files to the given [`SourceTable`][crate::source::SourceTable].
+/// Add a set of inputs to the given [`SourceTable`][crate::source::SourceTable].
 ///
 /// # Errors
 /// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created
-///   while adding files to the table.
-fn sources_from_files(
-    filenames: &[String],
+///   while adding inputs to the table.
+fn sources_from_inputs(
+    inputs: &[SourceInput],
     diagnostics: &mut Diagnostics,
     ctx: &mut Compilation,
 ) -> Result<Vec<SourceId>, Aborted> {
     let mut local = Diagnostics::new();
-    let sources = filenames
+    let sources = inputs
         .iter()
-        .filter_map(|filename| {
-            ctx.table
-                .add_source_file(filename)
-                .map_err(|e| local.push(e.into()))
-                .ok()
+        .filter_map(|input| {
+            (match input {
+                SourceInput::File(filename) => {
+                    ctx.table.add_source_file(filename)
+                }
+                SourceInput::Embedded { name, contents } => {
+                    ctx.table.add_source_raw(name, contents.to_string())
+                }
+            })
+            .map_err(|e| local.push(e.into()))
+            .ok()
         })
         .collect::<Vec<_>>();
 
@@ -267,13 +285,14 @@ mod tests {
     }
 
     #[test]
-    fn sources_attempts_all_files() {
+    fn sources_attempt_all_inputs() {
         let mut ctx = Compilation::new();
         let mut diags = Diagnostics::new();
-        let files = ["/nonexistent/a".to_owned(), "/nonexistent/b".to_owned()];
+        let files = ["/nonexistent/a".to_owned(), "/nonexistent/b".to_owned()]
+            .map(SourceInput::File);
 
         assert_eq!(
-            sources_from_files(&files, &mut diags, &mut ctx,),
+            sources_from_inputs(&files, &mut diags, &mut ctx,),
             Err(Aborted::new(Phase::Source))
         );
         assert_eq!(

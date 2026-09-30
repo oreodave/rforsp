@@ -5,7 +5,7 @@ use std::process::ExitCode;
 use rforsp::{
     context::Compilation,
     diagnostics::{Diagnostics, render_diagnostics},
-    drivers::compile,
+    drivers::{SourceInput, compile},
     log::Log,
 };
 
@@ -13,8 +13,8 @@ use rforsp::{
 struct CliConfig {
     /// Stages to log.
     log: Log,
-    /// Files to compile, in the order given.
-    files: Vec<String>,
+    /// Source inputs to compile, in the order given.
+    inputs: Vec<SourceInput>,
 }
 
 /// Immediate exit requested while parsing arguments.
@@ -32,7 +32,7 @@ enum CliExit {
 fn parse_cli() -> Result<CliConfig, CliExit> {
     let mut config = CliConfig {
         log: Log::NONE,
-        files: Vec::new(),
+        inputs: Vec::new(),
     };
     let mut args = std::env::args().skip(1).peekable();
 
@@ -61,7 +61,7 @@ fn parse_cli() -> Result<CliConfig, CliExit> {
     if args.len() == 0 {
         Err(CliExit::Failure)
     } else {
-        config.files = args.collect();
+        config.inputs.extend(args.map(SourceInput::File));
         Ok(config)
     }
 }
@@ -97,14 +97,18 @@ fn main() -> ExitCode {
         Ok(cfg) => cfg,
     };
 
-    let args = config.files;
-
+    let inputs = config.inputs;
     let mut ctx = Compilation::new();
     let mut diagnostics = Diagnostics::new();
 
     let mut log_buf = String::new();
-    let compile_result =
-        compile(&args, &mut ctx, &mut diagnostics, config.log, &mut log_buf);
+    let compile_result = compile(
+        &inputs,
+        &mut ctx,
+        &mut diagnostics,
+        config.log,
+        &mut log_buf,
+    );
 
     print!("{log_buf}");
 

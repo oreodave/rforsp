@@ -9,7 +9,7 @@ use crate::{
         builder::Environment,
         recognition::{self, Recognition},
     },
-    runtime::PrimitiveRegistry,
+    runtime::{PrimitiveRegistry, RuntimeVariableRegistry},
     source::SyntaxId,
 };
 
@@ -20,10 +20,11 @@ use crate::{
 #[must_use]
 pub fn resolve(
     forms: &[HirForm],
+    variables: &RuntimeVariableRegistry,
     primitives: &PrimitiveRegistry,
 ) -> (ResolutionResult, Diagnostics) {
     let mut diags = Diagnostics::new();
-    let mut resolver = Resolver::new(primitives, &mut diags);
+    let mut resolver = Resolver::new(variables, primitives, &mut diags);
     resolver.walk(forms);
     let result = resolver.finish();
     (result, diags)
@@ -56,11 +57,12 @@ struct Resolver<'diags> {
 impl<'diags> Resolver<'diags> {
     /// Construct resolver state for an entry body.
     fn new(
-        registry: &PrimitiveRegistry,
+        var_registry: &RuntimeVariableRegistry,
+        prim_registry: &PrimitiveRegistry,
         diagnostics: &'diags mut Diagnostics,
     ) -> Self {
         Self {
-            environment: Environment::new(registry),
+            environment: Environment::new(var_registry, prim_registry),
             map: ResolutionMap::default(),
             diagnostics,
         }
@@ -295,7 +297,11 @@ mod tests {
             &self,
             forms: &[HirForm],
         ) -> (ResolutionResult, Diagnostics) {
-            super::resolve(forms, &self.compilation.primitives)
+            super::resolve(
+                forms,
+                &self.compilation.variables,
+                &self.compilation.primitives,
+            )
         }
     }
 
@@ -411,6 +417,48 @@ mod tests {
             result.map.get(primitive),
             Some(Resolution::Ref(Target::Primitive(_)))
         ));
+    }
+
+    #[test]
+    fn runtime_variables_are_not_captured_unless_shadowed() {
+        let mut fixture = Fixture::new();
+        let stdout = fixture.sym("*stdout*");
+        let variable_ref = fixture.id();
+        let variable_body = fixture.id();
+        let bind = fixture.id();
+        let captured_ref = fixture.id();
+        let captured_body = fixture.id();
+        let forms = vec![
+            HirForm::new(
+                variable_body,
+                HirKind::Vector(vec![HirForm::new(
+                    variable_ref,
+                    HirKind::Call(stdout),
+                )]),
+            ),
+            HirForm::new(bind, HirKind::Bind(stdout)),
+            HirForm::new(
+                captured_body,
+                HirKind::Vector(vec![HirForm::new(
+                    captured_ref,
+                    HirKind::Call(stdout),
+                )]),
+            ),
+        ];
+
+        let (result, diagnostics) = fixture.resolve(&forms);
+
+        assert!(!diagnostics.has_errors());
+        assert!(matches!(
+            result.map.get(variable_ref),
+            Some(Resolution::Ref(Target::Variable(_)))
+        ));
+        assert!(closure(&result.map, variable_body).captures().is_empty());
+        assert!(matches!(
+            result.map.get(captured_ref),
+            Some(Resolution::Ref(Target::Captured(_)))
+        ));
+        assert_eq!(closure(&result.map, captured_body).captures().len(), 1);
     }
 
     #[test]

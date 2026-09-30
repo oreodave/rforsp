@@ -7,7 +7,7 @@ use crate::{
     resolution::{
         BindingId, BindingTable, BodyLayout, CaptureId, CaptureSource, Target,
     },
-    runtime::{PrimitiveId, PrimitiveRegistry},
+    runtime::{PrimitiveRegistry, RuntimeVariableRegistry},
     source::SyntaxId,
 };
 
@@ -81,8 +81,8 @@ impl BodyBuilder {
 
 /// In-progress lexical environment for binding resolution.
 pub(super) struct Environment {
-    /// Primordial primitive names.
-    primitives: HashMap<SymId, PrimitiveId>,
+    /// Primordial names
+    primordial: HashMap<SymId, Target>,
     /// Metadata for bindings minted in any body.
     bindings: BindingTable,
     /// Active bodies from entry body to innermost closure.
@@ -91,13 +91,22 @@ pub(super) struct Environment {
 
 impl Environment {
     /// Construct an environment with an active entry body.
-    pub(super) fn new(registry: &PrimitiveRegistry) -> Self {
-        let primitives = registry
+    pub(super) fn new(
+        var_registry: &RuntimeVariableRegistry,
+        prim_registry: &PrimitiveRegistry,
+    ) -> Self {
+        let mut primordial = prim_registry
             .iter_syms()
-            .map(|(primitive, sym)| (sym, primitive))
-            .collect();
+            .map(|(id, sym)| (sym, Target::Primitive(id)))
+            .collect::<HashMap<SymId, Target>>();
+
+        primordial.extend(
+            var_registry
+                .iter_syms()
+                .map(|(id, sym)| (sym, Target::Variable(id))),
+        );
         Self {
-            primitives,
+            primordial,
             bindings: BindingTable::new(),
             bodies: vec![BodyBuilder::new()],
         }
@@ -153,19 +162,20 @@ impl Environment {
                 Some(Target::Captured(self.capture(binding, distance)))
             }
             // We try to resolve to primitives as a last resort.
-            _ => self.primitives.get(&sym).copied().map(Target::Primitive),
+            _ => self.primordial.get(&sym).copied(),
         }
     }
 
-    /// Check if a symbol is a primitive within the current [`Environment`]
-    /// i.e. has not been lexically bound within one of the scopes.
-    pub(super) fn is_primitive(&self, sym: SymId) -> bool {
+    /// Check if a symbol is a primordial binding within the current
+    /// [`Environment`] i.e. has not been lexically bound within one of the
+    /// scopes.
+    pub(super) fn is_primordial(&self, sym: SymId) -> bool {
         !self
             .bodies
             .iter()
             .rev()
             .any(|body| body.lookup(sym).is_some())
-            && self.primitives.contains_key(&sym)
+            && self.primordial.contains_key(&sym)
     }
 
     /// Finish the entry body and return all durable environment output.
@@ -219,7 +229,7 @@ impl Environment {
 mod tests {
     use super::*;
     use crate::{
-        interner::Interner,
+        context::Compilation,
         source::{SourceId, SourceTable, Span},
     };
 
@@ -250,19 +260,11 @@ mod tests {
             .resolve(sym)
             .and_then(|target| match target {
                 Target::Local(binding) => Some(binding),
-                Target::Captured(_) | Target::Primitive(_) => None,
+                Target::Captured(_)
+                | Target::Primitive(_)
+                | Target::Variable(_) => None,
             })
             .expect("expected a local binding")
-    }
-
-    fn primitive(environment: &mut Environment, sym: SymId) -> PrimitiveId {
-        environment
-            .resolve(sym)
-            .and_then(|target| match target {
-                Target::Primitive(primitive) => Some(primitive),
-                Target::Local(_) | Target::Captured(_) => None,
-            })
-            .expect("expected a primitive")
     }
 
     fn assert_captured(environment: &mut Environment, sym: SymId) {
@@ -273,27 +275,36 @@ mod tests {
     }
 
     #[test]
-    fn locals_shadow_primitives() {
+    fn locals_shadow() {
         let mut origins = Origins::new();
-        let mut interner = Interner::new();
-        let sym = interner.intern("primitive");
-        let mut registry = PrimitiveRegistry::new();
-        let expected = registry.add(sym);
-        let mut environment = Environment::new(&registry);
+        let mut ctx = Compilation::new();
+        let prim_sym = ctx.interner.intern("+");
+        let var_sym = ctx.interner.intern("*stdout*");
+        let mut environment = Environment::new(&ctx.variables, &ctx.primitives);
 
-        // Primordial names resolve until a local shadows them.
-        assert_eq!(primitive(&mut environment, sym), expected);
-        let binding = environment.bind(origins.next(), sym);
-        assert_eq!(local(&mut environment, sym), binding);
+        assert!(matches!(
+            environment.resolve(prim_sym),
+            Some(Target::Primitive(_))
+        ));
+        assert!(matches!(
+            environment.resolve(var_sym),
+            Some(Target::Variable(_))
+        ));
+
+        let binding = environment.bind(origins.next(), prim_sym);
+        assert_eq!(local(&mut environment, prim_sym), binding);
+
+        let binding = environment.bind(origins.next(), var_sym);
+        assert_eq!(local(&mut environment, var_sym), binding);
     }
 
     #[test]
     fn body_scopes_shadow_and_restore() {
         let mut origins = Origins::new();
-        let mut interner = Interner::new();
-        let x = interner.intern("x");
-        let y = interner.intern("y");
-        let mut environment = Environment::new(&PrimitiveRegistry::new());
+        let mut ctx = Compilation::new();
+        let mut environment = Environment::new(&ctx.variables, &ctx.primitives);
+        let x = ctx.interner.intern("x");
+        let y = ctx.interner.intern("y");
 
         // The newest binding is visible in its body.
         let _ = environment.bind(origins.next(), x);
@@ -317,10 +328,11 @@ mod tests {
     #[test]
     fn arm_scopes_share_the_body_layout() {
         let mut origins = Origins::new();
-        let mut interner = Interner::new();
-        let outer_name = interner.intern("outer");
-        let arm_name = interner.intern("arm");
-        let mut environment = Environment::new(&PrimitiveRegistry::new());
+
+        let mut ctx = Compilation::new();
+        let mut environment = Environment::new(&ctx.variables, &ctx.primitives);
+        let outer_name = ctx.interner.intern("outer");
+        let arm_name = ctx.interner.intern("arm");
 
         // Arm bindings use locals from the enclosing body.
         let outer = environment.bind(origins.next(), outer_name);
@@ -344,7 +356,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "leave_body cannot remove the entry body")]
     fn entry_body_cannot_be_left() {
-        let mut environment = Environment::new(&PrimitiveRegistry::new());
+        let ctx = Compilation::new();
+        let mut environment = Environment::new(&ctx.variables, &ctx.primitives);
         let _ = environment.close_body();
     }
 }

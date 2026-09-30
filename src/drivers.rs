@@ -209,7 +209,7 @@ fn resolve_body(
     diagnostics: &mut Diagnostics,
     ctx: &Compilation,
 ) -> Result<ResolutionResult, Aborted> {
-    let (res, local) = resolve(body, &ctx.primitives);
+    let (res, local) = resolve(body, &ctx.variables, &ctx.primitives);
     gate(diagnostics, local, res, Phase::Resolution)
 }
 

@@ -46,11 +46,12 @@ pub(super) fn recognise<'forms>(
 ) -> Option<(Recognition<'forms>, &'forms [HirForm])> {
     // Checks if the given `index` is valid in `forms`, if `forms[index]`
     // matches a `HirKind::Call` to the given `sym`, and whether `sym` itself is
-    // a primitive within the current `env`.
+    // primordial (i.e. not lexically bound + within the initial registries)
+    // within the current `env`.
     let is_prim_call = |index, sym| {
         forms.get(index).is_some_and(|form: &HirForm| {
             matches!(form.kind, HirKind::Call(item) if item == sym)
-                && env.is_primitive(sym)
+                && env.is_primordial(sym)
         })
     };
 
@@ -147,7 +148,10 @@ mod tests {
                 .table
                 .add_source_raw("recognition-test", "x".into())
                 .expect("test source should be valid");
-            let environment = Environment::new(&compilation.primitives);
+            let environment = Environment::new(
+                &compilation.variables,
+                &compilation.primitives,
+            );
             Self {
                 environment,
                 table: compilation.table,

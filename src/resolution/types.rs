@@ -4,12 +4,12 @@ use std::collections::BTreeMap;
 
 use crate::{
     resolution::{BindingId, BindingTable, BodyLayout, CaptureId},
-    runtime::PrimitiveId,
+    runtime::{PrimitiveId, RuntimeVariableId},
     source::SyntaxId,
 };
 
 /// Target for a reference (call or load).
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Target {
     /// Local binding.
     Local(BindingId),
@@ -17,6 +17,8 @@ pub enum Target {
     Captured(CaptureId),
     /// Primitive binding.
     Primitive(PrimitiveId),
+    /// Pre-defined variable binding.
+    Variable(RuntimeVariableId),
 }
 
 /// Role of an arm in a recognised conditional.

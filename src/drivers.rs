@@ -62,13 +62,11 @@ fn gate<T>(
     container: T,
     phase: Phase,
 ) -> Result<T, Aborted> {
-    let succeeded = !local_diags.has_errors();
+    let ret = (!local_diags.has_errors())
+        .then_some(container)
+        .ok_or_else(|| Aborted::new(phase));
     global_diags.merge(local_diags);
-    if succeeded {
-        Ok(container)
-    } else {
-        Err(Aborted::new(phase))
-    }
+    ret
 }
 
 /// Add a set of inputs to the given [`SourceTable`][crate::source::SourceTable].
@@ -82,21 +80,21 @@ fn sources_from_inputs(
     ctx: &mut Compilation,
 ) -> Result<Vec<SourceId>, Aborted> {
     let mut local = Diagnostics::new();
-    let sources = inputs
-        .iter()
-        .filter_map(|input| {
-            (match input {
-                SourceInput::File(filename) => {
-                    ctx.table.add_source_file(filename)
-                }
-                SourceInput::Embedded { name, contents } => {
-                    ctx.table.add_source_raw(name, contents.to_string())
-                }
-            })
-            .map_err(|e| local.push(e.into()))
-            .ok()
-        })
-        .collect::<Vec<_>>();
+    let mut sources = Vec::new();
+
+    for input in inputs {
+        let result = match input {
+            SourceInput::File(filename) => ctx.table.add_source_file(filename),
+            SourceInput::Embedded { name, contents } => {
+                ctx.table.add_source_raw(name, contents.to_string())
+            }
+        };
+
+        match result {
+            Ok(id) => sources.push(id),
+            Err(e) => local.push(e.into()),
+        }
+    }
 
     gate(diagnostics, local, sources, Phase::Source)
 }
@@ -112,27 +110,30 @@ fn lex_sources(
     ctx: &Compilation,
 ) -> Result<Vec<Vec<Token>>, Aborted> {
     let mut local = Diagnostics::new();
-    let tokens_set = source_ids
-        .iter()
-        .filter_map(|&id| {
-            let (tokens, mut lexer_diags) = tokenise(id, &ctx.table);
+    let mut token_sets = Vec::new();
 
-            // `tokenise` withholds its tokens only when it reported.  No
-            // tokens and no errors means the phase dropped its output.
-            if tokens.is_none() && !lexer_diags.has_errors() {
-                lexer_diags.push(ice(
-                    Class::ICEDroppedOutput,
-                    Site::Source(id),
-                    "lexing produced no tokens",
-                ));
+    for &id in source_ids {
+        let (tokens, mut lexer_diags) = tokenise(id, &ctx.table);
+
+        match tokens {
+            Some(token_set) => token_sets.push(token_set),
+            None => {
+                // `tokenise` withholds its tokens only when it reported.  No
+                // tokens and no errors means the phase dropped its output.
+                if !lexer_diags.has_errors() {
+                    lexer_diags.push(ice(
+                        Class::ICEDroppedOutput,
+                        Site::Source(id),
+                        "lexing produced no tokens",
+                    ));
+                }
             }
+        }
 
-            local.merge(lexer_diags);
-            tokens
-        })
-        .collect::<Vec<_>>();
+        local.merge(lexer_diags);
+    }
 
-    gate(diagnostics, local, tokens_set, Phase::Lex)
+    gate(diagnostics, local, token_sets, Phase::Lex)
 }
 
 /// Parse a collection of [`Token`] streams, merging their results all together
@@ -156,20 +157,21 @@ fn parse_streams(
     );
 
     let mut local = Diagnostics::new();
-    let body = source_ids
-        .iter()
-        .zip(token_streams.iter())
-        .filter_map(|(&source_id, token_stream)| {
-            let (forms, mut parse_diags) = parse(
-                token_stream,
-                source_id,
-                &mut ctx.table,
-                &mut ctx.interner,
-            );
+    let mut body = Vec::new();
 
-            // `parse` withholds its body only when it reported.  No body and
-            // no errors means the phase dropped its output.
-            if forms.is_none() && !parse_diags.has_errors() {
+    for (&source_id, token_stream) in
+        source_ids.iter().zip(token_streams.iter())
+    {
+        let (forms, mut parse_diags) =
+            parse(token_stream, source_id, &mut ctx.table, &mut ctx.interner);
+
+        let Some(forms) = forms else {
+            // Parser has witheld forms - probably because of some parsing
+            // error.  We should go onto the next token stream.
+
+            // However, if there isn't an error then we've violated a compiler
+            // invariant - so report it.
+            if !parse_diags.has_errors() {
                 parse_diags.push(ice(
                     Class::ICEDroppedOutput,
                     Site::Source(source_id),
@@ -177,42 +179,42 @@ fn parse_streams(
                 ));
             }
 
-            // Every form comes from exactly one non-closing token, so the two
-            // counts agree on a clean parse.
-            // `parser::parse::tests::parse_text` asserts the same pair.  The
-            // two are computed separately for testing purposes.
-            #[cfg(debug_assertions)]
-            if let Some(forms) = &forms {
-                let expected = token_stream
-                    .iter()
-                    .filter(|t| {
-                        !matches!(
-                            t.kind,
-                            crate::lexer::TokenKind::VecEnd
-                                | crate::lexer::TokenKind::ListEnd
-                        )
-                    })
-                    .count();
-                let mut got = 0usize;
-                crate::parser::dfs(forms, |_, _| got += 1);
-
-                if got != expected {
-                    let message = format!(
-                        "parsed {got} forms from {expected} non-closing tokens"
-                    );
-                    parse_diags.push(ice(
-                        Class::ICEDroppedOutput,
-                        Site::Source(source_id),
-                        message,
-                    ));
-                }
-            }
-
             local.merge(parse_diags);
-            forms
-        })
-        .flatten()
-        .collect::<Vec<_>>();
+            continue;
+        };
+
+        // A debug level test to check the following invariant: the
+        // number of tokens that AREN'T a closing token is exactly with
+        // the number of forms parsed.
+        #[cfg(debug_assertions)]
+        {
+            let expected = token_stream
+                .iter()
+                .filter(|t| {
+                    !matches!(
+                        t.kind,
+                        crate::lexer::TokenKind::VecEnd
+                            | crate::lexer::TokenKind::ListEnd
+                    )
+                })
+                .count();
+            let mut got = 0usize;
+            crate::parser::dfs(&forms, |_, _| got += 1);
+
+            if got != expected {
+                parse_diags.push(ice(
+                    Class::ICEDroppedOutput,
+                    Site::Source(source_id),
+                    format!(
+                        "parsed {got} forms from {expected} non-closing tokens"
+                    ),
+                ));
+            }
+        }
+
+        body.extend(forms);
+        local.merge(parse_diags);
+    }
 
     gate(diagnostics, local, body, Phase::Parse)
 }

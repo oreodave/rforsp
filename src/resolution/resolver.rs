@@ -453,7 +453,7 @@ mod tests {
             result.map.get(variable_ref),
             Some(Resolution::Ref(Target::Variable(_)))
         ));
-        assert!(closure(&result.map, variable_body).captures().is_empty());
+        assert_eq!(closure(&result.map, variable_body).captures(), []);
         assert!(matches!(
             result.map.get(captured_ref),
             Some(Resolution::Ref(Target::Captured(_)))

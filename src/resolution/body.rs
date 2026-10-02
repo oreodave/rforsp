@@ -99,7 +99,7 @@ mod tests {
         let mut layout = BodyLayout::new();
 
         assert_eq!(layout.local_count(), 0);
-        assert!(layout.captures().is_empty());
+        assert_eq!(layout.captures(), []);
 
         let first_local = layout.add_local();
         let second_local = layout.add_local();

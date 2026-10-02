@@ -56,7 +56,6 @@ impl RuntimeVariableRegistry {
 
     /// Return an iterator over the [`SymId`] of all variables within the
     /// registry.
-    #[must_use]
     pub fn iter_syms(
         &self,
     ) -> impl ExactSizeIterator<Item = (RuntimeVariableId, SymId)> {

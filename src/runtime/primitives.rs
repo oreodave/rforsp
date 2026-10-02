@@ -62,7 +62,6 @@ impl PrimitiveRegistry {
 
     /// Return an iterator over the [`SymId`] of all primitives within the
     /// registry.
-    #[must_use]
     pub fn iter_syms(
         &self,
     ) -> impl ExactSizeIterator<Item = (PrimitiveId, SymId)> {

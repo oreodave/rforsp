@@ -9,5 +9,5 @@ sieve-of-erastosthenes.rfp tutorial.rfp vectors.rfp";
 
 for example in $examples
 do
-    cargo run -- --std examples/$example
+    cargo run -- --std $@ examples/$example
 done

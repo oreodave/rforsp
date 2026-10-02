@@ -51,30 +51,38 @@ pub fn log_tokens(
     ctx: &Compilation,
     log_out: &mut impl std::fmt::Write,
 ) -> std::fmt::Result {
-    if log.contains(Log::TOKENS) {
-        for (&id, lex_stream) in sources.iter().zip(lexes) {
-            let source = ctx.table.get_source(id);
-            writeln!(
-                log_out,
-                "{}: {} {} => {} {}",
-                source.name,
-                source.len(),
-                if source.len() == 1 { "byte" } else { "bytes" },
-                lex_stream.len(),
-                if lex_stream.len() == 1 {
-                    "token"
-                } else {
-                    "tokens"
-                },
-            )?;
-            for token in lex_stream {
-                let kind = token.kind;
-                let text = source.span_text(token.span);
-                write!(log_out, "{kind:?}({text}), ")?;
-            }
-            writeln!(log_out)?;
-        }
+    if !log.contains(Log::TOKENS) {
+        return Ok(());
     }
+
+    for (&id, lex_stream) in sources.iter().zip(lexes) {
+        let source = ctx.table.get_source(id);
+        writeln!(
+            log_out,
+            "{}: {} {} => {} {}",
+            source.name,
+            source.len(),
+            if source.len() == 1 { "byte" } else { "bytes" },
+            lex_stream.len(),
+            if lex_stream.len() == 1 {
+                "token"
+            } else {
+                "tokens"
+            },
+        )?;
+
+        write!(log_out, "\t")?;
+        for (count, token) in lex_stream.iter().enumerate() {
+            let kind = token.kind;
+            let text = source.span_text(token.span);
+            write!(log_out, "{kind:?}({text}), ")?;
+            if count % 8 == 0 && count != 0 {
+                write!(log_out, "\n\t")?;
+            }
+        }
+        writeln!(log_out)?;
+    }
+
     Ok(())
 }
 

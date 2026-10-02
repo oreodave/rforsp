@@ -25,6 +25,8 @@ impl Log {
     pub const HIR: Self = Self(1 << 1);
     /// Log the [`ResolutionResult`] produced by phase 3.
     pub const RESOLUTION: Self = Self(1 << 2);
+    /// Log all results produced by every phase.
+    pub const ALL: Self = Self(0xFF);
 
     /// Whether every stage in `other` is set in this set.
     #[must_use]

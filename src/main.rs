@@ -44,6 +44,7 @@ fn parse_cli() -> Result<CliConfig, CliExit> {
             "--log-tokens" => config.log.insert(Log::TOKENS),
             "--log-hir" => config.log.insert(Log::HIR),
             "--log-resolution" => config.log.insert(Log::RESOLUTION),
+            "--log-all" => config.log = Log::ALL,
             "--std" => {
                 if !std_included {
                     std_included = true;
@@ -94,6 +95,7 @@ fn usage(mut out: impl std::io::Write) {
             "  --log-tokens:      Print tokens generated per FILE.\n",
             "  --log-hir:         Print AST generated over all FILES.\n",
             "  --log-resolution:  Print resolutions derived from parse tree.\n",
+            "  --log-all:         Print all logs.\n",
             "  --std:             Include the standard library during compilation.\n",
         )
     );

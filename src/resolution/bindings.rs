@@ -1,4 +1,4 @@
-//! Unique IDs for every binding.
+//! Binding information and minting.
 
 use crate::{resolution::LocalId, source::SyntaxId, u32_index};
 

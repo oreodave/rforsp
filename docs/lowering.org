@@ -48,7 +48,7 @@ Resolve each decision when its first implementation milestone needs it.
 - Does constant interning earn its complexity in the first implementation, or
   should every datum receive an independent entry?
 * Milestones
-** TODO 1. Establish the lowering boundary
+** DONE 1. Establish the lowering boundary
 Define the phase's input and output at the module boundary and add the empty
 entry-body case.
 

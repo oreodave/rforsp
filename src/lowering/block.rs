@@ -23,6 +23,30 @@ pub struct Block {
     pub terminator: Terminator,
 }
 
+impl Block {
+    /// Construct a new [`Block`] with the given [`Terminator`].
+    #[must_use]
+    pub(super) const fn new(terminator: Terminator) -> Self {
+        Self {
+            instructions: Vec::new(),
+            origins: Vec::new(),
+            terminator,
+        }
+    }
+
+    /// Add a new [`Instruction`] at the given `origin` to this [`Block`].
+    pub(super) fn add_inst(&mut self, inst: Instruction, origin: SyntaxId) {
+        debug_assert_eq!(
+            self.instructions.len(),
+            self.origins.len(),
+            "Expected instruction length to match origin length"
+        );
+
+        self.instructions.push(inst);
+        self.origins.push(origin);
+    }
+}
+
 /// Straight-line operation vocabulary.
 #[derive(Debug)]
 pub enum Instruction {

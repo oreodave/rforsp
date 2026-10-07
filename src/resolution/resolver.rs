@@ -6,7 +6,7 @@ use crate::{
     resolution::{
         ArmRole, Resolution, ResolutionError, ResolutionErrorKind,
         ResolutionMap, ResolutionResult,
-        builder::Environment,
+        env::Environment,
         recognition::{self, Recognition},
     },
     runtime::{PrimitiveRegistry, RuntimeVariableRegistry},

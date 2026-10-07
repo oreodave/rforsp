@@ -3,7 +3,7 @@
 use crate::{
     interner::{SYM_IF, SYM_REC},
     parser::{HirForm, HirKind},
-    resolution::builder::Environment,
+    resolution::env::Environment,
     source::SyntaxId,
 };
 

@@ -24,8 +24,8 @@ pub fn resolve(
     primitives: &PrimitiveRegistry,
 ) -> (ResolutionResult, Diagnostics) {
     let mut diags = Diagnostics::new();
-    let mut resolver = Resolver::new(variables, primitives, &mut diags);
-    resolver.walk(forms);
+    let mut resolver = Resolver::new(variables, primitives, &mut diags, forms);
+    resolver.walk();
     let result = resolver.finish();
     (result, diags)
 }
@@ -45,33 +45,36 @@ enum Work<'forms> {
 }
 
 /// Resolver state machine.
-struct Resolver<'diags> {
+struct Resolver<'diags, 'forms> {
     /// Active lexical environment and body builders.
     environment: Environment,
     /// Resolutions recorded so far.
     map: ResolutionMap,
     /// Diagnostic set that we need to add to.
     diagnostics: &'diags mut Diagnostics,
+    /// Current work stack
+    work: Vec<Work<'forms>>,
 }
 
-impl<'diags> Resolver<'diags> {
+impl<'diags, 'forms> Resolver<'diags, 'forms> {
     /// Construct resolver state for an entry body.
     fn new(
         var_registry: &RuntimeVariableRegistry,
         prim_registry: &PrimitiveRegistry,
         diagnostics: &'diags mut Diagnostics,
+        forms: &'forms [HirForm],
     ) -> Self {
         Self {
             environment: Environment::new(var_registry, prim_registry),
             map: ResolutionMap::default(),
             diagnostics,
+            work: vec![Work::Body(forms)],
         }
     }
 
     /// Resolve all forms without using the host call stack.
-    fn walk<'forms>(&mut self, forms: &'forms [HirForm]) {
-        let mut work: Vec<Work<'forms>> = vec![Work::Body(forms)];
-        while let Some(action) = work.pop() {
+    fn walk(&mut self) {
+        while let Some(action) = self.work.pop() {
             match action {
                 // A sequence of forms pending resolution.
                 Work::Body(forms) => {
@@ -79,8 +82,8 @@ impl<'diags> Resolver<'diags> {
                     if let Some((recognition, remaining)) =
                         recognition::recognise(forms, &self.environment)
                     {
-                        work.push(Work::Body(remaining));
-                        self.resolve_recognition(recognition, &mut work);
+                        self.work.push(Work::Body(remaining));
+                        self.resolve_recognition(recognition);
                         continue;
                     }
 
@@ -92,10 +95,10 @@ impl<'diags> Resolver<'diags> {
 
                     // Push the remaining forms onto the work stack before we
                     // resolve this form.
-                    work.push(Work::Body(remaining));
+                    self.work.push(Work::Body(remaining));
 
                     // Resolve topmost form.
-                    self.resolve_form(form, &mut work);
+                    self.resolve_form(form);
                 }
 
                 // This is a completed body, so record its complete layout.
@@ -112,18 +115,21 @@ impl<'diags> Resolver<'diags> {
                         .insert(id, Resolution::MakesRecursiveClosure(body));
                 }
 
-                // A to-be-resolved arm requires recording that it's a branch
-                // arm then resolving its innards.
+                // A branch arm requires recording a resolution of the top-level
+                // then resolving its insides.
                 Work::Arm(form, role) => {
                     self.map.insert(form.id, Resolution::BranchArm(role));
+
+                    // If the arm is a vector, then we need to resolve its
+                    // insides.
                     if let HirForm {
                         kind: HirKind::Vector(forms),
                         ..
                     } = form
                     {
                         self.environment.enter_arm();
-                        work.push(Work::FinishArm);
-                        work.push(Work::Body(forms));
+                        self.work.push(Work::FinishArm);
+                        self.work.push(Work::Body(forms));
                     }
                 }
 
@@ -138,11 +144,7 @@ impl<'diags> Resolver<'diags> {
 
     /// Resolve a form, mutating the resolution map and potentially adding extra
     /// work to the work stack if required.
-    fn resolve_form<'forms>(
-        &mut self,
-        form: &'forms HirForm,
-        work: &mut Vec<Work<'forms>>,
-    ) {
+    fn resolve_form(&mut self, form: &'forms HirForm) {
         match form {
             // Data forms have no effect on the resolution map.
             HirForm {
@@ -183,8 +185,8 @@ impl<'diags> Resolver<'diags> {
                 self.environment.open_body();
                 // This is a marker to ensure the main loop actually adds a
                 // resolution map entry for this body once it is fully resolved.
-                work.push(Work::FinishBody(*id));
-                work.push(Work::Body(forms));
+                self.work.push(Work::FinishBody(*id));
+                self.work.push(Work::Body(forms));
             }
         }
     }
@@ -194,11 +196,7 @@ impl<'diags> Resolver<'diags> {
         clippy::needless_pass_by_value,
         reason = "a recognition is consumed exactly once"
     )]
-    fn resolve_recognition<'forms>(
-        &mut self,
-        recognition: Recognition<'forms>,
-        work: &mut Vec<Work<'forms>>,
-    ) {
+    fn resolve_recognition(&mut self, recognition: Recognition<'forms>) {
         match recognition {
             Recognition::Conditional {
                 then_arm,
@@ -209,8 +207,8 @@ impl<'diags> Resolver<'diags> {
                 self.map.insert(operator.id, Resolution::Conditional);
                 // Push the then and else branches in REVERSE order (so the
                 // `then` branch is resolved first).
-                work.push(Work::Arm(else_arm, ArmRole::Else));
-                work.push(Work::Arm(then_arm, ArmRole::Then));
+                self.work.push(Work::Arm(else_arm, ArmRole::Else));
+                self.work.push(Work::Arm(then_arm, ArmRole::Then));
             }
 
             Recognition::Recursive {
@@ -222,8 +220,8 @@ impl<'diags> Resolver<'diags> {
                 self.map.insert(operator.id, Resolution::Recursive);
                 // Setup the work environment to resolve the inner body.
                 self.environment.open_body();
-                work.push(Work::FinishRecursiveBody(operand_id));
-                work.push(Work::Body(body));
+                self.work.push(Work::FinishRecursiveBody(operand_id));
+                self.work.push(Work::Body(body));
             }
 
             Recognition::RecursiveData {

@@ -10,7 +10,6 @@ pub mod runtime;
 pub mod lexer;
 pub mod lowering;
 pub mod parser;
-pub mod resolution;
 pub mod source;
 
 pub mod context;

@@ -4,7 +4,6 @@ use crate::{
     context::Compilation,
     lexer::Token,
     parser::{HirForm, HirKind, dfs},
-    resolution::{Resolution, ResolutionResult},
     source::SourceId,
 };
 
@@ -23,8 +22,6 @@ impl Log {
     pub const TOKENS: Self = Self(1 << 0);
     /// Log the [`HirForm`]s produced by phase 2.
     pub const HIR: Self = Self(1 << 1);
-    /// Log the [`ResolutionResult`] produced by phase 3.
-    pub const RESOLUTION: Self = Self(1 << 2);
     /// Log all results produced by every phase.
     pub const ALL: Self = Self(0xFF);
 
@@ -142,107 +139,6 @@ pub fn log_hir(
                 writeln!(log_out, "[{}]", xs.len())
             }
             HirKind::Quote(_) => writeln!(log_out),
-        });
-    });
-
-    result
-}
-
-/// Log the results of Resolution if and only if `log` contains
-/// [`Log::RESOLUTION`].
-///
-/// This amounts to walking the associated parse stream `body` and, if an entry
-/// is present for a particular form, printing that form along with the
-/// resolution judgement made for it.
-///
-/// # Errors
-/// - From repeated `writeln` calls.
-pub fn log_resolution(
-    body: &[HirForm],
-    resolution: &ResolutionResult,
-    log: Log,
-    ctx: &Compilation,
-    log_out: &mut impl std::fmt::Write,
-) -> std::fmt::Result {
-    if !log.contains(Log::RESOLUTION) {
-        return Ok(());
-    }
-
-    let mut result: std::fmt::Result = Ok(());
-    let mut form_count = 0;
-    dfs(body, |_, _| form_count += 1);
-
-    writeln!(
-        log_out,
-        "{} {} => {} {}, {} {}",
-        form_count,
-        if form_count == 1 { "form" } else { "forms" },
-        resolution.map.len(),
-        if resolution.map.len() == 1 {
-            "resolution"
-        } else {
-            "resolutions"
-        },
-        resolution.bindings.bindings().len(),
-        if resolution.bindings.bindings().len() == 1 {
-            "binding"
-        } else {
-            "bindings"
-        },
-    )?;
-
-    writeln!(log_out, "Entry, {:?}", resolution.entry)?;
-
-    dfs(body, |form, depth| {
-        if result.is_err() {
-            return;
-        }
-
-        let Some(res) = resolution.map.get(form.id) else {
-            return;
-        };
-
-        result = write!(
-            log_out,
-            "{:width$}{} ",
-            "",
-            form.kind.label_str(),
-            width = (depth + 1) * 2
-        )
-        .and_then(|()| match (&form.kind, res) {
-            (HirKind::Int(_) | HirKind::Quote(_) | HirKind::List(_), res) => {
-                writeln!(log_out, "{res:?}")
-            }
-
-            (HirKind::Bind(sym_id), Resolution::Bound(bind_id)) => {
-                let info = resolution.bindings.get(*bind_id);
-                writeln!(
-                    log_out,
-                    "`{}`, {bind_id:?} -> {:?}",
-                    ctx.interner.resolve(*sym_id),
-                    info.local,
-                )
-            }
-
-            (HirKind::Load(sym_id) | HirKind::Call(sym_id), res) => {
-                writeln!(
-                    log_out,
-                    "`{}`, {:?}",
-                    ctx.interner.resolve(*sym_id),
-                    res
-                )
-            }
-
-            (HirKind::Vector(forms), res) => {
-                writeln!(log_out, "[{}], {:?}", forms.len(), res)
-            }
-
-            _ => {
-                #[expect(clippy::unreachable, reason="Any state that is possible from resolution has already been dealt with.")]
-                {
-                    unreachable!();
-                }
-            }
         });
     });
 

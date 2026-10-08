@@ -7,9 +7,8 @@ use crate::{
     context::Compilation,
     diagnostics::{Aborted, Class, Diagnostics, Phase, Site, conv::ice},
     lexer::{Token, tokenise},
-    log::{Log, log_hir, log_resolution, log_tokens},
+    log::{Log, log_hir, log_tokens},
     parser::{HirForm, parse},
-    resolution::{ResolutionResult, resolve},
     source::SourceId,
 };
 
@@ -45,9 +44,6 @@ pub fn compile(
 
     let body = parse_streams(&sources, &lexes, diagnostics, ctx)?;
     let _ = log_hir(&lexes, &body, log, ctx, log_out);
-
-    let resolution = resolve_body(&body, diagnostics, ctx)?;
-    let _ = log_resolution(&body, &resolution, log, ctx, log_out);
 
     Ok(())
 }
@@ -217,21 +213,6 @@ fn parse_streams(
     }
 
     gate(diagnostics, local, body, Phase::Parse)
-}
-
-/// Perform a resolution pass across a parse stream, producing a
-/// [`ResolutionResult`].
-///
-/// # Errors
-/// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created
-///   while performing a resolution pass over the given [`HirForm`]s.
-fn resolve_body(
-    body: &[HirForm],
-    diagnostics: &mut Diagnostics,
-    ctx: &Compilation,
-) -> Result<ResolutionResult, Aborted> {
-    let (res, local) = resolve(body, &ctx.variables, &ctx.primitives);
-    gate(diagnostics, local, res, Phase::Resolution)
 }
 
 #[cfg(test)]

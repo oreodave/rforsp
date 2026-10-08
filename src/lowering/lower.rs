@@ -14,9 +14,13 @@ use crate::{
 /// caller.
 #[must_use]
 pub fn lower(
-    _forms: &[HirForm],
+    forms: &[HirForm],
     _primitives: &PrimitiveRegistry,
     _variables: &RuntimeVariableRegistry,
 ) -> (Option<Module>, Diagnostics) {
-    todo!("implement");
+    if forms.is_empty() {
+        return (Some(Module::default()), Diagnostics::new());
+    }
+
+    todo!("Implement");
 }

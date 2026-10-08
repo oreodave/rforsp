@@ -39,6 +39,18 @@ impl BodyLayout {
         }
     }
 
+    /// Get a count of the number of locals in this Body.
+    #[must_use]
+    pub const fn local_count(&self) -> usize {
+        self.local_count
+    }
+
+    /// Get the Captures within this Body.
+    #[must_use]
+    pub fn captures(&self) -> &[CaptureSource] {
+        &self.captures
+    }
+
     /// Add a new local to this body layout, returning [`LocalId`].
     #[must_use]
     pub const fn add_local(&mut self) -> LocalId {
@@ -71,18 +83,6 @@ impl BodyLayout {
             id
         }
     }
-
-    /// Get a count of the number of locals in this Body.
-    #[must_use]
-    pub const fn local_count(&self) -> usize {
-        self.local_count
-    }
-
-    /// Get the Captures within this Body.
-    #[must_use]
-    pub fn captures(&self) -> &[CaptureSource] {
-        &self.captures
-    }
 }
 
 impl Default for BodyLayout {
@@ -90,10 +90,6 @@ impl Default for BodyLayout {
         Self::new()
     }
 }
-
-/// ID for a body within a module.
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub struct BodyId(u32);
 
 /// Executable body with a [`BodyLayout`] and sequence of executable [`Block`]s.
 ///

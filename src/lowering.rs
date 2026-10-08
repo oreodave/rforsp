@@ -10,10 +10,10 @@ mod block;
 pub use block::{Block, BlockId, Terminator, TerminatorKind};
 
 mod body;
-pub use body::{Body, BodyId, BodyLayout, CaptureId, CaptureSource, LocalId};
+pub use body::{Body, BodyLayout, CaptureId, CaptureSource, LocalId};
 
 mod module;
-pub use module::{Datum, DatumId, Module};
+pub use module::{BodyId, Datum, DatumId, Module};
 
 mod lower;
 pub use lower::lower;

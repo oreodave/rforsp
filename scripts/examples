@@ -7,7 +7,9 @@ collatz.rfp combinators.rfp currying.rfp factorial.rfp fibonacci-functional.rfp
 fibonacci-imperative.rfp higher-order-functions.rfp loads-of-cons.rfp
 sieve-of-erastosthenes.rfp tutorial.rfp vectors.rfp";
 
+cargo build;
+
 for example in $examples
 do
-    cargo run -- --std $@ examples/$example
+    ./target/debug/rforsp --std "$@" "examples/$example"
 done

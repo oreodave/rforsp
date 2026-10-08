@@ -109,6 +109,16 @@ pub struct Body {
     pub blocks: Vec<Block>,
 }
 
+impl Default for Body {
+    fn default() -> Self {
+        Self {
+            origin: None,
+            layout: BodyLayout::default(),
+            blocks: vec![Block::default()],
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

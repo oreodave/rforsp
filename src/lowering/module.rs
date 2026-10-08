@@ -17,6 +17,15 @@ pub struct Module {
     pub data: Vec<Datum>,
 }
 
+impl Default for Module {
+    fn default() -> Self {
+        Self {
+            bodies: vec![Body::default()],
+            data: Vec::new(),
+        }
+    }
+}
+
 /// ID for a datum within a module.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct DatumId(u32);

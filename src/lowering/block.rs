@@ -7,7 +7,7 @@ use crate::{lowering::Instruction, source::SyntaxId};
 pub struct BlockId(u32);
 
 /// Straight-line operations followed by explicit control flow.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Block {
     /// Operations in execution order.
     pub instructions: Vec<Instruction>,
@@ -24,6 +24,15 @@ pub struct Terminator {
     pub origin: Option<SyntaxId>,
     /// Control-flow operation.
     pub kind: TerminatorKind,
+}
+
+impl Default for Terminator {
+    fn default() -> Self {
+        Self {
+            origin: None,
+            kind: TerminatorKind::End,
+        }
+    }
 }
 
 /// Explicit control flow between blocks or out of a body.

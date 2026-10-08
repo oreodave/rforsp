@@ -32,8 +32,8 @@ pub fn resolve(
 
 /// An explicit traversal action.
 enum Work<'forms> {
-    /// A body of forms to resolve.
-    Body(&'forms [HirForm]),
+    /// A sequence of forms to resolve.
+    Sequence(&'forms [HirForm]),
     /// Finish a closure body, recording it.
     FinishBody(SyntaxId),
     /// Finish a recursive closure body, recording it.
@@ -68,7 +68,7 @@ impl<'diags, 'forms> Resolver<'diags, 'forms> {
             environment: Environment::new(var_registry, prim_registry),
             map: ResolutionMap::default(),
             diagnostics,
-            work: vec![Work::Body(forms)],
+            work: vec![Work::Sequence(forms)],
         }
     }
 
@@ -77,7 +77,7 @@ impl<'diags, 'forms> Resolver<'diags, 'forms> {
         while let Some(action) = self.work.pop() {
             match action {
                 // A sequence of forms pending resolution.
-                Work::Body(forms) => {
+                Work::Sequence(forms) => {
                     self.resolve_body(forms);
                 }
 
@@ -109,7 +109,7 @@ impl<'diags, 'forms> Resolver<'diags, 'forms> {
                     {
                         self.environment.enter_arm();
                         self.work.push(Work::FinishArm);
-                        self.work.push(Work::Body(forms));
+                        self.work.push(Work::Sequence(forms));
                     }
                 }
 
@@ -131,7 +131,7 @@ impl<'diags, 'forms> Resolver<'diags, 'forms> {
         if let Some((recognition, remaining)) =
             recognition::recognise(forms, &self.environment)
         {
-            self.work.push(Work::Body(remaining));
+            self.work.push(Work::Sequence(remaining));
             self.resolve_recognition(recognition);
             return;
         }
@@ -143,7 +143,7 @@ impl<'diags, 'forms> Resolver<'diags, 'forms> {
 
         // Push the remaining forms onto the work stack before we resolve the
         // topmost form.
-        self.work.push(Work::Body(remaining));
+        self.work.push(Work::Sequence(remaining));
 
         // Resolve topmost form.
         match form {
@@ -185,7 +185,7 @@ impl<'diags, 'forms> Resolver<'diags, 'forms> {
             } => {
                 self.environment.open_body();
                 self.work.push(Work::FinishBody(*id));
-                self.work.push(Work::Body(forms));
+                self.work.push(Work::Sequence(forms));
             }
         }
     }
@@ -220,7 +220,7 @@ impl<'diags, 'forms> Resolver<'diags, 'forms> {
                 // Setup the work environment to resolve the inner body.
                 self.environment.open_body();
                 self.work.push(Work::FinishRecursiveBody(operand_id));
-                self.work.push(Work::Body(body));
+                self.work.push(Work::Sequence(body));
             }
 
             Recognition::RecursiveData {

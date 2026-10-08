@@ -1,17 +1,17 @@
 //! Body - executable functions, composed of sequences of [`Block`]s and a
 //! layout.
 
-use crate::{lowering::Block, source::SyntaxId, u32_index};
+use crate::{
+    define_id,
+    helper::{IdCounter, Table},
+    lowering::{Block, BlockId},
+    source::SyntaxId,
+};
 
-/// ID for a local within a body.
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub struct LocalId(u32);
+define_id!(pub LocalId);
+define_id!(pub CaptureId);
 
-/// ID for a capture within a body.
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub struct CaptureId(u32);
-
-/// Source for a value captured by a body.
+/// Source of some binding.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum CaptureSource {
     /// Capture a local within the enclosing body.
@@ -20,13 +20,13 @@ pub enum CaptureSource {
     Captured(CaptureId),
 }
 
-/// Layout of a body after analysis.
+/// The layout of bindings created and used within a [`Body`].
 #[derive(Debug)]
 pub struct BodyLayout {
-    /// Captures for this Body, indexed by [`CaptureId`].
-    captures: Vec<CaptureSource>,
-    /// Number of locals for this Body.
-    local_count: usize,
+    /// Local bindings.
+    pub locals: IdCounter<LocalId>,
+    /// Captured bindings.
+    captures: Table<CaptureId, CaptureSource>,
 }
 
 impl BodyLayout {
@@ -34,29 +34,14 @@ impl BodyLayout {
     #[must_use]
     pub const fn new() -> Self {
         Self {
-            captures: Vec::new(),
-            local_count: 0,
+            captures: Table::new(),
+            locals: IdCounter::new(),
         }
     }
 
-    /// Get a count of the number of locals in this Body.
-    #[must_use]
-    pub const fn local_count(&self) -> usize {
-        self.local_count
-    }
-
     /// Get the Captures within this Body.
-    #[must_use]
-    pub fn captures(&self) -> &[CaptureSource] {
-        &self.captures
-    }
-
-    /// Add a new local to this body layout, returning [`LocalId`].
-    #[must_use]
-    pub const fn add_local(&mut self) -> LocalId {
-        let id = LocalId(u32_index(self.local_count));
-        self.local_count += 1;
-        id
+    pub fn captures(&self) -> impl ExactSizeIterator<Item = CaptureSource> {
+        self.captures.iter().map(|(_, y)| *y)
     }
 
     /// Add a capture to this body layout, returning [`CaptureId`]
@@ -67,20 +52,17 @@ impl BodyLayout {
     /// # Panics
     /// - if number of captures exceeds `u32::MAX`.
     #[must_use]
-    pub fn add_capture(&mut self, source: CaptureSource) -> CaptureId {
+    pub(crate) fn add_capture(&mut self, source: CaptureSource) -> CaptureId {
         // TODO(oreo)[2026-08-28 00:00]: Potential backwards lookup HashMap,
         // like interner.
-        if let Some((id, _)) = self
+        if let Some(id) = self
             .captures
             .iter()
-            .enumerate()
-            .find(|(_, other)| source == **other)
+            .find_map(|(id, other)| (source == *other).then_some(id))
         {
-            CaptureId(u32_index(id))
-        } else {
-            let id = CaptureId(u32_index(self.captures.len()));
-            self.captures.push(source);
             id
+        } else {
+            self.captures.push(source)
         }
     }
 }
@@ -93,24 +75,38 @@ impl Default for BodyLayout {
 
 /// Executable body with a [`BodyLayout`] and sequence of executable [`Block`]s.
 ///
-/// NOTE: [`BlockId`][crate::lowering::BlockId] 0 is the entry block for any
-/// body.
+/// NOTE: [`BlockId`] 0 is the entry block for any body.
 #[derive(Debug)]
 pub struct Body {
     /// Vector origin, or `None` for the module entry body.
     pub origin: Option<SyntaxId>,
     /// Local slots and ordered capture sources from resolution.
     pub layout: BodyLayout,
-    /// Blocks indexed by body-local [`BlockId`][crate::lowering::BlockId].
-    pub blocks: Vec<Block>,
+    /// Blocks indexed by body-local [`BlockId`].
+    pub blocks: Table<BlockId, Block>,
+}
+
+impl Body {
+    /// Construct a new [`Body`] with the given [`SyntaxId`] origin.
+    fn new(origin: SyntaxId) -> Self {
+        let mut blocks = Table::new();
+        let _ = blocks.push(Block::default());
+        Self {
+            origin: Some(origin),
+            layout: BodyLayout::default(),
+            blocks,
+        }
+    }
 }
 
 impl Default for Body {
     fn default() -> Self {
+        let mut blocks = Table::new();
+        let _ = blocks.push(Block::default());
         Self {
             origin: None,
             layout: BodyLayout::default(),
-            blocks: vec![Block::default()],
+            blocks,
         }
     }
 }
@@ -123,11 +119,11 @@ mod tests {
     fn layout_assigns_dense_slots() {
         let mut layout = BodyLayout::new();
 
-        assert_eq!(layout.local_count(), 0);
-        assert_eq!(layout.captures(), []);
+        assert_eq!(layout.locals.len(), 0);
+        assert_eq!(layout.captures().len(), 0);
 
-        let first_local = layout.add_local();
-        let second_local = layout.add_local();
+        let first_local = layout.locals.allocate();
+        let second_local = layout.locals.allocate();
         let first_capture =
             layout.add_capture(CaptureSource::Local(first_local));
         let second_capture =
@@ -135,9 +131,10 @@ mod tests {
 
         assert_ne!(first_local, second_local);
         assert_ne!(first_capture, second_capture);
-        assert_eq!(layout.local_count(), 2);
+        assert_eq!(layout.locals.len(), 2);
+        let captures: Vec<CaptureSource> = layout.captures().collect();
         assert_eq!(
-            layout.captures(),
+            captures,
             [
                 CaptureSource::Local(first_local),
                 CaptureSource::Captured(first_capture),
@@ -148,13 +145,14 @@ mod tests {
     #[test]
     fn repeated_capture_sources_reuse_their_slot() {
         let mut layout = BodyLayout::new();
-        let local = layout.add_local();
+        let local = layout.locals.allocate();
         let source = CaptureSource::Local(local);
 
         let first = layout.add_capture(source);
         let repeated = layout.add_capture(source);
 
         assert_eq!(first, repeated);
-        assert_eq!(layout.captures(), [source]);
+        let captures: Vec<CaptureSource> = layout.captures().collect();
+        assert_eq!(captures, [source]);
     }
 }

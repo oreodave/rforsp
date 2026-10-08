@@ -1,10 +1,8 @@
 //! Block - a sequence of [`Instruction`]s that exit using some [`Terminator`].
 
-use crate::{lowering::Instruction, source::SyntaxId};
+use crate::{define_id, lowering::Instruction, source::SyntaxId};
 
-/// ID for a block within a body.
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub struct BlockId(u32);
+define_id!(pub BlockId);
 
 /// Straight-line operations followed by explicit control flow.
 #[derive(Debug, Default)]
@@ -15,6 +13,20 @@ pub struct Block {
     pub origins: Vec<SyntaxId>,
     /// Control flow after the final instruction.
     pub terminator: Terminator,
+}
+
+impl Block {
+    /// Push a new [`Instruction`] with given [`SyntaxId`] origin into this
+    /// [`Block`].
+    pub fn push_instruction(&mut self, inst: Instruction, origin: SyntaxId) {
+        debug_assert_eq!(
+            self.instructions.len(),
+            self.origins.len(),
+            "Expected number of origins to match number of instructions"
+        );
+        self.instructions.push(inst);
+        self.origins.push(origin);
+    }
 }
 
 /// Block termination with an optional source origin.
@@ -36,7 +48,7 @@ impl Default for Terminator {
 }
 
 /// Explicit control flow between blocks or out of a body.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum TerminatorKind {
     /// Complete execution of the current body.
     End,

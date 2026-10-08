@@ -78,27 +78,7 @@ impl<'diags, 'forms> Resolver<'diags, 'forms> {
             match action {
                 // A sequence of forms pending resolution.
                 Work::Body(forms) => {
-                    // Check if the current sequence of forms is "recognisable".
-                    if let Some((recognition, remaining)) =
-                        recognition::recognise(forms, &self.environment)
-                    {
-                        self.work.push(Work::Body(remaining));
-                        self.resolve_recognition(recognition);
-                        continue;
-                    }
-
-                    // Otherwise, we need to resolve the top most form of the
-                    // current work.
-                    let Some((form, remaining)) = forms.split_first() else {
-                        continue;
-                    };
-
-                    // Push the remaining forms onto the work stack before we
-                    // resolve this form.
-                    self.work.push(Work::Body(remaining));
-
-                    // Resolve topmost form.
-                    self.resolve_form(form);
+                    self.resolve_body(forms);
                 }
 
                 // This is a completed body, so record its complete layout.
@@ -142,9 +122,30 @@ impl<'diags, 'forms> Resolver<'diags, 'forms> {
         }
     }
 
-    /// Resolve a form, mutating the resolution map and potentially adding extra
-    /// work to the work stack if required.
-    fn resolve_form(&mut self, form: &'forms HirForm) {
+    /// Continue to resolve a body of `forms`.
+    ///
+    /// This involves resolving the topmost [`HirForm`] in the sequence and
+    /// pushing the rest as Work to continue.
+    fn resolve_body(&mut self, forms: &'forms [HirForm]) {
+        // Check if the current sequence of forms is "recognisable".
+        if let Some((recognition, remaining)) =
+            recognition::recognise(forms, &self.environment)
+        {
+            self.work.push(Work::Body(remaining));
+            self.resolve_recognition(recognition);
+            return;
+        }
+
+        // Otherwise, we need to resolve the top most form of the current work.
+        let Some((form, remaining)) = forms.split_first() else {
+            return;
+        };
+
+        // Push the remaining forms onto the work stack before we resolve the
+        // topmost form.
+        self.work.push(Work::Body(remaining));
+
+        // Resolve topmost form.
         match form {
             // Data forms have no effect on the resolution map.
             HirForm {
@@ -177,14 +178,12 @@ impl<'diags, 'forms> Resolver<'diags, 'forms> {
             }
 
             // An unquoted vector is a body, which requires a new lexical scope
-            // and further work on all its members
+            // and further resolution on all its members
             HirForm {
                 id,
                 kind: HirKind::Vector(forms),
             } => {
                 self.environment.open_body();
-                // This is a marker to ensure the main loop actually adds a
-                // resolution map entry for this body once it is fully resolved.
                 self.work.push(Work::FinishBody(*id));
                 self.work.push(Work::Body(forms));
             }
@@ -205,7 +204,7 @@ impl<'diags, 'forms> Resolver<'diags, 'forms> {
             } => {
                 // Mark the operator as a conditional
                 self.map.insert(operator.id, Resolution::Conditional);
-                // Push the then and else branches in REVERSE order (so the
+                // Push the `then` and `else` branches in REVERSE order (so the
                 // `then` branch is resolved first).
                 self.work.push(Work::Arm(else_arm, ArmRole::Else));
                 self.work.push(Work::Arm(then_arm, ArmRole::Then));

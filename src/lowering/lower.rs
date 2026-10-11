@@ -2,7 +2,9 @@
 
 use crate::{
     diagnostics::Diagnostics,
-    lowering::{Block, BlockId, BodyId, Datum, Instruction, Module},
+    lowering::{
+        Block, BlockId, Body, BodyId, Datum, DatumId, Instruction, Module,
+    },
     parser::{HirForm, HirKind},
     runtime::{PrimitiveRegistry, RuntimeVariableRegistry},
     source::SyntaxId,
@@ -30,22 +32,8 @@ pub fn lower(
 enum Work<'forms> {
     /// A body of forms to lower.
     Body(&'forms [HirForm]),
-    /// Sentinel to finish a complete [`Body`][crate::lowering::Body] of forms.
-    FinishBody(Option<SyntaxId>),
-}
-
-/// Traversal work regarding [`HirForm`]s in Datum position.
-enum DatumWork<'forms> {
-    /// A singular form to make into data.
-    Form(&'forms HirForm),
-    /// Finish making into data a [`HirKind`] quote.
-    FinishQuote,
-    /// Finish making into data a [`HirKind`] vector of some finite number of
-    /// forms.
-    FinishVector(usize),
-    /// Finish making into data a [`HirKind`] list of some finite number of
-    /// forms.
-    FinishList(usize),
+    /// Sentinel to finish a complete [`Body`] of forms.
+    FinishBody(Option<SyntaxId>, BodyId),
 }
 
 /// Lowerer state machine.
@@ -105,7 +93,7 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                     self.work.push(Work::Body(remaining));
                     self.lower_form(form);
                 }
-                Work::FinishBody(_) => {
+                Work::FinishBody(_, _) => {
                     // TODO(oreo)[2026-10-08 06:36]: Close up any environments,
                     // copy [`BodyLayout`] over to the current working [`Body`].
                 }
@@ -131,7 +119,7 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                 id,
                 kind: HirKind::Quote(subform),
             } => {
-                let datum = self.lower_datum(subform);
+                let datum = lower_datum(&mut self.module, subform);
                 let inst = Instruction::PushData(datum);
                 self.current_block().push_instruction(inst, *id);
             }
@@ -140,101 +128,13 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                 id,
                 kind: HirKind::List(_),
             } => {
-                let datum = self.lower_datum(form);
+                let datum = lower_datum(&mut self.module, form);
                 let inst = Instruction::PushData(datum);
                 self.current_block().push_instruction(inst, *id);
             }
 
             _ => todo!("implement"),
         }
-    }
-
-    /// Lower a form as a [`Datum`], returning its corresponding [`DatumId`]
-    /// within the being-built [`Module`].
-    fn lower_datum(&mut self, form: &'forms HirForm) -> DatumId {
-        let mut work_stack: Vec<DatumWork<'forms>> =
-            vec![DatumWork::Form(form)];
-        let mut results: Vec<DatumId> = Vec::new();
-
-        while let Some(work) = work_stack.pop() {
-            match work {
-                DatumWork::FinishQuote => {
-                    let Some(subdatum) = results.pop() else {
-                        unreachable!(
-                            "There should be data on the results stack"
-                        );
-                    };
-                    let datum = self.module.data.push(Datum::Quote(subdatum));
-                    results.push(datum);
-                }
-
-                DatumWork::FinishVector(size) => {
-                    let items = results.split_off(results.len() - size);
-                    let datum = self.module.data.push(Datum::Vector(items));
-                    results.push(datum);
-                }
-
-                DatumWork::FinishList(size) => {
-                    let items = results.split_off(results.len() - size);
-                    let datum = self.module.data.push(Datum::List(items));
-                    results.push(datum);
-                }
-
-                DatumWork::Form(f) => match f {
-                    HirForm {
-                        kind: HirKind::Int(n),
-                        ..
-                    } => {
-                        let datum = self.module.data.push(Datum::Int(*n));
-                        results.push(datum);
-                    }
-
-                    HirForm {
-                        kind: HirKind::Call(sym),
-                        ..
-                    } => {
-                        let datum = self.module.data.push(Datum::Atom(*sym));
-                        results.push(datum);
-                    }
-
-                    HirForm {
-                        kind: HirKind::Quote(subform),
-                        ..
-                    } => work_stack.extend([
-                        DatumWork::FinishQuote,
-                        DatumWork::Form(subform),
-                    ]),
-
-                    HirForm {
-                        kind: HirKind::List(xs),
-                        ..
-                    } => {
-                        work_stack.push(DatumWork::FinishList(xs.len()));
-                        work_stack.extend(xs.iter().rev().map(DatumWork::Form));
-                    }
-
-                    HirForm {
-                        kind: HirKind::Vector(xs),
-                        ..
-                    } => {
-                        work_stack.push(DatumWork::FinishVector(xs.len()));
-                        work_stack.extend(xs.iter().rev().map(DatumWork::Form));
-                    }
-
-                    HirForm {
-                        kind: HirKind::Bind(_) | HirKind::Load(_),
-                        ..
-                    } => {
-                        unreachable!(
-                            "Impossible for these [`HirForm`] variants to be here."
-                        );
-                    }
-                },
-            }
-        }
-
-        assert_eq!(results.len(), 1, "Expected |results|=1.");
-        results[0]
     }
 
     /// Retrieve the current [`Block`] that is being built.
@@ -245,6 +145,128 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
             .blocks
             .get_mut(self.block)
     }
+}
+
+/// Traversal work regarding [`HirForm`]s in Datum position.
+enum DatumWork<'forms> {
+    /// A singular form to make into data.
+    Form(&'forms HirForm),
+    /// Finish lowering the subform of a [`HirKind::Quote`].
+    FinishQuote,
+    /// Finish lowering a [`HirKind::Vector`] of some finite number of forms.
+    FinishVector(usize),
+    /// Finish lowering a [`HirKind::List`] of some finite number of forms.
+    FinishList(usize),
+}
+
+/// Lower a [`HirForm`] in datum position within a [`Module`], returning the
+/// associated [`DatumId`].
+fn lower_datum<'forms>(module: &mut Module, form: &'forms HirForm) -> DatumId {
+    let mut work_stack: Vec<DatumWork<'forms>> = vec![DatumWork::Form(form)];
+    let mut results: Vec<DatumId> = Vec::new();
+
+    // Invariant: |results| = 1 when the loop terminates.
+    //
+    // if `form` is singular, this is obviously true - see DatumWork::Form.
+    // Otherwise, it's some container - quote, vector, list.
+    //
+    // But multiple forms are pushed onto `results` if and only if they are part
+    // of some container (Vector, List, Quote).  Once those forms are lowered,
+    // they are consumed by the `DatumWork::Finish<variant>`, leaving only a
+    // single `DatumId` in `results`.
+    while let Some(work) = work_stack.pop() {
+        match work {
+            DatumWork::Form(f) => match f {
+                // This can be translated into a Datum directly.
+                HirForm {
+                    kind: HirKind::Int(n),
+                    ..
+                } => {
+                    let datum = module.data.push(Datum::Int(*n));
+                    results.push(datum);
+                }
+
+                // This can be translated into a Datum directly.
+                HirForm {
+                    kind: HirKind::Call(sym),
+                    ..
+                } => {
+                    let datum = module.data.push(Datum::Atom(*sym));
+                    results.push(datum);
+                }
+
+                // This requires lowering a subform.
+                HirForm {
+                    kind: HirKind::Quote(subform),
+                    ..
+                } => work_stack
+                    .extend([DatumWork::FinishQuote, DatumWork::Form(subform)]),
+
+                // This requires lowering subforms.
+                HirForm {
+                    kind: HirKind::List(xs),
+                    ..
+                } => work_stack.extend(
+                    xs.iter()
+                        .map(DatumWork::Form)
+                        .chain(std::iter::once(DatumWork::FinishList(xs.len())))
+                        .rev(),
+                ),
+
+                // This requires lowering subforms.
+                HirForm {
+                    kind: HirKind::Vector(xs),
+                    ..
+                } => work_stack.extend(
+                    xs.iter()
+                        .map(DatumWork::Form)
+                        .chain(std::iter::once(DatumWork::FinishVector(
+                            xs.len(),
+                        )))
+                        .rev(),
+                ),
+
+                // Invalid forms to be in Datum position, should have been
+                // caught by the parser.
+                HirForm {
+                    kind: HirKind::Bind(_) | HirKind::Load(_),
+                    ..
+                } => {
+                    unreachable!(
+                        "HirForm's of kind `HirKind::Bind(_)` or `HirKind::Load(_)` are invalid in Datum position."
+                    );
+                }
+            },
+
+            // Quote finished lowering.
+            DatumWork::FinishQuote => {
+                let Some(subdatum) = results.pop() else {
+                    unreachable!(
+                        "FinishQuote on WorkStack => subform is lowered."
+                    );
+                };
+                let datum = module.data.push(Datum::Quote(subdatum));
+                results.push(datum);
+            }
+
+            // Vector finished lowering.
+            DatumWork::FinishVector(size) => {
+                let items = results.split_off(results.len() - size);
+                let datum = module.data.push(Datum::Vector(items));
+                results.push(datum);
+            }
+
+            // List finished lowering.
+            DatumWork::FinishList(size) => {
+                let items = results.split_off(results.len() - size);
+                let datum = module.data.push(Datum::List(items));
+                results.push(datum);
+            }
+        }
+    }
+
+    assert_eq!(results.len(), 1, "Expected |results|=1.");
+    results[0]
 }
 
 #[cfg(test)]

@@ -6,19 +6,19 @@
 
 use crate::{define_id, helper::Table, interner::SymId, lowering::Body};
 
+define_id!(pub BodyId);
+define_id!(pub DatumId);
+
 /// Complete output of lowering.
 ///
 /// NOTE: [`BodyId`] 0 is the entry body of the module.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Module {
     /// Bodies indexed by [`BodyId`].
     pub bodies: Table<BodyId, Body>,
     /// Owned datum nodes indexed by [`DatumId`].
     pub data: Table<DatumId, Datum>,
 }
-
-define_id!(pub BodyId);
-define_id!(pub DatumId);
 
 /// Runtime data with indexed children rather than recursive ownership.
 #[derive(Debug)]
@@ -33,15 +33,4 @@ pub enum Datum {
     Vector(Vec<DatumId>),
     /// Quotation nested within datum content.
     Quote(DatumId),
-}
-
-impl Default for Module {
-    fn default() -> Self {
-        let mut bodies = Table::new();
-        let _ = bodies.push(Body::default());
-        Self {
-            bodies,
-            data: Table::new(),
-        }
-    }
 }

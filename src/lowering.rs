@@ -10,7 +10,7 @@ mod block;
 pub use block::{Block, BlockId, Terminator, TerminatorKind};
 
 mod body;
-pub use body::{Body, BodyLayout, CaptureId, CaptureSource, LocalId};
+pub use body::{Body, CaptureId, CaptureSource, LocalId};
 
 mod module;
 pub use module::{BodyId, Datum, DatumId, Module};

@@ -68,10 +68,26 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
         forms: &'forms [HirForm],
         diagnostics: &'diags mut Diagnostics,
     ) -> Self {
+        // Initialise a module with the first, entry-level body, with a default
+        // empty block.
+        let module = {
+            let mut module = Module::default();
+            let entry_body = module.bodies.push(Body::default());
+            let _entry_block = module
+                .bodies
+                .get_mut(entry_body)
+                .blocks
+                .push(Block::default());
+            module
+        };
+
         Self {
-            module: Module::default(),
+            module,
             diagnostics,
-            work: vec![Work::FinishBody(None), Work::Body(forms)],
+            work: vec![
+                Work::FinishBody(None, BodyId::default()),
+                Work::Body(forms),
+            ],
             block: BlockId::default(),
             body: BodyId::default(),
         }
@@ -341,8 +357,8 @@ mod tests {
 
         let entry = module.bodies.get(BodyId::default());
         assert_eq!(entry.origin, None);
-        assert_eq!(entry.layout.locals.len(), 0);
-        assert_eq!(entry.layout.captures().len(), 0);
+        assert_eq!(entry.locals.len(), 0);
+        assert_eq!(entry.captures().len(), 0);
         assert_eq!(entry.blocks.len(), 1);
 
         let block = &entry.blocks.get(BlockId::default());
@@ -381,8 +397,8 @@ mod tests {
 
         let entry = module.bodies.get(BodyId::default());
         assert_eq!(entry.origin, None);
-        assert_eq!(entry.layout.locals.len(), 0);
-        assert_eq!(entry.layout.captures().len(), 0);
+        assert_eq!(entry.locals.len(), 0);
+        assert_eq!(entry.captures().len(), 0);
         assert_eq!(entry.blocks.len(), 1);
 
         let block = &entry.blocks.get(BlockId::default());

@@ -12,4 +12,5 @@ cargo build;
 for example in $examples
 do
     ./target/debug/rforsp --std "$@" "examples/$example"
+    echo "Compiled $example"
 done

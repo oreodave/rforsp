@@ -175,7 +175,13 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                 self.emit_inst(inst, *id);
             }
 
-            _ => todo!("implement"),
+            // A vector in executable position makes a closure.
+            HirForm {
+                id,
+                kind: HirKind::Vector(xs),
+            } => {
+                self.lower_make_closure(*id, xs, ClosureMode::Normal);
+            }
         }
     }
 

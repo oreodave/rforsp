@@ -2,8 +2,9 @@
 
 use crate::{
     diagnostics::{Diagnostic, Diagnostics},
+    interner::{SYM_IF, SYM_REC},
     lowering::{
-        Block, BlockId, Body, BodyId, Datum, DatumId, Instruction,
+        Block, BlockId, Body, BodyId, ClosureMode, Datum, DatumId, Instruction,
         LoweringError, LoweringErrorKind, Module, env::Environment,
     },
     parser::{HirForm, HirKind},
@@ -27,19 +28,6 @@ pub fn lower(
     let module = lowerer.complete();
 
     (module, diagnostics)
-}
-
-/// Traversal work that needs to be completed in order to lower.
-enum Work<'forms> {
-    /// A body of forms to lower.
-    Body(&'forms [HirForm]),
-    /// Sentinel to finish a complete [`Body`][crate::lowering::Body] of forms.
-    FinishBody {
-        /// Expected [`BodyId`] that this is closing.
-        expected_body: BodyId,
-        /// Previous [`BlockId`] being processed.
-        prev_block: Option<BlockId>,
-    },
 }
 
 /// Lowerer state machine.
@@ -88,6 +76,15 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
         while let Some(work) = self.work.pop() {
             match work {
                 Work::Body(forms) => {
+                    let forms = match self.lower_recognised_prefix(forms) {
+                        Recognition::Unrecognised => forms,
+                        Recognition::Scheduled => continue,
+                        Recognition::Continue(xs) => {
+                            self.work.push(Work::Body(xs));
+                            continue;
+                        }
+                    };
+
                     let Some((form, remaining)) = forms.split_first() else {
                         continue;
                     };
@@ -124,8 +121,7 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                 kind: HirKind::Int(n),
             } => {
                 let datum = self.module.data.push(Datum::Int(*n));
-                self.current_block()
-                    .push_instruction(Instruction::PushData(datum), *id);
+                self.emit_inst(Instruction::PushData(datum), *id);
             }
 
             HirForm {
@@ -133,8 +129,7 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                 kind: HirKind::Quote(subform),
             } => {
                 let datum = lower_datum(&mut self.module, subform);
-                self.current_block()
-                    .push_instruction(Instruction::PushData(datum), *id);
+                self.emit_inst(Instruction::PushData(datum), *id);
             }
 
             HirForm {
@@ -142,8 +137,7 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                 kind: HirKind::List(_),
             } => {
                 let datum = lower_datum(&mut self.module, form);
-                self.current_block()
-                    .push_instruction(Instruction::PushData(datum), *id);
+                self.emit_inst(Instruction::PushData(datum), *id);
             }
 
             HirForm {
@@ -154,9 +148,8 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                 let local = self.current_body().locals.allocate();
                 // Inform lexical scope handler.
                 self.env.bind(*sym, local);
-                // Push instruction.
-                self.current_block()
-                    .push_instruction(Instruction::Bind(local), *id);
+
+                self.emit_inst(Instruction::Bind(local), *id);
             }
 
             HirForm {
@@ -178,12 +171,115 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                         "outer pattern restricts kind to Load or Call"
                     ),
                 };
-                // Push instruction.
-                self.current_block().push_instruction(inst, *id);
+
+                self.emit_inst(inst, *id);
             }
 
             _ => todo!("implement"),
         }
+    }
+
+    /// Attempt to recognise a prefix of `forms`.
+    fn lower_recognised_prefix(
+        &mut self,
+        forms: &'forms [HirForm],
+    ) -> Recognition<'forms> {
+        let is_prim_call = |index, sym| {
+            forms.get(index).is_some_and(|form: &HirForm| {
+                matches!(form.kind, HirKind::Call(item) if item == sym)
+                    && self.env.is_primordial(sym)
+            })
+        };
+
+        if is_prim_call(1, SYM_REC) {
+            self.lower_recognised_recursion(&forms[0..2], &forms[2..])
+        } else if is_prim_call(2, SYM_IF) {
+            self.lower_recognised_conditional(&forms[0..3], &forms[3..])
+        } else {
+            Recognition::Unrecognised
+        }
+    }
+
+    /// Attempt to lower a potentially recognised recursive closure.
+    fn lower_recognised_recursion(
+        &mut self,
+        prefix: &'forms [HirForm],
+        suffix: &'forms [HirForm],
+    ) -> Recognition<'forms> {
+        // This function is called <=> prefix[1] == CALL(SYM_REC).
+        match &prefix[0].kind {
+            // Ideal case - the form is a vector in executable position.
+            HirKind::Vector(body) => {
+                // Schedule the suffix for after we process this vector.
+                self.work.push(Work::Body(suffix));
+                self.lower_make_closure(
+                    prefix[0].id,
+                    body,
+                    ClosureMode::Recursive,
+                );
+                Recognition::Scheduled
+            }
+
+            // A `Load`, `Call`, or `Bind` cannot be recognised recursion, since
+            // we can't be sure what data is on the stack following it.
+            HirKind::Load(_) | HirKind::Call(_) | HirKind::Bind(_) => {
+                Recognition::Unrecognised
+            }
+
+            // Otherwise this is data - certainly NOT allowed for the recursion
+            // operator - so we need to record an error.  But we should also
+            // make sure to pass back the suffix to the caller.
+            HirKind::Int(_) | HirKind::Quote(_) | HirKind::List(_) => {
+                self.error(prefix[0].id, LoweringErrorKind::UnresolvedSymbol);
+                Recognition::Continue(suffix)
+            }
+        }
+    }
+
+    /// Attempt to lower a potentially recognised conditional.
+    fn lower_recognised_conditional(
+        &mut self,
+        prefix: &'forms [HirForm],
+        suffix: &'forms [HirForm],
+    ) -> Recognition<'forms> {
+        todo!("implement");
+    }
+
+    /// Lower a known instance of closure construction.
+    ///
+    /// This involves constructing a new [`Body`] within the [`Module`], pushing
+    /// [`Instruction::MakeClosure`] within the block which first instantiated
+    /// the closure with the given `mode`, as well as setting up [`Lowerer`]
+    /// state machine to lower the `forms` within that closure.
+    fn lower_make_closure(
+        &mut self,
+        origin: SyntaxId,
+        forms: &'forms [HirForm],
+        mode: ClosureMode,
+    ) {
+        // Mint new BodyId.
+        let body_id = self.module.bodies.push(Body::new(Some(origin)));
+
+        // Setup the closure creation instruction within the current scope.
+        self.emit_inst(Instruction::MakeClosure(body_id, mode), origin);
+
+        // Push work onto the stack regarding the actual forms of this closure.
+        self.work.extend([
+            Work::FinishBody {
+                expected_body: body_id,
+                prev_block: Some(self.block),
+            },
+            Work::Body(forms),
+        ]);
+
+        // Setup environment and block relative to the new [`Body`].
+        self.env.open_frame(body_id);
+        self.block = BlockId::default();
+    }
+
+    /// Emit an [`Instruction`] within the active [`Block`].
+    fn emit_inst(&mut self, inst: Instruction, origin: SyntaxId) {
+        self.current_block().push_instruction(inst, origin);
     }
 
     /// Construct new error diagnostic of `kind` at `origin`.
@@ -205,6 +301,30 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
             .blocks
             .get_mut(self.block)
     }
+}
+
+/// Result of running recongition on some prefix of forms.
+enum Recognition<'forms> {
+    /// Prefix of forms were unrecognised.
+    Unrecognised,
+    /// Prefix of forms were recognised and work has been scheduled.
+    Scheduled,
+    /// Prefix of forms were recognised and work needs to be continued by
+    /// caller.
+    Continue(&'forms [HirForm]),
+}
+
+/// Traversal work that needs to be completed in order to lower.
+enum Work<'forms> {
+    /// A body of forms to lower.
+    Body(&'forms [HirForm]),
+    /// Sentinel to finish a complete [`Body`][crate::lowering::Body] of forms.
+    FinishBody {
+        /// Expected [`BodyId`] that this is closing.
+        expected_body: BodyId,
+        /// Previous [`BlockId`] being processed.
+        prev_block: Option<BlockId>,
+    },
 }
 
 /// Traversal work regarding [`HirForm`]s in Datum position.

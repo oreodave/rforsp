@@ -15,5 +15,7 @@ pub use body::{Body, CaptureId, CaptureSource, LocalId};
 mod module;
 pub use module::{BodyId, Datum, DatumId, Module};
 
+mod env;
+
 mod lower;
 pub use lower::lower;

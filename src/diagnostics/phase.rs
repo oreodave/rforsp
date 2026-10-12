@@ -11,8 +11,8 @@ pub enum Phase {
     Lex,
     /// Parsing phase.
     Parse,
-    /// Binding resolution phase.
-    Resolution,
+    /// Lowering phase.
+    Lowering,
 }
 
 /// Error value for an Aborted [`Phase`].
@@ -31,7 +31,7 @@ impl Phase {
             Self::Source => "source",
             Self::Lex => "lex",
             Self::Parse => "parse",
-            Self::Resolution => "resolution",
+            Self::Lowering => "lowering",
         }
     }
 }

@@ -134,17 +134,19 @@ classes! {
     /// [`UnexpectedCloser`][crate::parser::ParseErrorKind::UnexpectedCloser]
     ParseUnexpectedCloser => Parse, Error, "UNEXPECTED_CLOSER";
 
-    /// A call or load refers to an unbound symbol.  Mirrors
-    /// [`UnresolvedSymbol`][crate::resolution::ResolutionErrorKind::UnresolvedSymbol].
-    ResolutionUnresolvedSymbol => Resolution, Error, "UNRESOLVED_SYMBOL";
-
-    /// A data operand was provided for the recursion operator.  Mirrors
-    /// [`RecDataOperand`][crate::resolution::ResolutionErrorKind::RecDataOperand].
-    ResolutionRecDataOperand => Resolution, Error, "DATA_OPERAND_REC";
-
     /// Poisoned/dropped output from a compiler phase despite no new Diagnostics
     /// generated in a phase.
     ICEDroppedOutput => ICE, Bug, "DROPPED_OUTPUT";
+
+    /// Lowering received a bind or load in a datum position.
+    ICEInvalidHIRDatum => ICE, Bug, "INVALID_HIR_DATUM";
+
+    /// A call or load references a symbol that lowering could not resolve.
+    LoweringUnresolvedSymbol => Lowering, Error, "UNRESOLVED_SYMBOL";
+
+    /// A compile-time known data value was used as an operand for the `rec`
+    /// operator.
+    LoweringRecursionDataOperand => Lowering, Error, "RECURSION_DATA_OPERAND";
 }
 
 #[cfg(test)]

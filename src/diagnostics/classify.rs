@@ -4,8 +4,8 @@
 //! phase's classes.
 
 use crate::{
-    diagnostics::Class, lexer::LexErrorKind, parser::ParseErrorKind,
-    resolution::ResolutionErrorKind,
+    diagnostics::Class, lexer::LexErrorKind, lowering::LoweringErrorKind,
+    parser::ParseErrorKind,
 };
 
 impl From<LexErrorKind> for Class {
@@ -33,14 +33,14 @@ impl From<ParseErrorKind> for Class {
     }
 }
 
-impl From<ResolutionErrorKind> for Class {
-    fn from(e: ResolutionErrorKind) -> Self {
+impl From<LoweringErrorKind> for Class {
+    fn from(e: LoweringErrorKind) -> Self {
         match e {
-            ResolutionErrorKind::UnresolvedSymbol => {
-                Self::ResolutionUnresolvedSymbol
+            LoweringErrorKind::UnresolvedSymbol => {
+                Self::LoweringUnresolvedSymbol
             }
-            ResolutionErrorKind::RecDataOperand => {
-                Self::ResolutionRecDataOperand
+            LoweringErrorKind::RecursionDataOperand => {
+                Self::LoweringRecursionDataOperand
             }
         }
     }
@@ -100,25 +100,6 @@ mod tests {
             assert_eq!(
                 Class::from(kind).phase(),
                 Phase::Parse,
-                "{kind:?} escaped its phase"
-            );
-        }
-    }
-
-    #[test]
-    fn resolution_kinds_classify_within_resolution() {
-        #[expect(
-            clippy::single_element_loop,
-            reason = "Later support for multiple resolution error kinds"
-        )]
-        for (kind, class) in [(
-            ResolutionErrorKind::UnresolvedSymbol,
-            Class::ResolutionUnresolvedSymbol,
-        )] {
-            assert_eq!(Class::from(kind), class, "{kind:?}");
-            assert_eq!(
-                Class::from(kind).phase(),
-                Phase::Resolution,
                 "{kind:?} escaped its phase"
             );
         }

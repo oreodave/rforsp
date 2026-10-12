@@ -10,9 +10,10 @@ change with them.
 For exploratory designs that predate the current implementation, see
 [[file:speculative-ir-2026-08.org]].
 * Current pipeline
-The compiler currently reads sources, tokenises them, parses them into HIR, and
-resolves bindings.  It stops after resolution; it does not yet produce or
-execute a lower-level representation.
+The compiler reads sources, tokenises them, parses them into HIR, and lowers the
+combined HIR into Stack-based Intermediate Representation (SIR).  Lowering
+resolves bindings and recognises static control forms in the same traversal.
+The driver can log the resulting SIR, but does not execute it yet.
 
 A compilation owns one source table, symbol interner, primitive registry, and
 runtime-variable registry.  These survive every phase.  Diagnostics do not:
@@ -47,24 +48,30 @@ uses an explicit frame stack, so nesting depth does not consume the Rust call
 stack.
 
 After every source parses successfully, the driver concatenates their top-level
-form sequences in input order.  The result is one entry body for resolution.
+form sequences in input order.  The result becomes one SIR entry body.
 A parse error withholds that source's HIR, and the phase gate prevents partial
-HIR from reaching resolution.
-** Resolution
-Resolution walks the combined HIR and produces a side table indexed by syntax
-identifier.  It also produces binding metadata and the layout of the entry
-body.  Nested executable vectors carry their own body layouts through their
-resolution entries.
+HIR from reaching lowering.
+** Lowering
+Lowering walks the combined HIR once with an explicit work stack.  It builds a
+SIR module containing bodies and data.  Each body contains basic blocks, dense
+local slots, and an ordered capture layout.  Each block contains instructions,
+their syntax origins, and a terminator.  The entry body is the concatenation of
+all successfully parsed inputs.
 
-Resolution assigns each bind a fresh binding identity and a dense local slot in
-its body.  Calls and loads resolve to a local binding, a captured value, a
-primitive, or a runtime variable.  An unresolved call or load is marked as
-poison so the walk can continue and report further errors; the phase gate
-prevents poisoned output from reaching a later phase.
+An environment tracks one lexical frame per active body and nested scopes for
+conditional arms.  A bind allocates a slot in the active body; a call or load
+resolves immediately to a local, capture, primitive, or runtime variable.  A
+reference across body boundaries adds captures through every intervening body.
+An unresolved symbol produces a diagnostic at its HIR origin, and lowering
+continues to find other errors.
 
-Resolution also recognises statically apparent uses of the primordial ~if~ and
-~rec~ names.  Recognition is lexical: a binding that shadows either name turns
-later uses back into ordinary references.
+At each executable-form prefix, lowering recognises statically apparent uses
+of primordial ~rec~ and ~if~.  Recognition can schedule new bodies or blocks
+immediately.  A lexical binding that shadows either name makes its uses
+ordinary calls.  Data construction uses a separate explicit work stack.
+
+Lowering returns a module only if it recorded no errors.  The driver gates its
+diagnostics before logging the module.
 * Phase interfaces
 ** Source acquisition
 - Input: an ordered sequence of file or embedded sources.
@@ -79,12 +86,13 @@ later uses back into ordinary references.
   symbol interner.
 - Output: one top-level HIR sequence with a syntax identifier on every form.
 - Failure: parse diagnostics and no HIR sequence for that source.
-** Resolution
+** Lowering
 - Input: the combined top-level HIR sequence plus the primitive and runtime
   variable registries.
-- Output: a resolution map, binding table, and entry-body layout.
-- Failure: resolution diagnostics.  The result may contain poison for recovery,
-  but the driver does not pass it beyond the phase gate.
+- Output: a SIR module and lowering diagnostics.  The module contains an entry
+  body, nested closure bodies, basic blocks, and a table of indexed data nodes.
+- Failure: lowering diagnostics and no module.  Lowering may continue after an
+  error to report more errors, but the driver does not log partial SIR.
 * Established language and compiler invariants
 ** Source and syntax identity
 - Spans use UTF-8 byte offsets and are half-open.
@@ -108,16 +116,18 @@ later uses back into ordinary references.
 ** HIR
 - HIR preserves source nesting and distinguishes integers, quotes, lists,
   vectors, binds, loads, and calls.
-- Lists and quoted forms are data.  Resolution does not walk their contents.
-- Vectors remain ambiguous after parsing; resolution determines whether a
-  vector is an ordinary closure, a recursive closure, or a conditional arm.
+- Lists and quoted forms are data; their descendants become SIR data rather
+  than executable instructions.
+- Vector interpretation depends on position: executable vectors make closures,
+  vectors inside data become vector data, and recognised ~if~ operands become
+  inlined branch forms.
 - HIR traversal, printing, and destruction support deeply nested input without
   recursive host-stack traversal.
-** Binding and closure resolution
+** Bindings and captures
 - Binding visibility is sequential.  A bind affects later forms in its lexical
   scope, not earlier forms.
 - A new bind shadows earlier locals, primitives, and runtime variables.
-- Leaving a closure body restores the enclosing lexical environment.
+- Leaving a closure body restores the enclosing lexical environment and block.
 - Each body owns dense local slots.  Conditional arms have nested lexical
   scopes but allocate locals in their enclosing body.
 - A reference crossing a body boundary becomes a capture.  The value is
@@ -129,13 +139,29 @@ later uses back into ordinary references.
 ** Recognised forms
 - ~<vector> rec~ is recognised only when ~rec~ still names the primordial
   primitive.  The vector becomes a recursive closure.
-- A statically known data operand before primordial ~rec~ is a resolution error.
-  A computed operand remains an ordinary dynamic call to ~rec~.
+- An integer, quote, or list before primordial ~rec~ is a lowering error.  A
+  bind, load, or call operand leaves ~rec~ as an ordinary dynamic call.
 - ~<then> <else> if~ is recognised only when ~if~ still names the primordial
-  primitive and neither immediate operand is a bind, load, or call form.  Vector arms execute in separate arm-local scopes of the
-  enclosing body.
-- Recognition consumes only the matched forms and resolution continues with the
-  remainder of the body.
+  primitive and both immediate operands are integers, quotes, lists, or
+  vectors.  Vector arms execute in separate arm-local scopes of the enclosing
+  body; other operands push data in their respective arms.
+- A recognised conditional terminates the current block with a branch.  Both
+  arms receive separate blocks.  A nonempty suffix gets a continuation block
+  reached by jumps from the arms; with an empty suffix, each arm inherits the
+  enclosing exit directly.
+- Recognition consumes only matched forms.  Lowering continues with the suffix
+  in its scheduled body or block.
+** SIR
+- Executable integers, quotes, and lists emit data-push instructions.  Binds
+  refer to newly allocated locals; loads and calls carry resolved targets.
+- An executable vector emits a closure-creation instruction and creates a body
+  with its own entry block.  Recognised recursion selects recursive closure
+  mode; ordinary vectors use normal mode.
+- ~End~ completes a body; ~Jump~ and ~Branch~ connect blocks within one body.
+  Source forms supply instruction origins and the recognised ~if~ supplies its
+  branch origin.  Generated exits have no syntax origin.
+- Body-local slots are dense.  Capture slots are reused for repeated demand
+  from the same source within a body.
 ** Diagnostics and phase gates
 - Every diagnostic class fixes its phase, severity, and stable code.
 - Notes and warnings are non-fatal.  Errors and compiler bugs are fatal.
@@ -151,8 +177,8 @@ later uses back into ordinary references.
 - Phase output is withheld after user-facing errors; recovery data exists to
   improve diagnostics, not to permit later phases to consume invalid results.
 - HIR remains source-shaped.  Binding, capture, closure, and recognition facts
-  live in the resolution side table rather than rewriting HIR.
+  are represented in SIR as lowering builds it, without rewriting HIR.
 - Deep user input must not overflow the Rust call stack in parsing, HIR
-  traversal, HIR printing, HIR destruction, or resolution.
+  traversal, HIR printing, HIR destruction, or lowering.
 - Primitive and runtime-variable names are unique within the initial namespace,
   but ordinary lexical bindings may shadow them.

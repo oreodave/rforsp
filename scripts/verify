@@ -2,9 +2,11 @@
 
 set -xe
 
-cargo build
 cargo clippy --all-targets
 cargo fmt -- --check
+
+export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-A warnings"
+cargo build
 cargo doc --no-deps --document-private-items
 ./scripts/examples
 

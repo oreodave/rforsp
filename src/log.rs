@@ -1,11 +1,16 @@
 //! Compiler phase logging.
 
+use std::collections::HashMap;
+use std::fmt::Write;
+
 use crate::{
     context::Compilation,
     lexer::Token,
+    lowering::{
+        BlockId, BodyId, Datum, Instruction, Module, Target, TerminatorKind,
+    },
     parser::{HirForm, HirKind, dfs},
-    resolution::{Resolution, ResolutionResult},
-    source::SourceId,
+    source::{SourceId, SyntaxId},
 };
 
 /// Set of compiler phases to log.
@@ -23,8 +28,8 @@ impl Log {
     pub const TOKENS: Self = Self(1 << 0);
     /// Log the [`HirForm`]s produced by phase 2.
     pub const HIR: Self = Self(1 << 1);
-    /// Log the [`ResolutionResult`] produced by phase 3.
-    pub const RESOLUTION: Self = Self(1 << 2);
+    /// Log the [`Module`] produced by phase 3.
+    pub const SIR: Self = Self(1 << 2);
     /// Log all results produced by every phase.
     pub const ALL: Self = Self(0xFF);
 
@@ -55,23 +60,16 @@ pub fn log_tokens(
         return Ok(());
     }
 
+    writeln!(log_out, "TOKENS:")?;
     for (&id, lex_stream) in sources.iter().zip(lexes) {
         let source = ctx.table.get_source(id);
-        writeln!(
-            log_out,
-            "{}: {} {} => {} {}",
-            source.name,
-            source.len(),
-            if source.len() == 1 { "byte" } else { "bytes" },
-            lex_stream.len(),
-            if lex_stream.len() == 1 {
-                "token"
-            } else {
-                "tokens"
-            },
-        )?;
+        write!(log_out, "  {}: ", source.name)?;
+        log_count(log_out, source.len(), "byte", "bytes")?;
+        write!(log_out, " => ")?;
+        log_count(log_out, lex_stream.len(), "token", "tokens")?;
+        writeln!(log_out)?;
 
-        write!(log_out, "\t")?;
+        write!(log_out, "    ")?;
         for (count, token) in lex_stream.iter().enumerate() {
             let kind = token.kind;
             let text = source.span_text(token.span);
@@ -106,14 +104,11 @@ pub fn log_hir(
     dfs(forms, |_, _| form_count += 1);
     let token_count = token_streams.iter().map(Vec::len).sum::<usize>();
 
-    writeln!(
-        log_out,
-        "{} {} => {} {}",
-        token_count,
-        if token_count == 1 { "token" } else { "tokens" },
-        form_count,
-        if form_count == 1 { "form" } else { "forms" },
-    )?;
+    write!(log_out, "HIR:\n  ")?;
+    log_count(log_out, token_count, "token", "tokens")?;
+    write!(log_out, " => ")?;
+    log_count(log_out, form_count, "form", "forms")?;
+    writeln!(log_out)?;
 
     dfs(forms, |form, depth| {
         if result.is_err() {
@@ -125,7 +120,7 @@ pub fn log_hir(
             "{:width$}{} ",
             "",
             form.kind.label_str(),
-            width = depth * 2
+            width = (depth + 1) * 2
         )
         .and_then(|()| match &form.kind {
             HirKind::Int(_)
@@ -134,7 +129,7 @@ pub fn log_hir(
             | HirKind::Call(_) => {
                 writeln!(
                     log_out,
-                    "`{}`",
+                    "{:?}",
                     ctx.table.text_of(ctx.table.get_origin(form.id))
                 )
             }
@@ -148,103 +143,232 @@ pub fn log_hir(
     result
 }
 
-/// Log the results of Resolution if and only if `log` contains
-/// [`Log::RESOLUTION`].
-///
-/// This amounts to walking the associated parse stream `body` and, if an entry
-/// is present for a particular form, printing that form along with the
-/// resolution judgement made for it.
+/// Log the [`Module`] if and only if `log` contains [`Log::SIR`].
 ///
 /// # Errors
-/// - From repeated `writeln` calls.
-pub fn log_resolution(
-    body: &[HirForm],
-    resolution: &ResolutionResult,
+/// - repeated back from `writeln` calls.
+pub fn log_sir(
+    forms: &[HirForm],
+    module: &Module,
     log: Log,
     ctx: &Compilation,
     log_out: &mut impl std::fmt::Write,
 ) -> std::fmt::Result {
-    if !log.contains(Log::RESOLUTION) {
+    if !log.contains(Log::SIR) {
         return Ok(());
     }
 
-    let mut result: std::fmt::Result = Ok(());
-    let mut form_count = 0;
-    dfs(body, |_, _| form_count += 1);
+    // Generate a count of all the forms
+    let form_count = {
+        let mut form_count = 0;
+        dfs(forms, |_, _| form_count += 1);
+        form_count
+    };
 
-    writeln!(
-        log_out,
-        "{} {} => {} {}, {} {}",
-        form_count,
-        if form_count == 1 { "form" } else { "forms" },
-        resolution.map.len(),
-        if resolution.map.len() == 1 {
-            "resolution"
-        } else {
-            "resolutions"
-        },
-        resolution.bindings.bindings().len(),
-        if resolution.bindings.bindings().len() == 1 {
-            "binding"
-        } else {
-            "bindings"
-        },
-    )?;
+    // Generate a count of all the instructions, blocks, and bodies in the
+    // module.
+    let body_count = module.bodies.len();
+    let mut block_count = 0;
+    let mut inst_count = 0;
+    for (_, body) in module.bodies.iter() {
+        for (_, block) in body.blocks.iter() {
+            block_count += 1;
+            inst_count += block.instructions.len();
+        }
+    }
 
-    writeln!(log_out, "Entry, {:?}", resolution.entry)?;
+    write!(log_out, "SIR:\n  ")?;
+    log_count(log_out, form_count, "form", "forms")?;
+    write!(log_out, " => ")?;
+    log_count(log_out, body_count, "body", "bodies")?;
+    write!(log_out, ", ")?;
+    log_count(log_out, block_count, "block", "blocks")?;
+    write!(log_out, ", ")?;
+    log_count(log_out, inst_count, "instruction", "instructions")?;
+    writeln!(log_out)?;
 
-    dfs(body, |form, depth| {
-        if result.is_err() {
-            return;
+    // Print datums owned by this module
+    writeln!(log_out, "  section: data")?;
+    for (datum_id, datum) in module.data.iter() {
+        write!(log_out, "    {datum_id:?} => ")?;
+        match datum {
+            Datum::Int(n) => writeln!(log_out, "Int({n})"),
+            Datum::Atom(sym) => {
+                let s = ctx.interner.resolve(*sym);
+                writeln!(log_out, "Atom({s})")
+            }
+            Datum::List(children) => {
+                writeln!(log_out, "List({children:?})")
+            }
+            Datum::Vector(children) => {
+                writeln!(log_out, "Vec({children:?})")
+            }
+            Datum::Quote(subform) => {
+                writeln!(log_out, "Quote({subform:?})")
+            }
+        }?;
+    }
+
+    // Render per body instructions and terminators, ensuring we record the
+    // maximum render length.
+    let (renders, max_width) = render_blocks(ctx, module)?;
+
+    // Now print the instructions and bodies.
+    writeln!(log_out, "  section: code")?;
+    for (body_id, body) in module.bodies.iter() {
+        writeln!(
+            log_out,
+            "    body[{body_id:?}, #locals[{}], captures[{:?}]] {{",
+            body.locals.len(),
+            body.captures().collect::<Vec<_>>()
+        )?;
+
+        for (block_id, _) in body.blocks.iter() {
+            writeln!(log_out, "      block[{block_id:?}]: {{")?;
+            for (string, origin) in &renders[&(body_id, block_id)] {
+                write!(log_out, "        {string:<max_width$}")?;
+                if let Some(origin) = origin {
+                    write!(
+                        log_out,
+                        "    <-- [{:?}]",
+                        ctx.table.text_of(ctx.table.get_origin(*origin))
+                    )?;
+                }
+                writeln!(log_out)?;
+            }
+            writeln!(log_out, "    }}")?;
         }
 
-        let Some(res) = resolution.map.get(form.id) else {
-            return;
-        };
+        writeln!(log_out, "  }}")?;
+    }
 
-        result = write!(
-            log_out,
-            "{:width$}{} ",
-            "",
-            form.kind.label_str(),
-            width = (depth + 1) * 2
-        )
-        .and_then(|()| match (&form.kind, res) {
-            (HirKind::Int(_) | HirKind::Quote(_) | HirKind::List(_), res) => {
-                writeln!(log_out, "{res:?}")
+    Ok(())
+}
+
+/// A completed render of all the [`BlockId`]s within all [`BodyId`]s in a
+/// [`Module`].
+type BlockRender = HashMap<(BodyId, BlockId), Vec<(String, Option<SyntaxId>)>>;
+
+/// Render all [`BlockId`]s within the [`Module`] given.
+/// On `Ok`, returns a [`BlockRender`] and the maximum width of any string
+/// rendered.
+fn render_blocks(
+    ctx: &Compilation,
+    module: &Module,
+) -> Result<(BlockRender, usize), std::fmt::Error> {
+    let mut renders = BlockRender::new();
+    let mut max_width = 0;
+
+    for (body_id, body) in module.bodies.iter() {
+        for (block_id, block) in body.blocks.iter() {
+            // Collection of rendered strings for this specific (Body,Block)
+            // combination.
+            let mut strings = Vec::new();
+
+            for (inst, origin) in
+                block.instructions.iter().zip(block.origins.iter())
+            {
+                let string = match inst {
+                    Instruction::PushData(datum) => {
+                        format!("PushData({datum:?})")
+                    }
+                    Instruction::Load(target) => {
+                        let mut x = String::new();
+                        write!(x, "Load(")?;
+                        log_target(&mut x, ctx, target)?;
+                        write!(x, ")")?;
+                        x
+                    }
+                    Instruction::Call(target) => {
+                        let mut x = String::new();
+                        write!(x, "Call(")?;
+                        log_target(&mut x, ctx, target)?;
+                        write!(x, ")")?;
+                        x
+                    }
+                    Instruction::Bind(local) => {
+                        format!("Bind({local:?})")
+                    }
+                    Instruction::MakeClosure(body_id, mode) => {
+                        format!("MakeClosure({body_id:?}, {mode:?})")
+                    }
+                };
+                strings.push((string, Some(*origin)));
             }
 
-            (HirKind::Bind(sym_id), Resolution::Bound(bind_id)) => {
-                let info = resolution.bindings.get(*bind_id);
-                writeln!(
-                    log_out,
-                    "`{}`, {bind_id:?} -> {:?}",
-                    ctx.interner.resolve(*sym_id),
-                    info.local,
-                )
+            // Render terminator as well.
+            {
+                let mut terminator_string = String::new();
+                write!(terminator_string, "Terminates[")?;
+                match block.terminator.kind {
+                    TerminatorKind::End => write!(terminator_string, "End"),
+                    TerminatorKind::Jump(block) => {
+                        write!(terminator_string, "Jump({block:?})")
+                    }
+                    TerminatorKind::Branch {
+                        then_block,
+                        else_block,
+                    } => {
+                        write!(
+                            terminator_string,
+                            "Branch(then={then_block:?}, else={else_block:?})"
+                        )
+                    }
+                }?;
+                write!(terminator_string, "]")?;
+                strings.push((terminator_string, block.terminator.origin));
             }
 
-            (HirKind::Load(sym_id) | HirKind::Call(sym_id), res) => {
-                writeln!(
-                    log_out,
-                    "`{}`, {:?}",
-                    ctx.interner.resolve(*sym_id),
-                    res
-                )
-            }
+            // Compute maximum width.
+            max_width = std::cmp::max(
+                max_width,
+                strings
+                    .iter()
+                    .map(|(s, _)| s.chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
 
-            (HirKind::Vector(forms), res) => {
-                writeln!(log_out, "[{}], {:?}", forms.len(), res)
-            }
+            renders.insert((body_id, block_id), strings);
+        }
+    }
 
-            _ => {
-                #[expect(clippy::unreachable, reason="Any state that is possible from resolution has already been dealt with.")]
-                {
-                    unreachable!();
-                }
-            }
-        });
-    });
+    Ok((renders, max_width))
+}
 
-    result
+/// Log the given lowering [`Target`].
+fn log_target(
+    log_out: &mut impl std::fmt::Write,
+    ctx: &Compilation,
+    target: &Target,
+) -> std::fmt::Result {
+    match target {
+        Target::Primitive(id) => {
+            let name = ctx.interner.resolve(ctx.primitives.get(*id).sym);
+            write!(log_out, "Primitive({name})")
+        }
+        Target::Variable(id) => {
+            let name = ctx.interner.resolve(ctx.variables.get(*id).sym);
+            write!(log_out, "RuntimeVariable({name})")
+        }
+        target @ (Target::Local(_) | Target::Captured(_)) => {
+            write!(log_out, "{target:?}")
+        }
+    }
+}
+
+/// Log a count of items, printing the `singular` and `plural` forms depending
+/// on `count`.
+fn log_count(
+    log_out: &mut impl std::fmt::Write,
+    count: usize,
+    singular: &str,
+    plural: &str,
+) -> std::fmt::Result {
+    write!(
+        log_out,
+        "{} {}",
+        count,
+        if count == 1 { singular } else { plural }
+    )
 }

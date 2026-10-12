@@ -7,9 +7,9 @@ use crate::{
     context::Compilation,
     diagnostics::{Aborted, Class, Diagnostics, Phase, Site, conv::ice},
     lexer::{Token, tokenise},
-    log::{Log, log_hir, log_resolution, log_tokens},
+    log::{Log, log_hir, log_sir, log_tokens},
+    lowering::{Module, lower},
     parser::{HirForm, parse},
-    resolution::{ResolutionResult, resolve},
     source::SourceId,
 };
 
@@ -37,7 +37,7 @@ pub fn compile(
     log: Log,
     log_out: &mut impl std::fmt::Write,
 ) -> Result<(), Aborted> {
-    // TODO(oreo)[2026-08-12 15:42]: Wire in lowering, verification.
+    // TODO(oreo)[2026-10-12 20:09:59]: Wire in verification.
     let sources = sources_from_inputs(inputs, diagnostics, ctx)?;
 
     let lexes = lex_sources(&sources, diagnostics, ctx)?;
@@ -46,8 +46,8 @@ pub fn compile(
     let body = parse_streams(&sources, &lexes, diagnostics, ctx)?;
     let _ = log_hir(&lexes, &body, log, ctx, log_out);
 
-    let resolution = resolve_body(&body, diagnostics, ctx)?;
-    let _ = log_resolution(&body, &resolution, log, ctx, log_out);
+    let module = lower_forms(&body, diagnostics, ctx)?;
+    let _ = log_sir(&body, &module, log, ctx, log_out);
 
     Ok(())
 }
@@ -219,24 +219,39 @@ fn parse_streams(
     gate(diagnostics, local, body, Phase::Parse)
 }
 
-/// Perform a resolution pass across a parse stream, producing a
-/// [`ResolutionResult`].
+/// Lower a sequence of [`HirForm`]s into a [`Module`] in the Stack-based
+/// Intermediate Language.
 ///
 /// # Errors
 /// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created
-///   while performing a resolution pass over the given [`HirForm`]s.
-fn resolve_body(
-    body: &[HirForm],
+///   while lowering the given [`HirForm`]s.
+fn lower_forms(
+    forms: &[HirForm],
     diagnostics: &mut Diagnostics,
     ctx: &Compilation,
-) -> Result<ResolutionResult, Aborted> {
-    let (res, local) = resolve(body, &ctx.variables, &ctx.primitives);
-    gate(diagnostics, local, res, Phase::Resolution)
+) -> Result<Module, Aborted> {
+    let (module, mut local) = lower(forms, &ctx.primitives, &ctx.variables);
+    if module.is_none() && !local.has_errors() {
+        local.push(ice(
+            Class::ICEDroppedOutput,
+            Site::None,
+            "lowering with-held Module but has no errors",
+        ));
+    }
+
+    gate(diagnostics, local, module, Phase::Lowering)?
+        .ok_or_else(|| Aborted::new(Phase::Lowering))
 }
 
 #[cfg(test)]
+#[expect(clippy::panic, reason = "test failures report unexpected IR shapes")]
 mod tests {
-    use crate::diagnostics::Diagnostic;
+    use crate::{
+        diagnostics::Diagnostic,
+        lowering::{BlockId, Instruction, Target},
+        parser::HirKind,
+        source::Span,
+    };
 
     use super::*;
 
@@ -330,5 +345,145 @@ mod tests {
             .expect("a clean source passes");
         assert_eq!(tokens[0].len(), 3);
         assert!(!diags.has_errors());
+    }
+
+    #[test]
+    fn lower_forms_returns_a_module_with_shared_lexical_targets() {
+        let mut ctx = Compilation::new();
+        let source = ctx
+            .table
+            .add_source_raw("lowering", "1 $x ^x x".to_owned())
+            .expect("raw source");
+        let x = ctx.interner.intern("x");
+        let origins = [
+            Span::new(0, 1),
+            Span::new(2, 4),
+            Span::new(5, 7),
+            Span::new(8, 9),
+        ]
+        .map(|span| ctx.table.add_origin(source, span));
+        let forms = [
+            HirForm::new(origins[0], HirKind::Int(1)),
+            HirForm::new(origins[1], HirKind::Bind(x)),
+            HirForm::new(origins[2], HirKind::Load(x)),
+            HirForm::new(origins[3], HirKind::Call(x)),
+        ];
+        let mut diagnostics = Diagnostics::new();
+
+        let module = lower_forms(&forms, &mut diagnostics, &ctx)
+            .expect("lexical references lower through the driver");
+        assert!(!diagnostics.has_errors());
+        let block = module.get_entry().blocks.get(BlockId::default());
+        assert_eq!(block.origins, origins);
+        let local = match block.instructions[1] {
+            Instruction::Bind(local) => local,
+            ref other => panic!("expected bind, got {other:?}"),
+        };
+        assert!(matches!(
+            block.instructions[2],
+            Instruction::Load(Target::Local(found)) if found == local
+        ));
+        assert!(matches!(
+            block.instructions[3],
+            Instruction::Call(Target::Local(found)) if found == local
+        ));
+    }
+
+    #[test]
+    fn lower_forms_merges_errors_and_aborts_in_lowering_phase() {
+        let mut ctx = Compilation::new();
+        let source = ctx
+            .table
+            .add_source_raw("lowering", "^missing missing".to_owned())
+            .expect("raw source");
+        let missing = ctx.interner.intern("missing");
+        let origins = [Span::new(0, 8), Span::new(9, 16)]
+            .map(|span| ctx.table.add_origin(source, span));
+        let forms = [
+            HirForm::new(origins[0], HirKind::Load(missing)),
+            HirForm::new(origins[1], HirKind::Call(missing)),
+        ];
+        let mut diagnostics = Diagnostics::new();
+
+        assert!(matches!(
+            lower_forms(&forms, &mut diagnostics, &ctx),
+            Err(phase) if phase == Aborted::new(Phase::Lowering)
+        ));
+        assert_eq!(diagnostics.error_count(), 2);
+        for (diagnostic, origin) in diagnostics.items().iter().zip(origins) {
+            assert_eq!(diagnostic.class, Class::LoweringUnresolvedSymbol);
+            assert_eq!(diagnostic.site, Site::Syntax(origin));
+        }
+    }
+
+    #[test]
+    fn compile_lowers_one_lexical_program_across_sources() {
+        let mut ctx = Compilation::new();
+        let mut diagnostics = Diagnostics::new();
+        let mut output = String::new();
+        let inputs = [
+            SourceInput::Embedded {
+                name: "declaration",
+                contents: "1 $x",
+            },
+            SourceInput::Embedded {
+                name: "use",
+                contents: "^x x",
+            },
+        ];
+
+        assert_eq!(
+            compile(
+                &inputs,
+                &mut ctx,
+                &mut diagnostics,
+                Log::NONE,
+                &mut output
+            ),
+            Ok(())
+        );
+        assert!(diagnostics.items().is_empty());
+        assert_eq!(output, "");
+    }
+
+    #[test]
+    fn compile_reports_lowering_errors_from_multiple_sources() {
+        let mut ctx = Compilation::new();
+        let mut diagnostics = Diagnostics::new();
+        let mut output = String::new();
+        let inputs = [
+            SourceInput::Embedded {
+                name: "first",
+                contents: "^missing",
+            },
+            SourceInput::Embedded {
+                name: "second",
+                contents: "missing",
+            },
+        ];
+
+        assert_eq!(
+            compile(
+                &inputs,
+                &mut ctx,
+                &mut diagnostics,
+                Log::NONE,
+                &mut output
+            ),
+            Err(Aborted::new(Phase::Lowering))
+        );
+        assert_eq!(diagnostics.error_count(), 2);
+        for (item, name) in diagnostics.items().iter().zip(["first", "second"])
+        {
+            assert_eq!(item.class, Class::LoweringUnresolvedSymbol);
+            let Site::Syntax(id) = item.site else {
+                panic!(
+                    "expected syntax-backed diagnostic, got {:?}",
+                    item.site
+                );
+            };
+            let source = ctx.table.get_origin(id).source;
+            assert_eq!(ctx.table.get_source(source).name, name);
+        }
     }
 }

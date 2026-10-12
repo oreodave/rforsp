@@ -9,7 +9,7 @@ pub use bindings::{BindingId, BindingInfo, BindingTable};
 mod body;
 pub use body::{BodyLayout, CaptureId, CaptureSource, LocalId};
 
-mod builder;
+mod env;
 
 mod types;
 pub use types::{ArmRole, Resolution, ResolutionMap, ResolutionResult, Target};

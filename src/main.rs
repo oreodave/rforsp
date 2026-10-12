@@ -43,6 +43,7 @@ fn parse_cli() -> Result<CliConfig, CliExit> {
         match args.next().unwrap_or_default().as_str() {
             "--log-tokens" => config.log.insert(Log::TOKENS),
             "--log-hir" => config.log.insert(Log::HIR),
+            "--log-sir" => config.log.insert(Log::SIR),
             "--log-all" => config.log = Log::ALL,
             "--std" => {
                 if !std_included {
@@ -93,6 +94,7 @@ fn usage(mut out: impl std::io::Write) {
             "  --version:         Print version of program.\n",
             "  --log-tokens:      Print tokens generated per FILE.\n",
             "  --log-hir:         Print AST generated over all FILES.\n",
+            "  --log-sir:         Print SIR module generated from parse stream.\n",
             "  --log-all:         Print all logs.\n",
             "  --std:             Include the standard library during compilation.\n",
         )

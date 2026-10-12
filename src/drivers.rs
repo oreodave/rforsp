@@ -7,7 +7,7 @@ use crate::{
     context::Compilation,
     diagnostics::{Aborted, Class, Diagnostics, Phase, Site, conv::ice},
     lexer::{Token, tokenise},
-    log::{Log, log_hir, log_tokens},
+    log::{Log, log_hir, log_sir, log_tokens},
     lowering::{Module, lower},
     parser::{HirForm, parse},
     source::SourceId,
@@ -46,7 +46,8 @@ pub fn compile(
     let body = parse_streams(&sources, &lexes, diagnostics, ctx)?;
     let _ = log_hir(&lexes, &body, log, ctx, log_out);
 
-    let _module = lower_forms(&body, diagnostics, ctx)?;
+    let module = lower_forms(&body, diagnostics, ctx)?;
+    let _ = log_sir(&body, &module, log, ctx, log_out);
 
     Ok(())
 }

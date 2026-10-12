@@ -2,7 +2,10 @@
 
 use crate::{
     diagnostics::Diagnostics,
-    lowering::{Block, BlockId, BodyId, Datum, DatumId, Instruction, Module},
+    lowering::{
+        Block, BlockId, BodyId, Datum, DatumId, Instruction, Module,
+        env::Environment,
+    },
     parser::{HirForm, HirKind},
     runtime::{PrimitiveRegistry, RuntimeVariableRegistry},
     source::SyntaxId,
@@ -16,11 +19,11 @@ use crate::{
 #[must_use]
 pub fn lower(
     forms: &[HirForm],
-    _primitives: &PrimitiveRegistry,
-    _variables: &RuntimeVariableRegistry,
+    primitives: &PrimitiveRegistry,
+    variables: &RuntimeVariableRegistry,
 ) -> (Option<Module>, Diagnostics) {
     let mut diagnostics = Diagnostics::new();
-    let lowerer = Lowerer::new(forms, &mut diagnostics);
+    let lowerer = Lowerer::new(forms, &mut diagnostics, primitives, variables);
     let module = lowerer.complete();
 
     (module, diagnostics)
@@ -31,7 +34,14 @@ enum Work<'forms> {
     /// A body of forms to lower.
     Body(&'forms [HirForm]),
     /// Sentinel to finish a complete [`Body`][crate::lowering::Body] of forms.
-    FinishBody(Option<SyntaxId>, BodyId),
+    FinishBody {
+        /// Expected [`BodyId`] that this is closing.
+        expected_body: BodyId,
+        /// Previous [`BodyId`] being processed.
+        prev_body: Option<BodyId>,
+        /// Previous [`BlockId`] being processed.
+        prev_block: Option<BlockId>,
+    },
 }
 
 /// Lowerer state machine.
@@ -40,6 +50,8 @@ struct Lowerer<'diags, 'forms> {
     module: Module,
     /// [`Diagnostics`] for [`Lowerer`].
     diagnostics: &'diags mut Diagnostics,
+    /// Lexical environment helper.
+    env: Environment,
     /// [`Work`] to be completed.
     work: Vec<Work<'forms>>,
     /// Current [`BodyId`] within the [`Module`] being constructed.
@@ -53,12 +65,19 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
     fn new(
         forms: &'forms [HirForm],
         diagnostics: &'diags mut Diagnostics,
+        primitives: &PrimitiveRegistry,
+        variables: &RuntimeVariableRegistry,
     ) -> Self {
         Self {
             module: Module::new(),
+            env: Environment::new(variables, primitives),
             diagnostics,
             work: vec![
-                Work::FinishBody(None, BodyId::default()),
+                Work::FinishBody {
+                    expected_body: BodyId::default(),
+                    prev_body: None,
+                    prev_block: None,
+                },
                 Work::Body(forms),
             ],
             block: BlockId::default(),
@@ -81,9 +100,24 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                     self.work.push(Work::Body(remaining));
                     self.lower_form(form);
                 }
-                Work::FinishBody(_, _) => {
-                    // TODO(oreo)[2026-10-08 06:36]: Close up any environments,
-                    // copy [`BodyLayout`] over to the current working [`Body`].
+                Work::FinishBody {
+                    expected_body,
+                    prev_body,
+                    prev_block,
+                } => {
+                    let closed_frame_id = self.env.close_frame();
+                    debug_assert_eq!(
+                        closed_frame_id, expected_body,
+                        "Expected the closed frame's BodyId to match the BodyId of this Work::FinishBody instruction."
+                    );
+
+                    if let Some(body) = prev_body {
+                        self.body = body;
+                    }
+
+                    if let Some(block) = prev_block {
+                        self.block = block;
+                    }
                 }
             }
         }

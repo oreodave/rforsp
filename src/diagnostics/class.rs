@@ -137,6 +137,9 @@ classes! {
     /// Poisoned/dropped output from a compiler phase despite no new Diagnostics
     /// generated in a phase.
     ICEDroppedOutput => ICE, Bug, "DROPPED_OUTPUT";
+
+    /// A call or load references a symbol that lowering could not resolve.
+    LoweringUnresolvedSymbol => Lowering, Error, "UNRESOLVED_SYMBOL";
 }
 
 #[cfg(test)]

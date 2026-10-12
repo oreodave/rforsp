@@ -12,6 +12,7 @@ use std::fmt::Write as _;
 use crate::{
     diagnostics::{Aborted, Class, Diagnostic, Phase, Site},
     lexer::{LexError, LexErrorKind},
+    lowering::{LoweringError, LoweringErrorKind},
     parser::{ParseError, ParseErrorKind},
     source::{SourceError, SourceTableError},
 };
@@ -89,6 +90,20 @@ impl From<ParseError> for Diagnostic {
         };
 
         Self::new(e.kind.into(), site, message)
+    }
+}
+
+impl From<LoweringError> for Diagnostic {
+    fn from(e: LoweringError) -> Self {
+        let message = match e.kind {
+            LoweringErrorKind::UnresolvedSymbol => "Unresolved symbol",
+        };
+
+        Self::new(
+            Class::LoweringUnresolvedSymbol,
+            Site::Syntax(e.origin),
+            message,
+        )
     }
 }
 
@@ -224,6 +239,25 @@ mod tests {
             );
             assert!(!diag.message.is_empty(), "{kind:?} needs a message");
         }
+    }
+
+    #[test]
+    fn lowering_err() {
+        use crate::lowering::{LoweringError, LoweringErrorKind};
+
+        let mut sources = crate::source::SourceTable::new();
+        let source = sources
+            .add_source_raw("t", "x".into())
+            .expect("within bound");
+        let origin = sources.add_origin(source, crate::source::Span::new(0, 1));
+        let diag = Diagnostic::from(LoweringError {
+            origin,
+            kind: LoweringErrorKind::UnresolvedSymbol,
+        });
+        assert_eq!(diag.class, Class::LoweringUnresolvedSymbol);
+        assert_eq!(diag.class.phase(), Phase::Lowering);
+        assert_eq!(diag.site, Site::Syntax(origin));
+        assert_eq!(diag.message, "Unresolved symbol");
     }
 
     #[test]

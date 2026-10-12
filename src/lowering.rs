@@ -17,5 +17,8 @@ pub use module::{BodyId, Datum, DatumId, Module};
 
 mod env;
 
+mod error;
+pub use error::{LoweringError, LoweringErrorKind};
+
 mod lower;
 pub use lower::lower;

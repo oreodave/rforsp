@@ -52,23 +52,16 @@ pub fn log_tokens(
         return Ok(());
     }
 
+    writeln!(log_out, "TOKENS:")?;
     for (&id, lex_stream) in sources.iter().zip(lexes) {
         let source = ctx.table.get_source(id);
-        writeln!(
-            log_out,
-            "{}: {} {} => {} {}",
-            source.name,
-            source.len(),
-            if source.len() == 1 { "byte" } else { "bytes" },
-            lex_stream.len(),
-            if lex_stream.len() == 1 {
-                "token"
-            } else {
-                "tokens"
-            },
-        )?;
+        write!(log_out, "  {}: ", source.name)?;
+        log_count(log_out, source.len(), "byte", "bytes")?;
+        write!(log_out, " => ")?;
+        log_count(log_out, lex_stream.len(), "token", "tokens")?;
+        writeln!(log_out)?;
 
-        write!(log_out, "\t")?;
+        write!(log_out, "    ")?;
         for (count, token) in lex_stream.iter().enumerate() {
             let kind = token.kind;
             let text = source.span_text(token.span);
@@ -103,14 +96,11 @@ pub fn log_hir(
     dfs(forms, |_, _| form_count += 1);
     let token_count = token_streams.iter().map(Vec::len).sum::<usize>();
 
-    writeln!(
-        log_out,
-        "{} {} => {} {}",
-        token_count,
-        if token_count == 1 { "token" } else { "tokens" },
-        form_count,
-        if form_count == 1 { "form" } else { "forms" },
-    )?;
+    write!(log_out, "HIR:\n  ")?;
+    log_count(log_out, token_count, "token", "tokens")?;
+    write!(log_out, " => ")?;
+    log_count(log_out, form_count, "form", "forms")?;
+    writeln!(log_out)?;
 
     dfs(forms, |form, depth| {
         if result.is_err() {
@@ -122,7 +112,7 @@ pub fn log_hir(
             "{:width$}{} ",
             "",
             form.kind.label_str(),
-            width = depth * 2
+            width = (depth + 1) * 2
         )
         .and_then(|()| match &form.kind {
             HirKind::Int(_)
@@ -131,7 +121,7 @@ pub fn log_hir(
             | HirKind::Call(_) => {
                 writeln!(
                     log_out,
-                    "`{}`",
+                    "{:?}",
                     ctx.table.text_of(ctx.table.get_origin(form.id))
                 )
             }
@@ -143,4 +133,20 @@ pub fn log_hir(
     });
 
     result
+}
+
+/// Log a count of items, printing the `singular` and `plural` forms depending
+/// on `count`.
+fn log_count(
+    log_out: &mut impl std::fmt::Write,
+    count: usize,
+    singular: &str,
+    plural: &str,
+) -> std::fmt::Result {
+    write!(
+        log_out,
+        "{} {}",
+        count,
+        if count == 1 { singular } else { plural }
+    )
 }

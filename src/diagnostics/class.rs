@@ -138,6 +138,9 @@ classes! {
     /// generated in a phase.
     ICEDroppedOutput => ICE, Bug, "DROPPED_OUTPUT";
 
+    /// Lowering received a bind or load in a datum position.
+    ICEInvalidHIRDatum => ICE, Bug, "INVALID_HIR_DATUM";
+
     /// A call or load references a symbol that lowering could not resolve.
     LoweringUnresolvedSymbol => Lowering, Error, "UNRESOLVED_SYMBOL";
 

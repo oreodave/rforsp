@@ -2,9 +2,7 @@
 
 use crate::{
     diagnostics::Diagnostics,
-    lowering::{
-        Block, BlockId, Body, BodyId, Datum, DatumId, Instruction, Module,
-    },
+    lowering::{Block, BlockId, BodyId, Datum, DatumId, Instruction, Module},
     parser::{HirForm, HirKind},
     runtime::{PrimitiveRegistry, RuntimeVariableRegistry},
     source::SyntaxId,
@@ -32,7 +30,7 @@ pub fn lower(
 enum Work<'forms> {
     /// A body of forms to lower.
     Body(&'forms [HirForm]),
-    /// Sentinel to finish a complete [`Body`] of forms.
+    /// Sentinel to finish a complete [`Body`][crate::lowering::Body] of forms.
     FinishBody(Option<SyntaxId>, BodyId),
 }
 
@@ -56,21 +54,8 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
         forms: &'forms [HirForm],
         diagnostics: &'diags mut Diagnostics,
     ) -> Self {
-        // Initialise a module with the first, entry-level body, with a default
-        // empty block.
-        let module = {
-            let mut module = Module::default();
-            let entry_body = module.bodies.push(Body::default());
-            let _entry_block = module
-                .bodies
-                .get_mut(entry_body)
-                .blocks
-                .push(Block::default());
-            module
-        };
-
         Self {
-            module,
+            module: Module::new(),
             diagnostics,
             work: vec![
                 Work::FinishBody(None, BodyId::default()),
@@ -81,8 +66,11 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
         }
     }
 
-    /// Perform all actions of state machine and return Some([`Module`]) if and
-    /// only if no errors arised during the work.
+    /// Lower the initial set of [`HirForm`]s given, by completing all movements
+    /// of the [`Work`] state machine.
+    ///
+    /// Return Some([`Module`]) if and only if no errors arise during this
+    /// process.
     fn complete(mut self) -> Option<Module> {
         while let Some(work) = self.work.pop() {
             match work {
@@ -106,6 +94,8 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
     /// Lower a singular [`HirForm`], adjusting the [`Module`] as required.
     fn lower_form(&mut self, form: &'forms HirForm) {
         match form {
+            // Numbers, quoted forms, and lists, all lower to compile time data
+            // pushes.
             HirForm {
                 id,
                 kind: HirKind::Int(n),

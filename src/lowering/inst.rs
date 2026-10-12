@@ -21,7 +21,7 @@ pub enum Instruction {
     MakeClosure(BodyId, ClosureMode),
 }
 
-/// Slot or primordial reference used by a load or call.
+/// Slot or primordial reference used by a load, call, or bind.
 #[derive(Debug, Copy, Clone)]
 pub enum Target {
     /// Local slot in the current body.

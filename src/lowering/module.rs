@@ -12,12 +12,39 @@ define_id!(pub DatumId);
 /// Complete output of lowering.
 ///
 /// NOTE: [`BodyId`] 0 is the entry body of the module.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Module {
     /// Bodies indexed by [`BodyId`].
     pub bodies: Table<BodyId, Body>,
     /// Owned datum nodes indexed by [`DatumId`].
     pub data: Table<DatumId, Datum>,
+}
+
+impl Module {
+    /// Construct a new [`Module`].
+    ///
+    /// NOTE: This default initialises a [`Body`] which is considered the
+    /// "entry" [`Body`] for this [`Module`].
+    pub(crate) fn new() -> Self {
+        let mut bodies = Table::new();
+        bodies.push(Body::new(None));
+        Self {
+            bodies,
+            data: Table::new(),
+        }
+    }
+
+    /// Get the "entry" [`Body`] for this [`Module`].
+    #[must_use]
+    pub fn get_entry(&self) -> &Body {
+        self.bodies.get(BodyId::default())
+    }
+
+    /// Get the "entry" [`Body`] for this [`Module`] mutably.
+    #[must_use]
+    pub fn get_entry_mut(&mut self) -> &mut Body {
+        self.bodies.get_mut(BodyId::default())
+    }
 }
 
 /// Runtime data with indexed children rather than recursive ownership.

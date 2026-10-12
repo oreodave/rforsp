@@ -24,7 +24,7 @@ pub enum CaptureSource {
 /// layout of bindings within that block.
 ///
 /// NOTE: [`BlockId`] 0 is the entry block for any body.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Body {
     /// Vector origin, or `None` for the module entry body.
     pub origin: Option<SyntaxId>,
@@ -38,10 +38,17 @@ pub struct Body {
 
 impl Body {
     /// Construct a new [`Body`] with the given [`SyntaxId`] origin.
-    fn new(origin: SyntaxId) -> Self {
+    ///
+    /// NOTE: This default initialises a [`Block`] within [`Body::blocks`] for
+    /// ease of use.
+    pub(crate) fn new(origin: Option<SyntaxId>) -> Self {
+        let mut blocks = Table::new();
+        blocks.push(Block::default());
         Self {
-            origin: Some(origin),
-            ..Self::default()
+            origin,
+            blocks,
+            locals: IdCounter::new(),
+            captures: Table::new(),
         }
     }
 
@@ -79,7 +86,7 @@ mod tests {
 
     #[test]
     fn body_assigns_dense_slots() {
-        let mut body = Body::default();
+        let mut body = Body::new(None);
 
         assert_eq!(body.locals.len(), 0);
         assert_eq!(body.captures().len(), 0);
@@ -105,7 +112,7 @@ mod tests {
 
     #[test]
     fn repeated_capture_sources_reuse_their_slot() {
-        let mut body = Body::default();
+        let mut body = Body::new(None);
         let local = body.locals.allocate();
         let source = CaptureSource::Local(local);
 

@@ -333,10 +333,10 @@ fn lower_datum<'forms>(module: &mut Module, form: &'forms HirForm) -> DatumId {
 mod tests {
     use crate::{
         context::Compilation,
-        diagnostics::Diagnostics,
+        diagnostics::{Class, Diagnostics, Site},
         interner::SymId,
         lowering::{
-            BlockId, BodyId, Datum, DatumId, Instruction, Module,
+            BlockId, BodyId, Datum, DatumId, Instruction, Module, Target,
             TerminatorKind,
         },
         parser::{HirForm, HirKind},
@@ -501,6 +501,68 @@ mod tests {
         assert_eq!(block.origins, forms.map(|form| form.id));
         assert_eq!(block.terminator.origin, None);
         assert_eq!(block.terminator.kind, TerminatorKind::End);
+    }
+
+    #[test]
+    fn straight_lexical_binding_load_and_call_share_a_local() {
+        let mut fixture = Fixture::new();
+        let x = fixture.sym("x");
+        let forms = [
+            fixture.form(HirKind::Int(1)),
+            fixture.form(HirKind::Bind(x)),
+            fixture.form(HirKind::Load(x)),
+            fixture.form(HirKind::Call(x)),
+        ];
+
+        let (module, diagnostics) = fixture.lower(&forms);
+        assert!(diagnostics.items().is_empty());
+        let module = module.expect("resolved lexical references lower");
+        assert_eq!(module.data.len(), 1);
+
+        let entry = module.bodies.get(BodyId::default());
+        assert_eq!(entry.locals.len(), 1);
+        assert_eq!(entry.captures().len(), 0);
+        let block = entry.blocks.get(BlockId::default());
+        assert_eq!(block.instructions.len(), 4);
+        let datum = match block.instructions[0] {
+            Instruction::PushData(datum) => datum,
+            ref other => panic!("expected data push, got {other:?}"),
+        };
+        assert!(matches!(module.data.get(datum), Datum::Int(1)));
+        let local = match block.instructions[1] {
+            Instruction::Bind(local) => local,
+            ref other => panic!("expected bind, got {other:?}"),
+        };
+        assert!(
+            matches!(block.instructions[2], Instruction::Load(Target::Local(got)) if got == local)
+        );
+        assert!(
+            matches!(block.instructions[3], Instruction::Call(Target::Local(got)) if got == local)
+        );
+        assert_eq!(block.origins, forms.map(|form| form.id));
+        assert_eq!(block.terminator.kind, TerminatorKind::End);
+    }
+
+    #[test]
+    fn unresolved_lexical_references_report_origins_and_withhold_module() {
+        let mut fixture = Fixture::new();
+        let load_sym = fixture.sym("missing-load");
+        let call_sym = fixture.sym("missing-call");
+        let forms = [
+            fixture.form(HirKind::Load(load_sym)),
+            fixture.form(HirKind::Call(call_sym)),
+            fixture.form(HirKind::Int(1)),
+        ];
+
+        let (module, diagnostics) = fixture.lower(&forms);
+        assert!(module.is_none(), "errors withhold the partial module");
+        let items = diagnostics.items();
+        assert_eq!(items.len(), 2, "lowering accumulates both errors");
+        for (diagnostic, form) in items.iter().zip(&forms[..2]) {
+            assert_eq!(diagnostic.class, Class::LoweringUnresolvedSymbol);
+            assert_eq!(diagnostic.site, Site::Syntax(form.id));
+            assert_eq!(diagnostic.message, "Unresolved symbol");
+        }
     }
 
     /// Retrieve a list datum's children without depending on their ID numbering.

@@ -27,7 +27,7 @@ impl Module {
     /// "entry" [`Body`] for this [`Module`].
     pub(crate) fn new() -> Self {
         let mut bodies = Table::new();
-        bodies.push(Body::new(None));
+        let _ = bodies.push(Body::new(None));
         Self {
             bodies,
             data: Table::new(),

@@ -43,7 +43,7 @@ impl Body {
     /// ease of use.
     pub(crate) fn new(origin: Option<SyntaxId>) -> Self {
         let mut blocks = Table::new();
-        blocks.push(Block::default());
+        let _ = blocks.push(Block::default());
         Self {
             origin,
             blocks,

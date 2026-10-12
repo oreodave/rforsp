@@ -9,7 +9,7 @@ pub struct PrimitiveId(usize);
 /// Type for primitive
 pub struct Primitive {
     /// Symbol attached to this primitive.
-    sym: SymId,
+    pub sym: SymId,
     // TODO(oreo)[2026-08-17 08:26]: fields for stack signature, heap effect,
     // runtime impl, and lowering.
 }
@@ -58,6 +58,16 @@ impl PrimitiveRegistry {
         let id = PrimitiveId(self.primitives.len());
         self.primitives.push(Primitive { sym });
         id
+    }
+
+    /// Get the associated [`Primitive`] attached to the given [`PrimitiveId`].
+    ///
+    /// # Panics
+    /// - If given `id` is not valid.
+    #[must_use]
+    pub fn get(&self, id: PrimitiveId) -> &Primitive {
+        assert!(id.0 < self.primitives.len(), "Expected valid id.");
+        &self.primitives[id.0]
     }
 
     /// Return an iterator over the [`SymId`] of all primitives within the

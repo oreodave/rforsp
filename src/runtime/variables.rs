@@ -9,7 +9,7 @@ pub struct RuntimeVariableId(usize);
 /// Type for runtime variable
 pub struct RuntimeVariable {
     /// Symbol attached to this runtime variable.
-    sym: SymId,
+    pub sym: SymId,
     // TODO(oreo)[2026-09-30 04:51]: fields for typing.
 }
 
@@ -52,6 +52,17 @@ impl RuntimeVariableRegistry {
         let id = RuntimeVariableId(self.variables.len());
         self.variables.push(RuntimeVariable { sym });
         id
+    }
+
+    /// Get the associated [`RuntimeVariable`] attached to the given
+    /// [`RuntimeVariableId`].
+    ///
+    /// # Panics
+    /// - If given `id` is not valid.
+    #[must_use]
+    pub fn get(&self, id: RuntimeVariableId) -> &RuntimeVariable {
+        assert!(id.0 < self.variables.len(), "Expected valid id.");
+        &self.variables[id.0]
     }
 
     /// Return an iterator over the [`SymId`] of all variables within the

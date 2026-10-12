@@ -1,13 +1,14 @@
 //! Main lowering algorithm.
 
 use crate::{
-    diagnostics::Diagnostics,
+    diagnostics::{Diagnostic, Diagnostics},
     lowering::{
-        Block, BlockId, Body, BodyId, Datum, DatumId, Instruction, Module,
-        env::Environment,
+        Block, BlockId, Body, BodyId, Datum, DatumId, Instruction,
+        LoweringError, LoweringErrorKind, Module, env::Environment,
     },
     parser::{HirForm, HirKind},
     runtime::{PrimitiveRegistry, RuntimeVariableRegistry},
+    source::SyntaxId,
 };
 
 /// Lower the given [`HirForm`]s, returning an SIR [`Module`] if no errors
@@ -102,7 +103,7 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                         self.env.current_body(),
                         "Expected alignment on current body"
                     );
-                    let closed_frame_id = self.env.close_frame();
+                    let _ = self.env.close_frame();
                     if let Some(block) = prev_block {
                         self.block = block;
                     }
@@ -123,8 +124,8 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                 kind: HirKind::Int(n),
             } => {
                 let datum = self.module.data.push(Datum::Int(*n));
-                let inst = Instruction::PushData(datum);
-                self.current_block().push_instruction(inst, *id);
+                self.current_block()
+                    .push_instruction(Instruction::PushData(datum), *id);
             }
 
             HirForm {
@@ -132,8 +133,8 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                 kind: HirKind::Quote(subform),
             } => {
                 let datum = lower_datum(&mut self.module, subform);
-                let inst = Instruction::PushData(datum);
-                self.current_block().push_instruction(inst, *id);
+                self.current_block()
+                    .push_instruction(Instruction::PushData(datum), *id);
             }
 
             HirForm {
@@ -141,35 +142,35 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                 kind: HirKind::List(_),
             } => {
                 let datum = lower_datum(&mut self.module, form);
-                let inst = Instruction::PushData(datum);
-                self.current_block().push_instruction(inst, *id);
+                self.current_block()
+                    .push_instruction(Instruction::PushData(datum), *id);
             }
 
             HirForm {
                 id,
                 kind: HirKind::Bind(sym),
             } => {
-                // Adjust the current body's layout
+                // Adjust the current body's layout.
                 let local = self.current_body().locals.allocate();
                 // Inform lexical scope handler.
                 self.env.bind(*sym, local);
-                let inst = Instruction::Bind(local);
-                self.current_block().push_instruction(inst, *id);
+                // Push instruction.
+                self.current_block()
+                    .push_instruction(Instruction::Bind(local), *id);
             }
 
             HirForm {
                 id,
                 kind: kind @ (HirKind::Load(sym) | HirKind::Call(sym)),
             } => {
-                // Resolve the symbol
+                // Resolve the symbol.
                 let Some(target) = self.env.resolve(*sym, &mut self.module)
                 else {
-                    todo!(
-                        "(oreo)[2026-10-12 03:20]:
-Implement unresolvable symbol diagnostic"
-                    );
+                    self.error(*id, LoweringErrorKind::UnresolvedSymbol);
+                    return;
                 };
 
+                // Construct instruction based on kind.
                 let inst = match kind {
                     HirKind::Load(_) => Instruction::Load(target),
                     HirKind::Call(_) => Instruction::Call(target),
@@ -177,11 +178,18 @@ Implement unresolvable symbol diagnostic"
                         "outer pattern restricts kind to Load or Call"
                     ),
                 };
+                // Push instruction.
                 self.current_block().push_instruction(inst, *id);
             }
 
             _ => todo!("implement"),
         }
+    }
+
+    /// Construct new error diagnostic of `kind` at `origin`.
+    fn error(&mut self, origin: SyntaxId, kind: LoweringErrorKind) {
+        self.diagnostics
+            .push(Diagnostic::from(LoweringError { origin, kind }));
     }
 
     /// Retrieve the current [`Body`] that is being lowered.

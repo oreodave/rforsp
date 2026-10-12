@@ -110,6 +110,14 @@ impl Environment {
         }
     }
 
+    /// Return the [`BodyId`] of the currently active [`Frame`].
+    pub fn current_body(&self) -> BodyId {
+        self.frames
+            .last()
+            .expect("the entry frame is always active")
+            .body
+    }
+
     /// Open a nested [`Frame`].
     pub fn open_frame(&mut self, id: BodyId) {
         self.frames.push(Frame::new(id));

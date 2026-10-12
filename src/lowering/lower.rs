@@ -3,12 +3,11 @@
 use crate::{
     diagnostics::Diagnostics,
     lowering::{
-        Block, BlockId, BodyId, Datum, DatumId, Instruction, Module,
+        Block, BlockId, Body, BodyId, Datum, DatumId, Instruction, Module,
         env::Environment,
     },
     parser::{HirForm, HirKind},
     runtime::{PrimitiveRegistry, RuntimeVariableRegistry},
-    source::SyntaxId,
 };
 
 /// Lower the given [`HirForm`]s, returning an SIR [`Module`] if no errors
@@ -37,8 +36,6 @@ enum Work<'forms> {
     FinishBody {
         /// Expected [`BodyId`] that this is closing.
         expected_body: BodyId,
-        /// Previous [`BodyId`] being processed.
-        prev_body: Option<BodyId>,
         /// Previous [`BlockId`] being processed.
         prev_block: Option<BlockId>,
     },
@@ -54,8 +51,6 @@ struct Lowerer<'diags, 'forms> {
     env: Environment,
     /// [`Work`] to be completed.
     work: Vec<Work<'forms>>,
-    /// Current [`BodyId`] within the [`Module`] being constructed.
-    body: BodyId,
     /// Current [`BlockId`], within `body`.
     block: BlockId,
 }
@@ -75,13 +70,11 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
             work: vec![
                 Work::FinishBody {
                     expected_body: BodyId::default(),
-                    prev_body: None,
                     prev_block: None,
                 },
                 Work::Body(forms),
             ],
             block: BlockId::default(),
-            body: BodyId::default(),
         }
     }
 
@@ -102,19 +95,14 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                 }
                 Work::FinishBody {
                     expected_body,
-                    prev_body,
                     prev_block,
                 } => {
-                    let closed_frame_id = self.env.close_frame();
                     debug_assert_eq!(
-                        closed_frame_id, expected_body,
-                        "Expected the closed frame's BodyId to match the BodyId of this Work::FinishBody instruction."
+                        expected_body,
+                        self.env.current_body(),
+                        "Expected alignment on current body"
                     );
-
-                    if let Some(body) = prev_body {
-                        self.body = body;
-                    }
-
+                    let closed_frame_id = self.env.close_frame();
                     if let Some(block) = prev_block {
                         self.block = block;
                     }
@@ -161,11 +149,16 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
         }
     }
 
-    /// Retrieve the current [`Block`] that is being built.
+    /// Retrieve the current [`Body`] that is being lowered.
+    fn current_body(&mut self) -> &mut Body {
+        self.module.bodies.get_mut(self.env.current_body())
+    }
+
+    /// Retrieve the current [`Block`] that is being lowered.
     fn current_block(&mut self) -> &mut Block {
         self.module
             .bodies
-            .get_mut(self.body)
+            .get_mut(self.env.current_body())
             .blocks
             .get_mut(self.block)
     }

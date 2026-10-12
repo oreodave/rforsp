@@ -1,7 +1,7 @@
 //! Main lowering algorithm.
 
 use crate::{
-    diagnostics::{Diagnostic, Diagnostics},
+    diagnostics::{Class, Diagnostic, Diagnostics, Site, conv::ice},
     interner::{SYM_IF, SYM_REC},
     lowering::{
         Block, BlockId, Body, BodyId, ClosureMode, Datum, DatumId, Instruction,
@@ -166,16 +166,14 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                 id,
                 kind: HirKind::Quote(subform),
             } => {
-                let datum = lower_datum(&mut self.module, subform);
-                self.emit_inst(Instruction::PushData(datum), *id);
+                self.lower_push_data(subform, *id);
             }
 
             HirForm {
                 id,
                 kind: HirKind::List(_),
             } => {
-                let datum = lower_datum(&mut self.module, form);
-                self.emit_inst(Instruction::PushData(datum), *id);
+                self.lower_push_data(form, *id);
             }
 
             HirForm {
@@ -202,12 +200,10 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                 };
 
                 // Construct instruction based on kind.
-                let inst = match kind {
-                    HirKind::Load(_) => Instruction::Load(target),
-                    HirKind::Call(_) => Instruction::Call(target),
-                    _ => unreachable!(
-                        "outer pattern restricts kind to Load or Call"
-                    ),
+                let inst = if matches!(kind, HirKind::Load(_)) {
+                    Instruction::Load(target)
+                } else {
+                    Instruction::Call(target)
                 };
 
                 self.emit_inst(inst, *id);
@@ -401,6 +397,18 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
         self.current_block().push_instruction(inst, origin);
     }
 
+    /// Emit a datum push or report an invalid datum form from HIR.
+    fn lower_push_data(&mut self, form: &HirForm, origin: SyntaxId) {
+        match lower_datum(&mut self.module, form) {
+            Ok(datum) => self.emit_inst(Instruction::PushData(datum), origin),
+            Err(invalid_origin) => self.diagnostics.push(ice(
+                Class::ICEInvalidHIRDatum,
+                Site::Syntax(invalid_origin),
+                "lowering received a bind or load in datum position",
+            )),
+        }
+    }
+
     /// Construct new error diagnostic of `kind` at `origin`.
     fn error(&mut self, origin: SyntaxId, kind: LoweringErrorKind) {
         self.diagnostics
@@ -491,7 +499,10 @@ enum DatumWork<'forms> {
 
 /// Lower a [`HirForm`] in datum position within a [`Module`], returning the
 /// associated [`DatumId`].
-fn lower_datum<'forms>(module: &mut Module, form: &'forms HirForm) -> DatumId {
+fn lower_datum<'forms>(
+    module: &mut Module,
+    form: &'forms HirForm,
+) -> Result<DatumId, SyntaxId> {
     let mut work_stack: Vec<DatumWork<'forms>> = vec![DatumWork::Form(form)];
     let mut results: Vec<DatumId> = Vec::new();
 
@@ -559,22 +570,16 @@ fn lower_datum<'forms>(module: &mut Module, form: &'forms HirForm) -> DatumId {
                 // Invalid forms to be in Datum position, should have been
                 // caught by the parser.
                 HirForm {
+                    id,
                     kind: HirKind::Bind(_) | HirKind::Load(_),
-                    ..
-                } => {
-                    unreachable!(
-                        "HirForm's of kind `HirKind::Bind(_)` or `HirKind::Load(_)` are invalid in Datum position."
-                    );
-                }
+                } => return Err(*id),
             },
 
             // Quote finished lowering.
             DatumWork::FinishQuote => {
-                let Some(subdatum) = results.pop() else {
-                    unreachable!(
-                        "FinishQuote on WorkStack => subform is lowered."
-                    );
-                };
+                let subdatum = results
+                    .pop()
+                    .expect("a quote finisher follows its lowered operand");
                 let datum = module.data.push(Datum::Quote(subdatum));
                 results.push(datum);
             }
@@ -596,7 +601,7 @@ fn lower_datum<'forms>(module: &mut Module, form: &'forms HirForm) -> DatumId {
     }
 
     assert_eq!(results.len(), 1, "Expected |results|=1.");
-    results[0]
+    Ok(results[0])
 }
 
 #[cfg(test)]
@@ -1697,6 +1702,31 @@ mod tests {
             matches!(module.data.get(ids[0]), Datum::Atom(got) if *got == symbol),
             "quoted name becomes the same symbol atom"
         );
+    }
+
+    #[test]
+    fn malformed_hir_datum_reports_ice_and_continues() {
+        let mut fixture = Fixture::new();
+        let x = fixture.sym("invalid-datum-x");
+        let bind = fixture.form(HirKind::Bind(x));
+        let bind_id = bind.id;
+        let list = fixture.form(HirKind::List(vec![bind]));
+        let load = fixture.form(HirKind::Load(x));
+        let load_id = load.id;
+        let quote = fixture.form(HirKind::Quote(Box::new(load)));
+        let missing = fixture.form(HirKind::Call(x));
+        let missing_id = missing.id;
+
+        let (module, diagnostics) = fixture.lower(&[list, quote, missing]);
+        assert!(module.is_none());
+        let items = diagnostics.items();
+        assert_eq!(items.len(), 3);
+        for (item, origin) in items[..2].iter().zip([bind_id, load_id]) {
+            assert_eq!(item.class, Class::ICEInvalidHIRDatum);
+            assert_eq!(item.site, Site::Syntax(origin));
+        }
+        assert_eq!(items[2].class, Class::LoweringUnresolvedSymbol);
+        assert_eq!(items[2].site, Site::Syntax(missing_id));
     }
 
     #[test]

@@ -226,6 +226,7 @@ impl Environment {
 }
 
 #[cfg(test)]
+#[expect(clippy::panic, reason = "test failures report unexpected targets")]
 mod tests {
     use super::*;
     use crate::{context::Compilation, lowering::Body};

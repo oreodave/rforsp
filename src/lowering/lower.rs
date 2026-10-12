@@ -605,6 +605,7 @@ fn lower_datum<'forms>(
 }
 
 #[cfg(test)]
+#[expect(clippy::panic, reason = "test failures report unexpected IR shapes")]
 mod tests {
     use crate::{
         context::Compilation,

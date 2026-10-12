@@ -145,6 +145,41 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
                 self.current_block().push_instruction(inst, *id);
             }
 
+            HirForm {
+                id,
+                kind: HirKind::Bind(sym),
+            } => {
+                // Adjust the current body's layout
+                let local = self.current_body().locals.allocate();
+                // Inform lexical scope handler.
+                self.env.bind(*sym, local);
+                let inst = Instruction::Bind(local);
+                self.current_block().push_instruction(inst, *id);
+            }
+
+            HirForm {
+                id,
+                kind: kind @ (HirKind::Load(sym) | HirKind::Call(sym)),
+            } => {
+                // Resolve the symbol
+                let Some(target) = self.env.resolve(*sym, &mut self.module)
+                else {
+                    todo!(
+                        "(oreo)[2026-10-12 03:20]:
+Implement unresolvable symbol diagnostic"
+                    );
+                };
+
+                let inst = match kind {
+                    HirKind::Load(_) => Instruction::Load(target),
+                    HirKind::Call(_) => Instruction::Call(target),
+                    _ => unreachable!(
+                        "outer pattern restricts kind to Load or Call"
+                    ),
+                };
+                self.current_block().push_instruction(inst, *id);
+            }
+
             _ => todo!("implement"),
         }
     }

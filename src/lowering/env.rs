@@ -217,3 +217,226 @@ impl Environment {
         capture.expect("a captured binding crosses at least one body")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::context::Compilation;
+
+    /// Compare resolved targets by variant and slot without changing the IR API.
+    fn assert_target(actual: Option<Target>, expected: Option<Target>) {
+        let equal = match (actual, expected) {
+            (None, None) => true,
+            (Some(Target::Local(a)), Some(Target::Local(b))) => a == b,
+            (Some(Target::Captured(a)), Some(Target::Captured(b))) => a == b,
+            (Some(Target::Primitive(a)), Some(Target::Primitive(b))) => a == b,
+            (Some(Target::Variable(a)), Some(Target::Variable(b))) => a == b,
+            _ => false,
+        };
+        assert!(equal, "expected {expected:?}, got {actual:?}");
+    }
+
+    /// Resolve an enclosing binding and extract its capture slot.
+    fn captured(
+        env: &Environment,
+        sym: SymId,
+        module: &mut Module,
+    ) -> CaptureId {
+        match env.resolve(sym, module) {
+            Some(Target::Captured(id)) => id,
+            other => panic!("expected a captured reference, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn scopes_shadow_locals_and_restore_visibility() {
+        let mut compilation = Compilation::new();
+        let mut env =
+            Environment::new(&compilation.variables, &compilation.primitives);
+        let mut module = Module::new();
+        let x = compilation.interner.intern("x");
+        let y = compilation.interner.intern("y");
+        let outer = module.get_entry_mut().locals.allocate();
+        let inner = module.get_entry_mut().locals.allocate();
+        let scoped = module.get_entry_mut().locals.allocate();
+
+        assert_target(env.resolve(x, &mut module), None);
+        env.bind(x, outer);
+        assert_target(env.resolve(x, &mut module), Some(Target::Local(outer)));
+        env.enter_scope();
+        assert_target(env.resolve(x, &mut module), Some(Target::Local(outer)));
+        env.bind(x, inner);
+        env.bind(y, scoped);
+        assert_target(env.resolve(x, &mut module), Some(Target::Local(inner)));
+        assert_target(env.resolve(y, &mut module), Some(Target::Local(scoped)));
+        env.leave_scope();
+        assert_target(env.resolve(x, &mut module), Some(Target::Local(outer)));
+        assert_target(env.resolve(y, &mut module), None);
+        assert_eq!(module.get_entry().locals.len(), 3);
+        assert_eq!(module.get_entry().captures().len(), 0);
+    }
+
+    #[test]
+    fn equal_local_slots_in_distinct_bodies_do_not_alias() {
+        let mut compilation = Compilation::new();
+        let mut env =
+            Environment::new(&compilation.variables, &compilation.primitives);
+        let mut module = Module::new();
+        let x = compilation.interner.intern("x");
+        let y = compilation.interner.intern("y");
+        let outer = module.get_entry_mut().locals.allocate();
+        env.bind(x, outer);
+        let child = module.bodies.push(Body::new(None));
+        let inner = module.bodies.get_mut(child).locals.allocate();
+        assert_eq!(outer, inner);
+
+        env.open_frame(child);
+        env.bind(y, inner);
+        assert_target(env.resolve(y, &mut module), Some(Target::Local(inner)));
+        let capture = captured(&env, x, &mut module);
+        assert_eq!(captured(&env, x, &mut module), capture);
+        assert_eq!(
+            module.bodies.get(child).captures().collect::<Vec<_>>(),
+            [CaptureSource::Local(outer)]
+        );
+        env.bind(x, inner);
+        assert_target(env.resolve(x, &mut module), Some(Target::Local(inner)));
+        assert_eq!(env.close_frame(), child);
+        assert_target(env.resolve(x, &mut module), Some(Target::Local(outer)));
+        assert_target(env.resolve(y, &mut module), None);
+        assert_eq!(module.get_entry().captures().len(), 0);
+        assert_eq!(env.close_frame(), BodyId::default());
+        assert!(
+            env.frames.is_empty(),
+            "closing entry exhausts active frames"
+        );
+    }
+
+    #[test]
+    fn nested_demand_forwards_captures_through_an_unused_intermediary() {
+        let mut compilation = Compilation::new();
+        let mut env =
+            Environment::new(&compilation.variables, &compilation.primitives);
+        let mut module = Module::new();
+        let x = compilation.interner.intern("x");
+        let y = compilation.interner.intern("y");
+        let x_local = module.get_entry_mut().locals.allocate();
+        let y_local = module.get_entry_mut().locals.allocate();
+        env.bind(x, x_local);
+        env.bind(y, y_local);
+        let middle = module.bodies.push(Body::new(None));
+        env.open_frame(middle);
+        let middle_y = captured(&env, y, &mut module);
+        let leaf = module.bodies.push(Body::new(None));
+        env.open_frame(leaf);
+
+        let leaf_x = captured(&env, x, &mut module);
+        let leaf_y = captured(&env, y, &mut module);
+        assert_eq!(captured(&env, x, &mut module), leaf_x);
+        assert_eq!(captured(&env, y, &mut module), leaf_y);
+        assert_ne!(leaf_x, leaf_y);
+        assert_eq!(env.close_frame(), leaf);
+        let middle_x = captured(&env, x, &mut module);
+        assert_ne!(middle_x, middle_y);
+        assert_eq!(
+            module.bodies.get(middle).captures().collect::<Vec<_>>(),
+            [CaptureSource::Local(y_local), CaptureSource::Local(x_local)]
+        );
+        assert_eq!(
+            module.bodies.get(leaf).captures().collect::<Vec<_>>(),
+            [
+                CaptureSource::Captured(middle_x),
+                CaptureSource::Captured(middle_y)
+            ]
+        );
+        assert_eq!(module.get_entry().captures().len(), 0);
+    }
+
+    #[test]
+    fn capture_starts_at_the_nearest_defining_frame() {
+        let mut compilation = Compilation::new();
+        let mut env =
+            Environment::new(&compilation.variables, &compilation.primitives);
+        let mut module = Module::new();
+        let x = compilation.interner.intern("x");
+        let outer = module.get_entry_mut().locals.allocate();
+        env.bind(x, outer);
+        let middle = module.bodies.push(Body::new(None));
+        let inner = module.bodies.get_mut(middle).locals.allocate();
+        env.open_frame(middle);
+        env.bind(x, inner);
+        let leaf = module.bodies.push(Body::new(None));
+        env.open_frame(leaf);
+
+        let _ = captured(&env, x, &mut module);
+        assert_eq!(
+            module.bodies.get(leaf).captures().collect::<Vec<_>>(),
+            [CaptureSource::Local(inner)]
+        );
+        assert_eq!(module.bodies.get(middle).captures().len(), 0);
+        assert_eq!(module.get_entry().captures().len(), 0);
+    }
+
+    #[test]
+    fn primordial_bindings_are_captured_only_when_lexically_shadowed() {
+        let mut compilation = Compilation::new();
+        let mut env =
+            Environment::new(&compilation.variables, &compilation.primitives);
+        let mut module = Module::new();
+        let (primitive, primitive_sym) = compilation
+            .primitives
+            .iter_syms()
+            .next()
+            .expect("builtins include a primitive");
+        let (variable, variable_sym) = compilation
+            .variables
+            .iter_syms()
+            .next()
+            .expect("builtins include a runtime variable");
+        let missing = compilation.interner.intern("missing");
+        assert!(
+            !env.is_primordial(missing),
+            "unbound names are not primordial"
+        );
+        assert_target(env.resolve(missing, &mut module), None);
+
+        for (sym, target) in [
+            (primitive_sym, Target::Primitive(primitive)),
+            (variable_sym, Target::Variable(variable)),
+        ] {
+            let child = module.bodies.push(Body::new(None));
+            env.open_frame(child);
+            assert!(env.is_primordial(sym), "the builtin is initially visible");
+            assert_target(env.resolve(sym, &mut module), Some(target));
+            assert_eq!(module.bodies.get(child).captures().len(), 0);
+            assert_eq!(env.close_frame(), child);
+
+            env.enter_scope();
+            let local = module.get_entry_mut().locals.allocate();
+            env.bind(sym, local);
+            assert!(!env.is_primordial(sym), "a local shadows the builtin");
+            assert_target(
+                env.resolve(sym, &mut module),
+                Some(Target::Local(local)),
+            );
+            env.open_frame(child);
+            assert!(
+                !env.is_primordial(sym),
+                "an enclosing local shadows the builtin"
+            );
+            let _ = captured(&env, sym, &mut module);
+            assert_eq!(
+                module.bodies.get(child).captures().collect::<Vec<_>>(),
+                [CaptureSource::Local(local)]
+            );
+            assert_eq!(env.close_frame(), child);
+            env.leave_scope();
+            assert!(
+                env.is_primordial(sym),
+                "leaving the scope restores the builtin"
+            );
+            assert_target(env.resolve(sym, &mut module), Some(target));
+        }
+        assert_eq!(module.get_entry().captures().len(), 0);
+    }
+}

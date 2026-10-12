@@ -24,9 +24,8 @@ implicit in its construction:
 - ~f~ means lookup the symbol "f" in the current environment, then
   compute the result of it.
 
-A flatter representation that makes these more explicit, in trade of
-being more verbose, would allow us to reason about rForsp code more
-effectively:
+A flatter representation that makes these more explicit would allow us to reason
+about rForsp code more effectively:
 - Easier to evaluate since:
   - Each operation is explicit; we don't need to wait for the
     evaluator to figure it out when iterating but already have

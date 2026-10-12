@@ -37,7 +37,7 @@ pub fn compile(
     log: Log,
     log_out: &mut impl std::fmt::Write,
 ) -> Result<(), Aborted> {
-    // TODO(oreo)[2026-08-12 15:42]: Wire in lowering, verification.
+    // TODO(oreo)[2026-10-12 20:09:59]: Wire in verification.
     let sources = sources_from_inputs(inputs, diagnostics, ctx)?;
 
     let lexes = lex_sources(&sources, diagnostics, ctx)?;

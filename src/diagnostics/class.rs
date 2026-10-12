@@ -140,6 +140,10 @@ classes! {
 
     /// A call or load references a symbol that lowering could not resolve.
     LoweringUnresolvedSymbol => Lowering, Error, "UNRESOLVED_SYMBOL";
+
+    /// A compile-time known data value was used as an operand for the `rec`
+    /// operator.
+    LoweringRecursionDataOperand => Lowering, Error, "RECURSION_DATA_OPERAND";
 }
 
 #[cfg(test)]

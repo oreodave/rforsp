@@ -97,13 +97,12 @@ impl From<LoweringError> for Diagnostic {
     fn from(e: LoweringError) -> Self {
         let message = match e.kind {
             LoweringErrorKind::UnresolvedSymbol => "Unresolved symbol",
+            LoweringErrorKind::RecursionDataOperand => {
+                "Data operand for `rec` operator"
+            }
         };
 
-        Self::new(
-            Class::LoweringUnresolvedSymbol,
-            Site::Syntax(e.origin),
-            message,
-        )
+        Self::new(e.kind.into(), Site::Syntax(e.origin), message)
     }
 }
 

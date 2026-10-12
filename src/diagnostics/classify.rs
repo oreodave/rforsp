@@ -3,7 +3,10 @@
 //! One conversion per phase.  A phase's error kinds map only into that
 //! phase's classes.
 
-use crate::{diagnostics::Class, lexer::LexErrorKind, parser::ParseErrorKind};
+use crate::{
+    diagnostics::Class, lexer::LexErrorKind, lowering::LoweringErrorKind,
+    parser::ParseErrorKind,
+};
 
 impl From<LexErrorKind> for Class {
     fn from(k: LexErrorKind) -> Self {
@@ -26,6 +29,19 @@ impl From<ParseErrorKind> for Class {
             ParseErrorKind::UnterminatedList => Self::ParseUnterminatedList,
             ParseErrorKind::MismatchedCloser => Self::ParseMismatchedCloser,
             ParseErrorKind::UnexpectedCloser => Self::ParseUnexpectedCloser,
+        }
+    }
+}
+
+impl From<LoweringErrorKind> for Class {
+    fn from(e: LoweringErrorKind) -> Self {
+        match e {
+            LoweringErrorKind::UnresolvedSymbol => {
+                Self::LoweringUnresolvedSymbol
+            }
+            LoweringErrorKind::RecursionDataOperand => {
+                Self::LoweringRecursionDataOperand
+            }
         }
     }
 }

@@ -7,6 +7,8 @@ use crate::source::SyntaxId;
 pub enum LoweringErrorKind {
     /// A symbol referenced in a Call or Load that couldn't be resolved.
     UnresolvedSymbol,
+    /// Pure data operand was used with the primitive `rec` operator.
+    RecursionDataOperand,
 }
 
 /// Lowering error.

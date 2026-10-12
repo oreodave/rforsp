@@ -11,8 +11,6 @@ pub enum Phase {
     Lex,
     /// Parsing phase.
     Parse,
-    /// Binding resolution phase.
-    Resolution,
     /// Lowering phase.
     Lowering,
 }
@@ -33,7 +31,6 @@ impl Phase {
             Self::Source => "source",
             Self::Lex => "lex",
             Self::Parse => "parse",
-            Self::Resolution => "resolution",
             Self::Lowering => "lowering",
         }
     }

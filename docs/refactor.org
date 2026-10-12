@@ -1,164 +1,132 @@
-#+title: Resolution and Lowering Refactor Docket
+#+title: HIR-to-SIR Lowering Docket
 #+author: Aryadev Chavali
-#+date: 2026-10-05
+#+date: 2026-10-12
 
-This is the disposable work list for retrofitting resolution to emit SIR.
-It replaces the separate-pass approach in [[file:lowering.org]].  Record
-behaviour and interfaces in [[file:compiler.org]] after implementation exercises
-them.  Delete this docket when the refactor is complete.
-* Objective
-Resolve names, recognise executable forms, and construct SIR in one HIR walk.
-Remove the syntax-indexed resolution table as a durable phase output.  The
-combined phase produces a module only when resolution succeeds.
+This disposable docket tracks the active lowering refactor.  Resolve names,
+recognise executable forms, and construct SIR in one HIR walk.  Record durable
+behaviour in [[file:compiler.org]] after exercising it; delete this docket when
+the combined phase is complete.
+* Current state
+** Implemented
+- [[file:../src/lowering/lower.rs]] exports
+  ~lower(forms, primitives, variables)~,
+  returning ~(Option<Module>, Diagnostics)~.  ~Lowerer~ owns a module, lexical
+  environment, work stack, and current ~BodyId~/~BlockId~.
+- Empty input and integer, list, and quote forms lower successfully.  Each
+  executable data form emits ~PushData~ with its source origin.  An outer quote
+  pushes its operand's datum; quotes within datum content retain wrappers.
+- Datum construction uses a separate explicit work stack.  Module-owned nodes
+  reference children by ~DatumId~.  Tests cover order, empty containers, quoted
+  atoms and vectors, and construction/destruction of deeply nested data.
+- [[file:../src/lowering/module.rs]] creates entry body zero;
+  [[file:../src/lowering/body.rs]] creates entry block zero.  Bodies own local
+  counters and deduplicated capture layouts.  Blocks default to ~End~.
+- [[file:../src/lowering/env.rs]] maintains one frame per body and nested scopes
+  mapping ~SymId~ to body-local ~LocalId~.  ~bind(sym, local)~ registers a slot
+  allocated by the caller.  ~resolve(sym, module)~ returns a local, capture, or
+  primordial target, forwarding captures through every intervening body.
+- Environment tests cover shadowing/restoration, equal local IDs in different
+  bodies, nearest-frame lookup, transitive capture order and deduplication, and
+  primordial fallback.  ~is_primordial~ checks shadowing without capturing.
+- ~Work::FinishBody~ closes the environment frame, checks its body identity, and
+  restores the saved parent body and block when present.  The entry sentinel
+  closes the initial frame without a parent continuation.
+** Incomplete integration
+- ~Lowerer~ currently uses its environment only to initialise and close the
+  entry frame.  Binding, load, call, and executable-vector lowering are still
+  ~todo!~.  Nested-body entry and its saved continuation are not exercised yet.
+- ~Work::Body~ splits off one form before lowering it.  Prefix recognition has
+  not been integrated.
+- The return boundary withholds the module when diagnostics contain errors,
+  but lowering does not yet report name/recognition errors or exercise recovery.
+  Unsupported executable forms currently panic rather than report diagnostics.
+- [[file:../src/lib.rs]] disables the resolution module.  Its source and
+  tests are retained under ~src/resolution/~ as migration reference, outside the
+  active build.  The old binding table and resolution map are not lowering
+  dependencies.
+- [[file:../src/drivers.rs]] currently stops after parsing and HIR logging.  It
+  invokes neither retained resolution nor new lowering.  [[file:compiler.org]]
+  describes the old resolution-table boundary and needs reconciliation after
+  integration.
+* Responsibility split
+~Lowerer~ traverses HIR, determines declaration visibility and scope boundaries,
+allocates locals through ~Body::locals~, constructs bodies/blocks/instructions,
+and reports source-backed diagnostics.  ~Environment~ maintains lexical state,
+registers declarations, and resolves references, including module-mutating
+capture propagation.  The lowerer emits the returned ~Target~ without managing
+that propagation itself.
 
-Keep lexical resolution and SIR construction separate internally.  The lexical
-environment handles shadowing, binding identities, local allocation, and
-capture propagation.  The SIR builder handles bodies, blocks, instructions,
-owned data, and origins.  The traversal coordinates both.
+A binding's identity is its owning body plus local slot.  Keep the current
+frame/scopes representation; the combined phase needs no separate ~BindingId~
+or ~BindingTable~.  ~Module~ owns bodies throughout construction.  Captures grow
+in those bodies during resolution, with no layout transfer at ~FinishBody~.
+* Next work
+** TODO Wire straight-line lexical operations
+For a bind, allocate a fresh local in the current body, register it with
+~Environment::bind~, and emit ~Bind(local)~.  Preserve sequential visibility and
+rebinding.  For loads and calls, resolve once and emit the corresponding
+instruction with the form's origin.
 
-This work completes HIR-to-SIR translation.  Verification, execution, effect
-inference, optimisation, and a native-code ABI belong to later work.
-* Starting point
-- [[file:../src/resolution/resolver.rs]] already traverses HIR with an explicit
-  work stack and recognises conditional and recursive forms before resolving
-  ordinary forms.
-- [[file:../src/resolution/builder.rs]] allocates locals and forwards captures
-  through active bodies.  Body layouts become complete when bodies close.
-- [[file:../src/resolution/types.rs]] exports ~ResolutionResult~ containing a
-  ~ResolutionMap~, a binding table, and the entry layout.
-- [[file:../src/lowering/module.rs]] and [[file:../src/lowering/block.rs]] define
-  the initial SIR vocabulary.  [[file:../src/lowering/lower.rs]] handles only
-  empty programs; nonempty translation is unimplemented.
-- [[file:../src/drivers.rs]] gates resolution and logs its result.  The driver
-  does not yet invoke lowering.  [[file:../src/log.rs]] reconstructs resolution
-  judgements by walking HIR and consulting the map.
-* Construction constraints
-- Reserve a body ID when opening a closure.  Emit references to that ID without
-  requiring its completed layout, then attach the layout when the body closes.
-- Local and capture IDs must remain stable as layouts grow.  A nested reference
-  may add captures to several active enclosing bodies; finalise each layout
-  only after all its nested work finishes.
-- Translate a local binding identity to its allocated slot at emission time.
-  Keep ~BindingTable~ internal initially; removing ~ResolutionMap~ does not
-  require redesigning lexical binding identity.
-- Emit closure construction in the enclosing body in source execution order.
-  Resolve a closure's contents in its own body.  Conditional arms instead use
-  blocks and local slots of the enclosing body.
-- Preserve ~SyntaxId~ origins on emitted instructions and source-backed control
-  flow.  Generated control flow may have no origin.
-- Lists and quotes contain data, including quoted vectors.  Construct owned
-  datum nodes without resolving their contents or creating executable bodies.
-- Use explicit work stacks for executable traversal and datum construction.
-  The resulting module must also support destruction without recursive datum
-  ownership.
-- Continue independent resolution work after user errors, then discard the
-  unfinished output.  Recovery must not require an executable poison opcode or
-  a structurally valid module.  Builder checks must distinguish incomplete
-  recovery state from compiler invariant failures.
-* Work list
-** TODO 1. Establish the combined boundary and builder lifecycle
-Change the resolution entry point to produce SIR and diagnostics rather than a
-public resolution result.  Define how failure withholds the module, including
-for direct callers rather than relying solely on the driver gate.
+On unresolved references, report a source-backed diagnostic and continue
+independent work.  Withhold the final module after errors; recovery does not
+require emitting a poison instruction.  Exercise local/primordial targets,
+rebinding, shadowing, unresolved names, and error accumulation through ~lower~.
+** TODO Integrate prefix recognition and closure entry
+Adapt [[file:../src/resolution/recognition.rs]] to the lowering environment.  In
+~Work::Body~, attempt recognition against the remaining HIR slice before
+splitting off a generic form.  Keep recognisers read-only: return a matched
+construct and the unconsumed remainder, then let ~Lowerer~ emit and schedule it.
 
-Introduce the smallest internal SIR builder needed to reserve body IDs, append
-instructions with origins, and finish bodies with their completed layouts.
-Keep unfinished construction state private; a successful public module has no
-placeholder bodies or unterminated blocks.
+Preserve the retained recogniser's cases:
+- Primordial ~<vector> rec~ recognises a recursive closure, consuming two forms.
+- Integer, quote, or list before primordial ~rec~ recognises an invalid data
+  operand.  Bind/load/call operands use the ordinary dynamic path.
+- Primordial ~<then> <else> if~ consumes three forms when both operands are
+  integers, quotes, lists, or vectors.  Bind/load/call operands remain dynamic.
+- Lexically shadowed ~rec~ and ~if~ remain ordinary references.
 
-Retain the existing lexical environment and recognition logic.  Decide where
-shared slot/layout types and SIR types live from their actual dependencies;
-changing the phase boundary need not entail a wholesale module rename.
+After recognition selects a closure, allocate its ~Body~ to obtain ~BodyId~ and
+emit ~MakeClosure~ immediately in the parent block, with the selected mode.
+Save the parent body/block in ~FinishBody~, open the child's environment frame,
+select its entry block, and schedule its forms ahead of the parent remainder.
+The referenced capture layout may grow after emission.
 
-*Done when* empty HIR produces one completed entry body through resolution,
-and an erroneous input produces diagnostics without a consumable module.
-** TODO 2. Emit data and straight-line operations
-Replace ~Bound~ and ~Ref~ map insertions with instruction emission.  Distinguish
-~Load~ from ~Call~ using the HIR form, and translate local binding IDs to local
-slots.  Cover locals, captures, primitives, and runtime variables without a
-second lookup or a second slot-allocation scheme.
+Exercise empty and nested closures, parent continuation after a child, captured
+loads/calls, and nested demand that adds captures to an otherwise unused middle
+body.  ~FinishBody~ needs neither capture finalisation nor an extra ~End~ write
+for the existing straight-line block representation.
+** TODO Lower recognised conditionals
+Construct then/else blocks and a continuation in the current body.  Lower vector
+arms inline under separate lexical scopes, using that body's local slots.
+Schedule explicit arm completion to restore scopes and emission context before
+the continuation.  Recognition must precede generic vector lowering so arms do
+not first become closures.
 
-Build module-owned datums for integers, lists, and quotes using the existing
-indexed representation.  Exercise nested quotes and vectors in datum position.
-Do not add constant interning unless concrete cases justify it.
+Settle selected data-arm behaviour using concrete cases and the C reference
+interpreter.  The retained resolver records data arms but does not implement
+their execution.  Cover empty/vector/data arms, nested branches, arm-local binds
+and captures, and a conditional followed by further forms.
+** TODO Connect the compiler boundary
+Once executable lowering and recovery work, invoke ~lower~ on the driver's
+combined HIR, merge diagnostics, and gate output.  Preserve input order and one
+shared lexical compilation across sources.  Decide how to expose SIR inspection
+through the logging interface while adapting its consumers.
 
-*Done when* straight-line entry programs produce instructions in source order
-with correct slots, targets, owned data, and origins.
-** TODO 3. Emit ordinary and recursive closures
-Extend the existing open/finish-body work actions to coordinate lexical and
-SIR construction.  Reserve the nested body, restore the parent emission context
-when it closes, and transfer its final layout directly from the environment.
-
-Emit ordinary vectors as ~MakeClosure~ with normal mode.  Emit recognised
-~<vector> rec~ with recursive mode and consume the recognised operator exactly
-once.  Keep shadowed or computed ~rec~ on the ordinary dynamic-call path.
-
-Exercise repeated and transitive captures, including a nested reference that
-adds a capture to an enclosing body whose instructions already exist.
-
-*Done when* ordinary and recursive closures preserve binding/capture semantics
-and completed layouts without recording closure judgements in a side table.
-** TODO 4. Construct conditional control flow
-Replace conditional/operator/arm map entries with branch construction and
-explicit traversal actions for arm completion and continuation selection.
-Resolve each vector arm in its existing arm-local scope while emitting into
-blocks of the enclosing body.  Both arms use that body's local layout.
-
-Handle data arms as well as vector arms.  Settle their selected-arm behaviour
-from concrete cases and the C reference interpreter where applicable; current
-recognition accepts integers, quotes, and lists, not only vectors.
-
-Exercise nested conditionals, empty vector arms, mixed data/vector arms, and a
-conditional followed by further forms.  Restore both the lexical scope and
-emission context before processing the continuation.
-
-*Done when* branches reach the right continuation, arm-local names cannot leak,
-and recognised vector arms require no closure allocation.
-** TODO 5. Complete termination and tail-position handling
-Ensure every successful body and block has explicit completion or transfer.
-Determine tail position from constructed control flow, including conditionals
-at the end of a body and calls within their arms.
-
-Decide whether tail calls need a distinct SIR representation when these cases
-are implemented.  If a small SIR finalisation pass is clearer, use it rather
-than another HIR/resolution walk.  Do not import evaluator or stack-effect
-policy merely to mark tail position.
-
-*Done when* successful modules contain complete control flow, and later phases
-can identify required tail positions without consulting HIR.
-** TODO 6. Migrate consumers and remove the old boundary
-Update ~resolve_body~ and ~compile~ to gate the combined output.  Preserve
-source-backed resolution diagnostics, diagnostic accumulation, and the shared
-lexical compilation across command-line inputs.
-
-Replace table-based resolution logging with inspection of SIR bodies, layouts,
-instructions, and origins.  Decide the meaning/name of the existing resolution
-log option when adapting its callers and CLI documentation; do not retain the
-old table solely for logging.
-
-Migrate resolver tests to assert emitted operations and layouts.  Keep focused
-environment and recognition tests where they isolate lexical decisions.
-Remove ~ResolutionMap~, ~Resolution~, ~ResolutionResult~, the standalone
-~lower~ entry point, and obsolete boundary tests after their consumers migrate.
-Retain internal binding metadata while it serves lookup or capture propagation.
-
-*Done when* the normal compiler path emits SIR directly and no production or
-test consumer requires the old resolution output.
-** TODO 7. Verify and reconcile documentation
-Cover rebinding, primordial shadowing, local/captured loads and calls, runtime
-variables, transitive captures, recognised and dynamic recursion, conditional
-scope, and recovery after errors.  Test deep executable and datum input through
-construction and destruction.  Assert semantic results rather than incidental
-ID numbering or log wording.
-
-Run [[file:../scripts/verify][./scripts/verify]].  Use differential testing
-against the C interpreter to settle language-semantic questions.  Full SIR
-execution equivalence awaits an executable SIR consumer; structural checks
-alone cannot establish it.
-
-Update [[file:compiler.org]], reconcile or remove [[file:lowering.org]], and
-update the repository overview and log-option documentation to describe the
-implemented boundary.  Preserve unrelated user edits during those updates.
-
-*Done when* the complete project check passes and documentation describes the
-implemented HIR-to-SIR interface without a separate resolution-table phase.
+Migrate useful retained resolver/recognition tests to emitted instructions,
+layouts, and diagnostics.  Remove obsolete resolution sources after extracting
+the behaviour still needed.  Reconcile [[file:compiler.org]] and the repository
+overview with the implemented boundary.
+* Decisions to exercise later
+- Exact work items for conditional arms and continuation construction.
+- Instruction/control-flow origins for recognised multi-form constructs.
+- Tail-position representation once calls and branches provide concrete cases.
+  Current SIR has ~Call~, ~End~, ~Jump~, and ~Branch~.
+- Structural verification of completed modules and the eventual executable SIR
+  consumer.  Structural tests alone do not establish execution equivalence.
+* Completion checks
+Run [[file:../scripts/verify][./scripts/verify]] after each step.  Cover
+deep executable traversal as closures and branches become available; deep datum
+construction/destruction is already tested.  Use differential tests
+against the C reference interpreter to settle semantic questions.  Finish this
+refactor when the driver produces SIR through one lexical lowering walk, errors
+withhold that output, and documentation reflects the exercised interface.

@@ -48,7 +48,7 @@ impl Default for Terminator {
 }
 
 /// Explicit control flow between blocks or out of a body.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TerminatorKind {
     /// Complete execution of the current body.
     End,

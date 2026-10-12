@@ -8,6 +8,7 @@ use crate::{
     diagnostics::{Aborted, Class, Diagnostics, Phase, Site, conv::ice},
     lexer::{Token, tokenise},
     log::{Log, log_hir, log_tokens},
+    lowering::{Module, lower},
     parser::{HirForm, parse},
     source::SourceId,
 };
@@ -44,6 +45,8 @@ pub fn compile(
 
     let body = parse_streams(&sources, &lexes, diagnostics, ctx)?;
     let _ = log_hir(&lexes, &body, log, ctx, log_out);
+
+    let _module = lower_forms(&body, diagnostics, ctx)?;
 
     Ok(())
 }
@@ -213,6 +216,30 @@ fn parse_streams(
     }
 
     gate(diagnostics, local, body, Phase::Parse)
+}
+
+/// Lower a sequence of [`HirForm`]s into a [`Module`] in the Stack-based
+/// Intermediate Language.
+///
+/// # Errors
+/// - If any error [`Diagnostic`][crate::diagnostics::Diagnostic]s are created
+///   while lowering the given [`HirForm`]s.
+fn lower_forms(
+    forms: &[HirForm],
+    diagnostics: &mut Diagnostics,
+    ctx: &Compilation,
+) -> Result<Module, Aborted> {
+    let (module, mut local) = lower(forms, &ctx.primitives, &ctx.variables);
+    if module.is_none() && !local.has_errors() {
+        local.push(ice(
+            Class::ICEDroppedOutput,
+            Site::None,
+            "lowering with-held Module but has no errors",
+        ));
+    }
+
+    gate(diagnostics, local, module, Phase::Lowering)?
+        .ok_or_else(|| Aborted::new(Phase::Lowering))
 }
 
 #[cfg(test)]

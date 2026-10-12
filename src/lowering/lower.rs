@@ -230,7 +230,10 @@ impl<'diags, 'forms> Lowerer<'diags, 'forms> {
             // operator - so we need to record an error.  But we should also
             // make sure to pass back the suffix to the caller.
             HirKind::Int(_) | HirKind::Quote(_) | HirKind::List(_) => {
-                self.error(prefix[0].id, LoweringErrorKind::UnresolvedSymbol);
+                self.error(
+                    prefix[0].id,
+                    LoweringErrorKind::RecursionDataOperand,
+                );
                 Recognition::Continue(suffix)
             }
         }

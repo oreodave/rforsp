@@ -9,6 +9,8 @@ file maps the supporting documents and records Org formatting conventions.
 - [[file:summary.org]] - a short language summary.
 - [[file:compiler.org]] - implemented compiler behaviour, current phase
   interfaces, and settled constraints.
+- [[file:verification.org]] - working milestones for SIR verification and
+  stack-effect analysis.
 - [[file:speculative-ir-2026-08.org]] - archived exploratory design.  Use it as
   background, not as the compiler contract.
 - ~<phase>.org~ - disposable planning and handover state for later active

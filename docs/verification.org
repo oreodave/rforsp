@@ -1,0 +1,119 @@
+#+title: SIR Verification
+#+author: Aryadev Chavali
+#+date: 2026-10-13
+
+This is the working plan for the phase after lowering.  The implemented
+compiler contract is in [[file:compiler.org]].  The older
+[[file:speculative-ir-2026-08.org][SIR design]] supplies useful questions,
+but its verifier sketch assumes instructions and phase boundaries that have
+since changed.  Revise this plan as implementation settles the answers.
+* Aim
+Verification should establish that SIR is safe to consume and recover useful
+facts about values and stack effects.  It should report definite mistakes at
+source locations, state where analysis is inconclusive, and retain inferred
+facts for an evaluator, optimiser, or backend.  A structural pass alone would
+leave much of SIR's purpose unused.
+
+The current module contains indexed bodies and data; bodies contain local and
+capture layouts plus basic blocks.  Blocks contain instructions, parallel
+origins, and ~End~, ~Jump~, or ~Branch~ terminators.  The working dispatch
+model says ~Load~ pushes a target's value, whereas ~Call~ runs a closure,
+executes a primitive, or pushes an inert value.  Verification must preserve
+this distinction even when values pass through binds or captures.
+
+The primitive and runtime-variable registries currently store symbols only.
+They need semantic metadata before the verifier can claim knowledge about
+their values or stack effects.  Add metadata incrementally, using ~Unknown~
+for entries whose contract has not yet been established.
+* Milestones
+** 1. Establish the first analysis contracts
+- Confirm the evaluator-facing meaning of ~PushData~, ~Load~, ~Call~, ~Bind~,
+  closure creation, recursive entry, and branch termination against current
+  language behaviour.  In particular, distinguish the value type of an object
+  from the effect of calling it.
+- Define a small value domain sufficient for known data, closures, primitives,
+  runtime variables, and unknown values.  Record what a value does when called;
+  its type alone does not determine that for every value.
+- Add stack signatures to a few well-understood primitives and value types to
+  well-understood runtime variables.  Keep the registry as the source of those
+  contracts for verification and later consumers.  Do not invent signatures
+  for the remaining entries to make the table look complete.
+- Settle diagnostic policy: a proven contradiction is an error; a deferred
+  check is an unknown analysis result, with a note only when it helps explain
+  a useful lost guarantee.  Avoid one note per ordinary dynamic call.
+
+This milestone ends with tests for the registry contracts and concrete cases
+that distinguish a loaded value from a called value.
+** 2. Check SIR structure
+- Validate IDs and layouts before indexing them: data, bodies, blocks, local
+  and capture slots, and primitive and variable references.  Check the entry
+  body and closure-body references.  Derive each closure body's lexical parent
+  from its construction sites before validating its capture sources.
+- Check instruction/origin cardinality, valid syntax origins, and branch and
+  jump targets within the current body.  Determine reachability from each
+  body's entry block and report unreachable blocks according to the diagnostic
+  policy established for generated SIR.
+- Test the verifier directly with malformed modules as well as modules produced
+  by lowering.  Invalid SIR should produce a compiler-bug diagnostic, not a
+  verifier panic.  Defer analysis that would rely on a failed structural check.
+
+This milestone makes the remaining analyses safe to run on indexed SIR.
+** 3. Infer straight-line stack and value facts
+- Treat a closure body as having an open input stack: ~[+]~ may require two
+  integers without being ill-formed.  Analyse the program entry against the
+  stack it will actually receive.  Do not mistake an inferred input requirement
+  for an underflow inside a reusable body.
+- Give ~PushData~, ~Load~, ~Bind~, and ~MakeClosure~ their direct stack
+  effects.  Propagate known values through locals and captures.  A call of a
+  known inert value pushes that value; a known primitive uses its registry
+  signature; an unknown callable effect remains unknown.
+- Report underflow or type mismatch only when the available facts prove it.
+  For example, ~1 (x) +~ has a known non-integer operand if ~+~ requires two
+  integers; ~1 +~ at an empty program entry lacks one operand.  By contrast,
+  ~[+]~ has an input requirement rather than an error.
+
+This milestone ends with per-body input requirements and useful types at
+straight-line instruction boundaries, alongside focused error tests.
+** 4. Propagate facts through control flow and closures
+- Carry abstract stack and local state along ~Jump~ and ~Branch~ edges.
+  ~Branch~ consumes a condition and gives both successors the resulting stack.
+  At a join, reconcile incoming states; a branch whose arms both end need not
+  have matching output stacks within that body.
+- Check local initialization on every reachable path.  A join's definitely
+  initialized set is the intersection of its predecessors.  Arm-local bindings
+  should be inaccessible outside their arm, but the verifier should check the
+  resulting SIR rather than assume lowering always gets this right.
+- Summarise closure bodies when their effects can be inferred and use those
+  summaries at known closure calls.  Recursive bodies and dynamic calls may
+  require iteration, conservative widening, or an unknown result; choose the
+  smallest terminating analysis supported by concrete programs.
+- Keep uncertainty explicit.  A dynamic call must not turn an unproven type or
+  stack claim into an error, nor erase independent facts that remain known.
+
+This milestone ends with branch-join, capture, recursive, and dynamic-call
+tests, including programs that must remain accepted despite unknown effects.
+** 5. Expose and integrate verification results
+- Return diagnostics together with reusable facts, such as body effects and
+  block entry states.  Fix the exact result shape after the analyses show what
+  consumers need; keep it separate from source-shaped HIR.
+- Add a verification phase gate after lowering in the driver.  Errors prevent
+  evaluation or backend consumption.  Successful verification supplies its
+  facts to those later phases; useful warnings or notes do not abort.
+- Run the example corpus and ~./scripts/verify~.  Compare selected programs
+  with the C interpreter only when it can settle a semantic question; the Rust
+  language has already diverged from the old interpreter.
+
+Once the interface and behaviour survive implementation, move the durable
+rules into [[file:compiler.org]] and retire this phase plan.
+* Questions to settle during implementation
+- Which primitive contracts are fixed, and which have a choice of effects or
+  depend on the values they consume?  ~if~ and ~cswap~ deserve concrete cases
+  before choosing a general effect representation.
+- What is the runtime contract for each variable, especially whether ~Call~
+  on its value merely pushes it or can execute it?
+- How much type precision at a join helps useful diagnostics without requiring
+  full row-polymorphic inference?  Start with known types and an explicit
+  unknown state; add richer constraints when a real program needs them.
+- What locations should a verifier use for a generated exit or layout defect
+  with no syntax origin?  Instruction and branch origins are available for
+  user-facing type and stack errors.

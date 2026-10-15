@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+
+set -xe
+
+cargo clippy --all-targets
+cargo fmt -- --check
+
+export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-A warnings"
+cargo build
+cargo doc --no-deps --document-private-items
+./scripts/examples
+
+if command -v cargo-llvm-cov >/dev/null 2>&1; then
+    cargo llvm-cov
+else
+    printf '%s\n' 'cargo-llvm-cov is unavailable; skipping coverage report.'
+    cargo test
+fi

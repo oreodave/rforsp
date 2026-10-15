@@ -1,0 +1,184 @@
+#+title: rForsp Compiler
+#+author: Aryadev Chavali
+#+date: 2026-09-30
+
+This document records compiler behaviour established by the implementation and
+its tests.  It describes the pipeline that exists now, the interfaces between
+its phases, and constraints that later work must preserve unless code and tests
+change with them.
+
+For exploratory designs that predate the current implementation, see
+[[file:speculative-ir-2026-08.org]].
+* Current pipeline
+The compiler reads sources, tokenises them, parses them into HIR, and lowers the
+combined HIR into Stack-based Intermediate Representation (SIR).  Lowering
+resolves bindings and recognises static control forms in the same traversal.
+The driver can log the resulting SIR, but does not execute it yet.
+
+A compilation owns one source table, symbol interner, primitive registry, and
+runtime-variable registry.  These survive every phase.  Diagnostics do not:
+each phase produces its own diagnostics, and the driver merges them at the
+phase boundary.
+
+The command-line driver accepts file inputs and an optional embedded standard
+library.  Inputs are compiled in their given order.  The standard library is
+inserted before file inputs, so its bindings are visible to later sources.
+Multiple files form one compilation rather than independent translation units.
+** Source acquisition
+File and embedded inputs are added to the append-only source table.  Each
+source receives a stable source identifier.  The table retains source text and
+maps syntax origins back to file names, byte spans, line and column positions,
+and source excerpts for diagnostics.
+
+Source acquisition attempts every input before gating.  Any source error aborts
+before lexing.
+** Lexing
+Each source is tokenised independently.  The lexer produces bracket, quote,
+integer, symbol, bind, and load tokens with byte spans.  Whitespace and
+semicolon-to-end-of-line comments are discarded.
+
+The lexer recovers after invalid characters and malformed bind or load forms so
+it can report several errors from one source.  A source with any lexical error
+contributes no token stream.  The driver attempts every source and gates the
+whole compilation after lexing.
+** Parsing
+Each token stream is parsed independently into source-shaped HIR.  Every HIR
+form receives a syntax identifier registered in the source table.  The parser
+uses an explicit frame stack, so nesting depth does not consume the Rust call
+stack.
+
+After every source parses successfully, the driver concatenates their top-level
+form sequences in input order.  The result becomes one SIR entry body.
+A parse error withholds that source's HIR, and the phase gate prevents partial
+HIR from reaching lowering.
+** Lowering
+Lowering walks the combined HIR once with an explicit work stack.  It builds a
+SIR module containing bodies and data.  Each body contains basic blocks, dense
+local slots, and an ordered capture layout.  Each block contains instructions,
+their syntax origins, and a terminator.  The entry body is the concatenation of
+all successfully parsed inputs.
+
+An environment tracks one lexical frame per active body and nested scopes for
+conditional arms.  A bind allocates a slot in the active body; a call or load
+resolves immediately to a local, capture, primitive, or runtime variable.  A
+reference across body boundaries adds captures through every intervening body.
+An unresolved symbol produces a diagnostic at its HIR origin, and lowering
+continues to find other errors.
+
+At each executable-form prefix, lowering recognises statically apparent uses
+of primordial ~rec~ and ~if~.  Recognition can schedule new bodies or blocks
+immediately.  A lexical binding that shadows either name makes its uses
+ordinary calls.  Data construction uses a separate explicit work stack.
+
+Lowering returns a module only if it recorded no errors.  The driver gates its
+diagnostics before logging the module.
+* Phase interfaces
+** Source acquisition
+- Input: an ordered sequence of file or embedded sources.
+- Output: ordered source identifiers in the compilation source table.
+- Failure: source construction or file I/O diagnostics.
+** Lexing
+- Input: one source identifier and the source table.
+- Output: one token stream whose spans refer to that source.
+- Failure: lexical diagnostics and no token stream for that source.
+** Parsing
+- Input: one token stream, its source identifier, the source table, and the
+  symbol interner.
+- Output: one top-level HIR sequence with a syntax identifier on every form.
+- Failure: parse diagnostics and no HIR sequence for that source.
+** Lowering
+- Input: the combined top-level HIR sequence plus the primitive and runtime
+  variable registries.
+- Output: a SIR module and lowering diagnostics.  The module contains an entry
+  body, nested closure bodies, basic blocks, and a table of indexed data nodes.
+- Failure: lowering diagnostics and no module.  Lowering may continue after an
+  error to report more errors, but the driver does not log partial SIR.
+* Established language and compiler invariants
+** Source and syntax identity
+- Spans use UTF-8 byte offsets and are half-open.
+- A source is at most ~u32::MAX~ bytes because source offsets and identifiers
+  use 32-bit indices.
+- One leading byte-order mark is accepted and excluded from program text while
+  offsets continue to match the original file.
+- The source table and syntax-origin table are append-only during a compilation.
+- Every parsed form has exactly one syntax identifier, including nested forms.
+** Lexical syntax
+- ~[~ and ~]~ delimit vectors.  ~(~ and ~)~ delimit lists.
+- ~'~ quotes exactly one following form.
+- ~$name~ is a bind form; ~^name~ is a load reference; a bare ~name~ is
+  a call reference.
+- Integer tokens have the complete shape ~-?[0-9]+~ and parse as signed 64-bit
+  integers.  Overflow is a parse error rather than a lexical error.
+- A bind or load sigil must be immediately followed by a symbol.
+- Directly nested quote notation is rejected.
+- Bind and load forms are rejected in datum position because they denote no
+  datum.  Datum position includes lists, quoted forms, and their descendants.
+** HIR
+- HIR preserves source nesting and distinguishes integers, quotes, lists,
+  vectors, binds, loads, and calls.
+- Lists and quoted forms are data; their descendants become SIR data rather
+  than executable instructions.
+- Vector interpretation depends on position: executable vectors make closures,
+  vectors inside data become vector data, and recognised ~if~ operands become
+  inlined branch forms.
+- HIR traversal, printing, and destruction support deeply nested input without
+  recursive host-stack traversal.
+** Bindings and captures
+- Binding visibility is sequential.  A bind affects later forms in its lexical
+  scope, not earlier forms.
+- A new bind shadows earlier locals, primitives, and runtime variables.
+- Leaving a closure body restores the enclosing lexical environment and block.
+- Each body owns dense local slots.  Conditional arms have nested lexical
+  scopes but allocate locals in their enclosing body.
+- A reference crossing a body boundary becomes a capture.  The value is
+  forwarded through every intervening body, and repeated demand for the same
+  source reuses one capture slot per body.
+- Primitives and runtime variables are primordial references and are not
+  captured.  A lexical binding that shadows one behaves like any other local
+  and may be captured.
+** Recognised forms
+- ~<vector> rec~ is recognised only when ~rec~ still names the primordial
+  primitive.  The vector becomes a recursive closure.
+- An integer, quote, or list before primordial ~rec~ is a lowering error.  A
+  bind, load, or call operand leaves ~rec~ as an ordinary dynamic call.
+- ~<then> <else> if~ is recognised only when ~if~ still names the primordial
+  primitive and both immediate operands are integers, quotes, lists, or
+  vectors.  Vector arms execute in separate arm-local scopes of the enclosing
+  body; other operands push data in their respective arms.
+- A recognised conditional terminates the current block with a branch.  Both
+  arms receive separate blocks.  A nonempty suffix gets a continuation block
+  reached by jumps from the arms; with an empty suffix, each arm inherits the
+  enclosing exit directly.
+- Recognition consumes only matched forms.  Lowering continues with the suffix
+  in its scheduled body or block.
+** SIR
+- Executable integers, quotes, and lists emit data-push instructions.  Binds
+  refer to newly allocated locals; loads and calls carry resolved targets.
+- An executable vector emits a closure-creation instruction and creates a body
+  with its own entry block.  Recognised recursion selects recursive closure
+  mode; ordinary vectors use normal mode.
+- ~End~ completes a body; ~Jump~ and ~Branch~ connect blocks within one body.
+  Source forms supply instruction origins and the recognised ~if~ supplies its
+  branch origin.  Generated exits have no syntax origin.
+- Body-local slots are dense.  Capture slots are reused for repeated demand
+  from the same source within a body.
+** Diagnostics and phase gates
+- Every diagnostic class fixes its phase, severity, and stable code.
+- Notes and warnings are non-fatal.  Errors and compiler bugs are fatal.
+- Each phase accumulates diagnostics and attempts independent inputs where
+  possible before the driver gates the pipeline.
+- A phase gate is based on that phase's diagnostics, then merges them into the
+  compilation-wide diagnostic set.
+- Diagnostic rendering is source-backed and ordered by source position.
+* Settled constraints
+- Source text and syntax origins outlive the phases that create them so later
+  diagnostics can refer to original locations.
+- Multiple command-line inputs share one lexical compilation in input order.
+- Phase output is withheld after user-facing errors; recovery data exists to
+  improve diagnostics, not to permit later phases to consume invalid results.
+- HIR remains source-shaped.  Binding, capture, closure, and recognition facts
+  are represented in SIR as lowering builds it, without rewriting HIR.
+- Deep user input must not overflow the Rust call stack in parsing, HIR
+  traversal, HIR printing, HIR destruction, or lowering.
+- Primitive and runtime-variable names are unique within the initial namespace,
+  but ordinary lexical bindings may shadow them.

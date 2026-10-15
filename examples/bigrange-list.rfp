@@ -1,39 +1,34 @@
 ;;; bigrange-list.rfp: Sum a big range in a functional manner using Linked Lists.
 ;; This is a program which computes the sum over [0..N], where N is a relatively
-;; large number, in a functional style.
-;; This variant uses linked lists as the container for the sequence [0..N].
+;; large number, in a functional style.  This variant uses linked lists as the
+;; container for the sequence [0..N].
 
-[
-  ;; Core: Helpers
-  [$x $y ^x ^y]         $swap
-  [$fn $arg [^arg fn]]  $partial
+;; Recursive range function which is tail call oriented.
+[$self $acc $start $end
+  ^start ^end eq
+  [acc end cons]
+  [end 1 -
+    start
+    acc end cons
+    self]
+  if
+] rec                         ; (acc start end -- result)
+'() swap curry                ; (start end     -- result)
+$range
 
-  ;; Recursive range function which is tail call oriented.
-  [$self $acc $start $end
-    ^start ^end eq
-    [acc end cons]
-    [end 1 -
-      start
-      acc end cons
-      self]
-    if
-  ] rec                         ; (acc start end -- result)
-  '() swap partial              ; (start end     -- result)
-  $range
+;; Recursive reduce function
+[$self $fn $init $list
+  list '() eq
+  [init]
+  [list cdr
+    list car init fn
+    ^fn self]
+  if
+] rec $reduce
 
-  ;; Recursive reduce function
-  [$self $fn $init $list
-    list '() eq
-    [init]
-    [list cdr
-      list car init fn
-      ^fn self]
-    if
-  ] rec $reduce
+1 18 << $end
+end print '=> print
+end 0 range
+0 [+] reduce
+print
 
-  1 18 << $end
-  end print '=> print
-  end 0 range
-  0 [+] reduce
-  print
-]

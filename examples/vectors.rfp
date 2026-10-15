@@ -1,106 +1,100 @@
 ;;; vectors.rfp: An examination of vectors in rForsp.
 ;; This should be read after the tutorial (`examples/tutorial.rfp`).
 
-[
-  [$x x]         $force
-  [$x ^x ^x]     $dup
-  [$_]           $drop
-  [$x $y ^x ^y]  $swap
+;; From the tutorial, you know closures are constructed by surrounding code in
+;; square brackets:
+[+] $add
+1 2 add print                 ; 3
 
-  ;; From the tutorial, you know closures are constructed by surrounding code in
-  ;; square brackets:
-  [+] $add
-  1 2 add print                 ; 3
+;; Groupings in square brackets are "vectors".  We can treat such "vectors" as
+;; data instead of closures by quoting them:
+'[1 2 3] $vec
+vec print
 
-  ;; Groupings in square brackets are "vectors".  We can treat such "vectors" as
-  ;; data instead of closures by quoting them:
-  '[1 2 3] $vec
-  vec print
+;; But what actually are they?  Vectors are contiguous slabs of memory which
+;; we can do a few operations on.  You can make them:
+0 vmake print ; []
+3 vmake print ; [NIL NIL NIL]
 
-  ;; But what actually are they?  Vectors are contiguous slabs of memory which
-  ;; we can do a few operations on.  You can make them:
-  0 vmake print ; []
-  3 vmake print ; [NIL NIL NIL]
+;; You can push onto them:
+vec 0 vpush print ; [1 2 3 0]
 
-  ;; You can push onto them:
-  vec 0 vpush print ; [1 2 3 0]
+;; And you can pop from them:
+vec vpop swap print ; 0
 
-  ;; And you can pop from them:
-  vec vpop swap print ; 0
+;; Note how `vpush` pushes the vector back onto the stack, and with `vpop` we
+;; had to `swap` the top element of the stack in order to print the element we
+;; just popped?  This is because `vpop` and `vpush` are built for repeated
+;; application:
+vpop vpop vpop
+print ; []
+print ; 1
+print ; 2
+print ; 3
 
-  ;; Note how `vpush` pushes the vector back onto the stack, and with `vpop` we
-  ;; had to `swap` the top element of the stack in order to print the element we
-  ;; just popped?  This is because `vpop` and `vpush` are built for repeated
-  ;; application:
-  vpop vpop vpop
-  print ; []
-  print ; 1
-  print ; 2
-  print ; 3
+;; So we can empty a vector out entirely by repeatedly calling `vpop` on it.
+;; When we print `vec` now, it's empty:
+vec print ; []
 
-  ;; So we can empty a vector out entirely by repeatedly calling `vpop` on it.
-  ;; When we print `vec` now, it's empty:
-  vec print ; []
+;; And if we call vpush repeatedly, we can re-build our vector
+vec
+1 vpush 2 vpush 3 vpush
+print                         ; [1 2 3]
 
-  ;; And if we call vpush repeatedly, we can re-build our vector
-  vec
-  1 vpush 2 vpush 3 vpush
-  print                         ; [1 2 3]
+;; Notice how `vec` is mutated through these operations, without us re-binding
+;; the name `vec` itself?  This is because vectors exist by _reference_.  When
+;; we perform a push or a pop, we're affecting memory directly.
 
-  ;; Notice how `vec` is mutated through these operations, without us re-binding
-  ;; the name `vec` itself?  This is because vectors exist by _reference_.  When
-  ;; we perform a push or a pop, we're affecting memory directly.
+;; This behaviour may not be desirable for you: what if you wanted to preserve
+;; the original vector before we did a push/pop?  Lucky for you, there's the
+;; `copy` primitive, which performs a shallow copy of a vector on the stack:
+'[1 2 3] $first
+first print                   ; [[1 2 3]]
+first copy $second
+second print                  ; [[1 2 3]]
 
-  ;; This behaviour may not be desirable for you: what if you wanted to preserve
-  ;; the original vector before we did a push/pop?  Lucky for you, there's the
-  ;; `copy` primitive, which performs a shallow copy of a vector on the stack:
-  '[1 2 3] $first
-  first print                   ; [[1 2 3]]
-  first copy $second
-  second print                  ; [[1 2 3]]
+;; These don't look that different, but we can check that these aren't
+;; equivalent:
+first second eq print         ; NIL
 
-  ;; These don't look that different, but we can check that these aren't
-  ;; equivalent:
-  first second eq print         ; NIL
+;; A clearer way of seeing this is by pushing something onto `first` and
+;; seeing what that does to `second`:
+first 4 vpush print           ; [1 2 3 4]
+second print                  ; [1 2 3]
 
-  ;; A clearer way of seeing this is by pushing something onto `first` and
-  ;; seeing what that does to `second`:
-  first 4 vpush print           ; [1 2 3 4]
-  second print                  ; [1 2 3]
+;; This clearly shows that the actual vectors `first` and `second` refer to
+;; are truly different.
 
-  ;; This clearly shows that the actual vectors `first` and `second` refer to
-  ;; are truly different.
+;; We can access the length of a vector through the aptly named `length`
+;; primitive:
+first length print            ; 4
+second length print           ; 3
 
-  ;; We can access the length of a vector through the aptly named `length`
-  ;; primitive:
-  first length print            ; 4
-  second length print           ; 3
+;; Length also works for linked lists by the way:
+'(apple banana pear) length print ; 3
 
-  ;; Length also works for linked lists by the way:
-  '(apple banana pear) length print ; 3
+;; You can read from a specific position in the vector using `vget`.
+;; Obviously, vectors are 0-indexed:
+first 0 vget print            ; 1
+first 3 vget print            ; 4
 
-  ;; You can read from a specific position in the vector using `vget`.
-  ;; Obviously, vectors are 0-indexed:
-  first 0 vget print            ; 1
-  first 3 vget print            ; 4
+;; We can use negative indices to refer to items from the end of the vector.
+first -1 vget print           ; 4
+first -2 vget print           ; 3
 
-  ;; We can use negative indices to refer to items from the end of the vector.
-  first -1 vget print           ; 4
-  first -2 vget print           ; 3
+;; As you can see from the lack of swapping or dropping, `vget` just returns
+;; the item on the stack and nothing more.
 
-  ;; As you can see from the lack of swapping or dropping, `vget` just returns
-  ;; the item on the stack and nothing more.
+;; To write data to a specific index, use `vset`:
+first 0 'apple vset
+print                         ; [apple 2 3 4]
 
-  ;; To write data to a specific index, use `vset`:
-  first 0 'apple vset
-  print                         ; [apple 2 3 4]
+;; `vset`, in comparison to `vget`, does push the vector back on the stack -
+;; hency why we could just print immediately.  So, just like `vpush`, `vset`
+;; can be used repeatedly:
+first
+1 'pear vset
+2 'banana vset
+-1 'mango vset            ; like `vget`, `vset` also can use negative indices.
+print                     ; [apple pear banana mango]
 
-  ;; `vset`, in comparison to `vget`, does push the vector back on the stack -
-  ;; hency why we could just print immediately.  So, just like `vpush`, `vset`
-  ;; can be used repeatedly:
-  first
-  1 'pear vset
-  2 'banana vset
-  -1 'mango vset            ; like `vget`, `vset` also can use negative indices.
-  print                     ; [apple pear banana mango]
-]

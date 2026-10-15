@@ -3,44 +3,34 @@
 ;; `fibonacci-imperative` program (which see).  It exploits the lambda calculus
 ;; computation model possible through rForsp.
 
-[
-  ;; core utilities
-  [$x ^x ^x]          $dup
-  [$_]                $drop
-  [$x $y ^x ^y]       $swap
-  [$a $b $c ^b ^a ^c] $rot
-  ['() eq]            $null?
-  [$x x]              $force
+;; range
+[$self $start $end
+  ^start ^end eq
+  ['()]
+  [^end ^start 1 + self ^start cons]
+  if
+] rec $range
 
-  ;; range
-  [$self $start $end
-    ^start ^end eq
-    ['()]
-    [^end ^start 1 + self ^start cons]
-    if
-  ] rec $range
+;; map [$fn $list -> $out-list]
+[$self $fn $list
+  ^list null?
+  ['()]
+  [^list car fn ^list cdr ^fn self swap cons]
+  if
+] rec $map
 
-  ;; map [$fn $list -> $out-list]
-  [$self $fn $list
-    ^list null?
-    ['()]
-    [^list car fn ^list cdr ^fn self swap cons]
-    if
-  ] rec $map
+;; each [$fn $list]
+[$fn [fn '()] map drop] $each
 
-  ;; each [$fn $list]
-  [$fn [fn '()] map drop] $each
+;; implementation
+[0 1
+  [$self $a $b $n
+    ^n 0 eq
+    [^b]
+    [^n 1 - ^a ^b + ^b self]
+    if]
+  rec force] $fibonacci
 
-  ;; implementation
-  [0 1
-    [$self $a $b $n
-      ^n 0 eq
-      [^b]
-      [^n 1 - ^a ^b + ^b self]
-      if]
-    rec force] $fibonacci
-
-  10 1 range
-  ^fibonacci map
-  ^print each
-]
+10 1 range
+^fibonacci map
+^print each

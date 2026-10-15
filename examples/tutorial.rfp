@@ -2,249 +2,244 @@
 ;; This is an amended version of the Forsp tutorial (see
 ;; `examples/archive/tutorial.fp`) for the rForsp language.
 
-[
-  ;; Welcome to rForsp: A Forth+Lisp Hybrid Lambda Calculus Language.
+;; Welcome to rForsp: A Forth+Lisp Hybrid Lambda Calculus Language.
 
-  ;; As you can see, comment lines always start with the ';' semicolon
-  ;; character.  Also, all code is inside [] brackets. Actually, all code is a
-  ;; vector, but if you don't understand what that means, it's okay.
+;; As you can see, comment lines always start with the ';' semicolon
+;; character.  Also, all code is inside [] brackets. Actually, all code is a
+;; vector, but if you don't understand what that means, it's okay.
 
-  ;; In rForsp, we have a value stack.  Let's put something on the stack
-  5
+;; In rForsp, we have a value stack.  Let's put something on the stack
+5
 
-  ;; Using the operator print, we can print out the top of the stack.
-  print                         ; 5
+;; Using the operator print, we can print out the top of the stack.
+print                         ; 5
 
-  ;; Print consumes the top of the stack.  Let's put on a few more numbers.
-  4 3
+;; Print consumes the top of the stack.  Let's put on a few more numbers.
+4 3
 
-  print                         ; 3
-  print                         ; 4
+print                         ; 3
+print                         ; 4
 
-  ;; A stack is LIFO order, or Last-In-First-Off - which is why you see the
-  ;; prints coming out in seemingly reverse order.
+;; A stack is LIFO order, or Last-In-First-Off - which is why you see the
+;; prints coming out in seemingly reverse order.
 
-  ;; Let's try arithmetic!
+;; Let's try arithmetic!
 
-  4 5 * print                   ; 20
+4 5 * print                   ; 20
 
-  ;; The * operation multiplies the top-two values on the stack and then pushes
-  ;; it back to stack.  Then "print" prints the value, leaving the stack empty.
+;; The * operation multiplies the top-two values on the stack and then pushes
+;; it back to stack.  Then "print" prints the value, leaving the stack empty.
 
-  ;; Sometimes working only with stack values is challenging. Luckily Forsp has
-  ;; variables as well.  We can pop the stack and store to a variable as
-  ;; follows:
+;; Sometimes working only with stack values is challenging. Luckily Forsp has
+;; variables as well.  We can pop the stack and store to a variable as
+;; follows:
 
-  5 $my-variable
+5 $my-variable
 
-  ;; Now "my-variable" is bound to 5. To push a value onto the stack from a
-  ;; variable we can do the following:
+;; Now "my-variable" is bound to 5. To push a value onto the stack from a
+;; variable we can do the following:
 
-  ^my-variable print            ; 5
+^my-variable print            ; 5
 
-  ;; Coolio. Now, say we wanted to square "my-variable". we could to the
-  ;; following:
+;; Coolio. Now, say we wanted to square "my-variable". we could to the
+;; following:
 
-  ^my-variable ^my-variable * print ; 25
+^my-variable ^my-variable * print ; 25
 
-  ;; Forsp also has function abstraction. These are constructed by putting code
-  ;; inside of some square brackets.
+;; Forsp also has function abstraction. These are constructed by putting code
+;; inside of some square brackets.
 
-  [$x ^x ^x *]
-  print                         ; CLOSURE<...>
+[$x ^x ^x *]
+print                         ; CLOSURE<...>
 
-  ;; What's this scary value on the stack now? When we build a function with [],
-  ;; it forms a lexical closure around the current environment. If you prefer,
-  ;; you can just think of "CLOSURE" as a "callable function value".
+;; What's this scary value on the stack now? When we build a function with [],
+;; it forms a lexical closure around the current environment. If you prefer,
+;; you can just think of "CLOSURE" as a "callable function value".
 
-  ;; But how do we call it? As it turns out "print" and "*" are both functions.
-  ;; To call a function in Forsp, you simply write the function's name.  But,
-  ;; our function has no name yet. So, let's give it one by popping it and
-  ;; binding to a variable name!
+;; But how do we call it? As it turns out "print" and "*" are both functions.
+;; To call a function in Forsp, you simply write the function's name.  But,
+;; our function has no name yet. So, let's give it one by popping it and
+;; binding to a variable name!
 
-  [$x ^x ^x *] $square
+[$x ^x ^x *] $square
 
-  ;; And lets call it on an argument:
+;; And lets call it on an argument:
 
-  6 square print                ; 36
+6 square print                ; 36
 
-  ;; How cool! It should be easy enough to understand the function definition:
-  ;; [$x ^x ^x *]. Pop and bind "x".  Push "x". Push "x" again. Call the "*"
-  ;; function.
+;; How cool! It should be easy enough to understand the function definition:
+;; [$x ^x ^x *]. Pop and bind "x".  Push "x". Push "x" again. Call the "*"
+;; function.
 
-  ;; Sometimes you need to refer to some data that you don't want evaluated.
-  ;; For this, you can simply quote the value:
+;; Sometimes you need to refer to some data that you don't want evaluated.
+;; For this, you can simply quote the value:
 
-  'something
-  print                         ; something
-  '[1 2 3]
-  print                         ; [1 2 3]
-  '[abc [1 foo] []]
-  print                         ; [abc [1 foo] []]
+'something
+print                         ; something
+'[1 2 3]
+print                         ; [1 2 3]
+'[abc [1 foo] []]
+print                         ; [abc [1 foo] []]
 
-  ;; You can also write "quote" verbosely:
-  quote other print             ; other
+;; Let's define another function to remove values for the stack.
+[$_] $drop
+20 10 drop print              ; 20
 
-  ;; Let's define another function to remove values for the stack.
-  [$_] $drop
-  20 10 drop print              ; 20
+;; Now so far you may be wondering how rForsp is different to Forsp.  One of
+;; the main differences is the use of square brackets [] over parentheses ().
+;; This difference in syntax is because rForsp uses _vectors_ a.k.a _dynamic
+;; arrays_ as its main type of container, while Forsp uses _linked lists_.
 
-  ;; Now so far you may be wondering how rForsp is different to Forsp.  One of
-  ;; the main differences is the use of square brackets [] over parentheses ().
-  ;; This difference in syntax is because rForsp uses _vectors_ a.k.a _dynamic
-  ;; arrays_ as its main type of container, while Forsp uses _linked lists_.
+;; rForsp supports both of these, of course:
+'(1 2 3) print
+'[1 2 3] print
 
-  ;; rForsp supports both of these, of course:
-  '(1 2 3) print
-  '[1 2 3] print
+;; Technically speaking, we don't need to put a quote before the (); lists in
+;; rForsp are self-evaluating, just like numbers:
+(a b c) print
 
-  ;; Technically speaking, we don't need to put a quote before the (); lists in
-  ;; rForsp are self-evaluating, just like numbers:
-  (a b c) print
+;; ... whereas vectors, without a quote, produce closures automatically.  As
+;; you just saw, we can put any old data inside of the linked list and the
+;; interpreter doesn't really care about the insides of the list itself.
 
-  ;; ... whereas vectors, without a quote, produce closures automatically.  As
-  ;; you just saw, we can put any old data inside of the linked list and the
-  ;; interpreter doesn't really care about the insides of the list itself.
+;; Like Forsp, you can perform operations on linked lists, and construct them,
+;; trivially:
+(1 2 3) car print
+(1 2 3) cdr print
+(1 2 3) 0 cons print
 
-  ;; Like Forsp, you can perform operations on linked lists, and construct them,
-  ;; trivially:
-  (1 2 3) car print
-  (1 2 3) cdr print
-  (1 2 3) 0 cons print
+;; rForsp supports all of the primitives that Forsp does, which allows us to
+;; emulate a Forsp interpreter within the rForsp language!  See
+;; `examples/forsp.rfp` for more on this.  Anyway, back to to the tutorial.
 
-  ;; rForsp supports all of the primitives that Forsp does, which allows us to
-  ;; emulate a Forsp interpreter within the rForsp language!  See
-  ;; `examples/forsp.rfp` for more on this.  Anyway, back to to the tutorial.
+;; Let's implement some common functions:
 
-  ;; Let's implement some common functions:
+[$x ^x ^x] $dup
 
-  [$x ^x ^x] $dup
+;; This function duplicates the top-of the stack. We can now square numbers as follows:
 
-  ;; This function duplicates the top-of the stack. We can now square numbers as follows:
+7 dup * print ; 49
 
-  7 dup * print ; 49
+;; Here are a handful of stack manipulation functions:
 
-  ;; Here are a handful of stack manipulation functions:
+[$x $y ^x ^y]       $swap
+[$x $y ^y ^x ^y]    $over
+[$x $y $z ^y ^x ^z] $rot
 
-  [$x $y ^x ^y]       $swap
-  [$x $y ^y ^x ^y]    $over
-  [$x $y $z ^y ^x ^z] $rot
+;; Let's demonstrate them by example:
 
-  ;; Let's demonstrate them by example:
+[print print print] $print3
 
-  [print print print] $print3
+1 2 3 print3                  ; 3, 2, 1
+1 2 3 swap print3             ; 2, 3, 1
+1 2 3 over print3             ; 2, 3, 2
+print              ; 1
 
-  1 2 3 print3                  ; 3, 2, 1
-  1 2 3 swap print3             ; 2, 3, 1
-  1 2 3 over print3             ; 2, 3, 2
-             print              ; 1
+1 2 3 rot print3              ; 1, 3, 2
 
-  1 2 3 rot print3              ; 1, 3, 2
+;; `+` is the addition primitive in rForsp:
+3 4 + print
+
+;; While this is a primitive in rForsp, we can redefine it ourselves using
+;; `-` in a closure:
 
-  ;; `+` is the addition primitive in rForsp:
-  3 4 + print
-
-  ;; While this is a primitive in rForsp, we can redefine it ourselves using
-  ;; `-` in a closure:
-
-  [0 swap - -] $+
-  4 5 + print ; 9
-
-  ;; Wait - you can redefine primitives?  Yes!  There's nothing stopping you
-  ;; from doing so.  With the exclusion of the special operators (which, as the
-  ;; name may suggest, operate at a distinctly different level to normal
-  ;; primitives or closures), anything may be redefined in rForsp.
-
-  ;; Another useful function is "force". We can use this function to force
-  ;; computation of a function on the stack:
-
-  [$x x] $force
-
-  ;; And here's an example of usage, forcing a function without naming it:
-
-  8 [dup *] force print ; 64
-
-  ;; You may be wondering how conditionals work in rForsp.  `if` is a form
-  ;; within rForsp:
-
-  't  4 5 if print   ; 4
-  'f  4 5 if print   ; 5
-
-  ;; The condition, then the true branch, then the false branch must be present
-  ;; on the stack before the `if` - in reverse order.
-  ;; So syntactically it looks like <cond> <true> <false> if.
-  ;; Note how the true and false branches are simply two closures themselves:
-
-  1 2 eq ['true print] ['false print] if ; false
-  1 1 eq ['true print] ['false print] if ; true
-
-  ;; By the way we can define our own conditionals without the use of the
-  ;; special operator `if`; we can just use `cswap`:
-  [$cond $true $false
-    cond ^false ^true rot
-    cswap drop force]
-  $user-if
-
-  ;; Its usage would be a bit different to the `if` we're using...
-  [5] [4] 't user-if print  ; 4
-
-  ;; ... and we can even define a helper to make these user defined ifs look
-  ;; nicer:
-
-  [$false $true $cond $user-if
-    ^false ^true ^cond user-if] $endif
-
-  ;; Altogether, it looks something like this:
-  ^user-if [1 2 eq]
-    ['true print]
-    ['false print]  ; false
-  endif
-
-  ;; Finally, we'll finish with recursion.  rForsp natively supports recursion
-  ;; through the use of the `rec` primitive.
-  [$self $n
-    n 0 eq
-    [0]
-    [
-      n 1 - self
-      n +
-    ]
-    if
-  ] rec $sum
-
-  ;; The `rec` primitive takes a closure off the stack, then does some magic to
-  ;; make it recursive.  While you may be a bit confused about the fact that
-  ;; there's a `$self` parameter in the function body, we only actually need to
-  ;; supply `$n` when calling it:
-  10 sum print
-
-  ;; But how does it work?  We can actually get a taste for some of the magic
-  ;; the rForsp interpreter does by writing out the Y-combinator:
-  [$f
-    [$x [^x x] f]
-    [$x [^x x] f]
-    force
-  ] $Y
-
-  ;; This fixed pointer operator is all we need to allow recursion.  However,
-  ;; it's not exactly pretty to use.  So let's make our own `rec` helper
-  ;; binding:
-  [$g [^g Y]] $rec
-
-  ;; The syntax using our own defined `rec` is extremely similar to the
-  ;; interpreter primitive:
-  [$self $list
-    ^list '() eq
-    [0]
-    [^list cdr self 1 +]
-    if
-  ] rec $length
-
-  '()      length print ; 0
-  '(5)     length print ; 1
-  '(8 9)   length print ; 2
-  '(1 2 3) length print ; 3
-
-  ;; This concludes the tutorial. You're encouraged to explore the examples to
-  ;; learn more!
-]
+[0 swap - -] $+
+4 5 + print ; 9
+
+;; Wait - you can redefine primitives?  Yes!  There's nothing stopping you
+;; from doing so.  With the exclusion of the special operators (which, as the
+;; name may suggest, operate at a distinctly different level to normal
+;; primitives or closures), anything may be redefined in rForsp.
+
+;; Another useful function is "force". We can use this function to force
+;; computation of a function on the stack:
+
+[$x x] $force
+
+;; And here's an example of usage, forcing a function without naming it:
+
+8 [dup *] force print ; 64
+
+;; You may be wondering how conditionals work in rForsp.  `if` is a form
+;; within rForsp:
+
+'t  4 5 if print   ; 4
+'f  4 5 if print   ; 5
+
+;; The condition, then the true branch, then the false branch must be present
+;; on the stack before the `if` - in reverse order.
+;; So syntactically it looks like <cond> <true> <false> if.
+;; Note how the true and false branches are simply two closures themselves:
+
+1 2 eq ['true print] ['false print] if ; false
+1 1 eq ['true print] ['false print] if ; true
+
+;; By the way we can define our own conditionals without the use of the
+;; special operator `if`; we can just use `cswap`:
+[$cond $true $false
+  cond ^false ^true rot
+  cswap drop force]
+$user-if
+
+;; Its usage would be a bit different to the `if` we're using...
+[5] [4] 't user-if print  ; 4
+
+;; ... and we can even define a helper to make these user defined ifs look
+;; nicer:
+
+[$false $true $cond $user-if
+  ^false ^true ^cond user-if] $endif
+
+;; Altogether, it looks something like this:
+^user-if [1 2 eq]
+['true print]
+['false print]  ; false
+endif
+
+;; Finally, we'll finish with recursion.  rForsp natively supports recursion
+;; through the use of the `rec` primitive.
+[$self $n
+  n 0 eq
+  [0]
+  [
+    n 1 - self
+    n +
+  ]
+  if
+] rec $sum
+
+;; The `rec` primitive takes a closure off the stack, then does some magic to
+;; make it recursive.  While you may be a bit confused about the fact that
+;; there's a `$self` parameter in the function body, we only actually need to
+;; supply `$n` when calling it:
+10 sum print
+
+;; But how does it work?  We can actually get a taste for some of the magic
+;; the rForsp interpreter does by writing out the Y-combinator:
+[$f
+  [$x [^x x] f]
+  [$x [^x x] f]
+  force
+] $Y
+
+;; This fixed pointer operator is all we need to allow recursion.  However,
+;; it's not exactly pretty to use.  So let's make our own `rec` helper
+;; binding:
+[$g [^g Y]] $rec
+
+;; The syntax using our own defined `rec` is extremely similar to the
+;; interpreter primitive:
+[$self $list
+  ^list '() eq
+  [0]
+  [^list cdr self 1 +]
+  if
+] rec $length
+
+'()      length print ; 0
+'(5)     length print ; 1
+'(8 9)   length print ; 2
+'(1 2 3) length print ; 3
+
+;; This concludes the tutorial. You're encouraged to explore the examples to
+;; learn more!

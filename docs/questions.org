@@ -1,0 +1,301 @@
+#+title: Archived Design Questions
+#+author: Aryadev Chavali
+#+date: 2026-08-08
+
+This is an archived set of design questions from the earlier architect/builder
+workflow.  The questions remain useful exploratory context, but they are not
+active requirements.  Re-establish a question from current code and phase work
+before treating it as a constraint.
+
+Questions are numbered ~Q-NNN~.  Numbers are not reused: a resolved
+question's number retires with it, and the log entry that resolved it
+cites the number.
+* Index
+- Q-002 Structural or nominal sums for divergent ~if~ branches
+- Q-003 GC management of dynamic-array item buffers
+- Q-004 libffi or a hand-rolled trampoline for FFI
+- Q-005 Named truth predicate or ~f~-atom tag test
+- Q-007 Occurs-check termination across the row/effect boundary
+- Q-008 What inference produces for a body with no row-finite effect
+- Q-009 ~Choice~ proliferation through ~cswap~-defined stack words
+- Q-015 How the session frame accretes across REPL inputs
+- Q-027 Whether the builder's authorship justification survives
+  generated tests
+* Questions
+** Q-002 Structural or nominal sums for divergent ~if~ branches
+*** Question
+A-013 settles that both branches of a conditional are unified
+bidirectionally.  It does not settle what the result type is when the
+branches genuinely produce different types — whether ~cond ['a] [1]
+if~ is a type error, a structural sum ~Atom | Int~, or a nominal sum
+requiring a declaration.
+*** What would settle it
+A decision on whether the shape-typing phase (A-016) is permitted to
+reject programs the untyped semantics accepts.  The three answers
+differ in exactly that: rejection narrows the accepted set, a
+structural sum preserves it, and a nominal sum preserves it only if
+the sums are inferred rather than declared.
+
+Note the interaction with A-010.  Curry-style typing makes erasure
+trivial and the runtime unchanged; a nominal sum that has to be
+*constructed* would put a value in the runtime that the untyped
+semantics does not have, which is a stronger commitment than it looks.
+*** What it blocks
+Value typing, which is phase two of A-016.  Shape and stack-effect
+inference can proceed without it, since a divergent-branch conditional
+still has a well-defined *depth*.
+*** Source
+A-013 =Open=.
+** Q-003 GC management of dynamic-array item buffers
+*** Question
+A-017 settles mark/sweep with an explicit root stack.  It leaves open
+whether the item buffers backing dynamic arrays are GC-managed via a
+BiBOP segregated size-class scheme, or are ordinary host allocations
+owned by their header object.
+*** What would settle it
+A count of the object kinds that would need size classes, and whether
+any of them can be resized while a collection is in progress.  BiBOP
+earns its complexity when the size distribution is narrow and known;
+if the buffers are genuinely arbitrary-sized it buys little over
+header-owned host allocation with the header as the traced object.
+
+The relevant constraint from [[file:speculative-ir-2026-08.org]] Part V is that the
+root scan is designed to be two contiguous arrays plus the frames'
+closure references.  Any scheme that makes a buffer independently
+traceable adds a third root class and should justify itself against
+that.
+*** What it blocks
+Nothing in the first pass.  The runtime model in Part V specifies
+frames, locals, and the value stack, none of which depend on the
+answer.  It blocks the collector implementation.
+*** Source
+A-017 =Open=.
+** Q-004 libffi or a hand-rolled trampoline for FFI
+*** Question
+A-019 settles dynamic linking through ~dlopen~/~dlsym~ with AMD64 SysV
+struct classification.  It leaves open whether the call itself goes
+through libffi or a hand-rolled trampoline.
+*** What would settle it
+Whether the classification code has to exist either way.  A-019's
+rationale says SysV passes small structs in registers by field class
+and that getting it wrong corrupts silently — if libffi does that
+classification for us, the choice is a genuine build-dependency
+tradeoff; if we still have to classify in order to describe the call
+to libffi, the hand-rolled path is strictly less machinery.
+*** What it blocks
+FFI only.  It has no bearing on the IRs, the evaluator, or the type
+system.  Deferrable until FFI is actually scheduled.
+*** Source
+A-019 =Open=.
+** Q-005 Named truth predicate or ~f~-atom tag test
+*** Question
+[[file:speculative-ir-2026-08.org]] Part V states that the interned ~f~ atom is
+false and every other value true, and that only ~BRANCH~,
+~Primitive(If)~, and ~cswap~ interpret a value this way.  It asks
+whether this should become a named runtime predicate rather than a
+physical object-tag test.
+*** What would settle it
+Whether truth is a *language contract* or an *implementation
+convenience*.  Three consumers is few enough that a tag test costs
+nothing to maintain, so the argument for naming it is not
+factoring — it is that a named predicate is the thing the
+specification, the effect pass, and the native backend can all refer
+to, and that a tag test open-coded in three places will drift once a
+fourth consumer appears.
+
+A-003 is the precedent worth reading first: NULL-as-false was
+rejected because it made conditional semantics depend on a
+representational accident.  A raw tag test is a milder version of the
+same complaint.
+*** What it blocks
+Nothing.  This is a refactor whose cost rises slowly, and it can be
+taken at any point.  It is recorded so it is not silently forgotten.
+*** Source
+[[file:speculative-ir-2026-08.org]] =Open items=.
+** Q-007 Occurs-check termination across the row/effect boundary
+*** Question
+A-024 settles the algorithmic half of the retired Q-001: rows are
+row-finite, unification is a structural peel terminating in an
+ordinary binding, and row concatenation is not required.  It does not
+settle the occurs check, and it makes the occurs check harder to
+dismiss rather than easier.
+
+The naive form — a row variable must not occur in the row bound to
+it — is insufficient, because a ~ValueType~ can be a ~Closure~
+carrying an ~EffectScheme~ whose rows carry further value types.  The
+descent is ~StackRow -> ValueType -> Closure -> EffectScheme ->
+StackRow~, and whether it terminates is the question.
+
+A-024 shows this is not hypothetical.  ~dip~ puts a row variable
+inside a ~ValueType~ in its own input row, so the descent is entered
+by four tokens of ordinary user code, and the omega combinator ~[$x x
+x] $w~ followed by ~^w w~ constructs the cycle outright.
+*** What would settle it
+Either a termination argument for the descent, or a restriction on
+~EffectVar~ that makes the cycle unconstructible.  Argue it against
+the omega witness in A-024 first: any proposed rule that does not
+reject that program is wrong, and any that rejects more than it is a
+narrowing of the accepted set that needs its own justification under
+Q-002's terms.
+
+Note that the descent alternates between two finite-branching
+structures, so the usual argument — occurs check terminates because
+the term is finite — may simply carry over.  The reason to doubt it
+is that schemes are *instantiated freshly* at each use, so the object
+being descended into is generated on demand rather than being a
+pre-existing finite term.  That is the specific thing to check.
+*** What it blocks
+The later effect pass: open-row unification at ~JUMP~ joins, effect
+generalisation, and call-site instantiation.  It does *not* block the
+first pass, which performs partial depth checking and deliberately
+claims nothing stronger.
+*** Source
+A-024 =Consequences=.  Inherits the unresolved half of the retired
+Q-001.
+** Q-008 What inference produces for a body with no row-finite effect
+*** Question
+A-025 establishes that row-finiteness binds the primitive registry
+but not bodies, and that general recursion regenerates unbounded
+stack manipulation in user code.  ~drop-n~ and ~cleave~ in
+=examples/combinators.rfp= are working programs whose effects have no
+row-finite solution.
+
+What does the effect pass do with them?  ~EvalEffect::Opaque~ exists
+and is described as "no static effect is available", but nothing in
+[[file:speculative-ir-2026-08.org]] says inference may *produce* it as a
+giving-up move, and A-014 forbids user-written signatures, so there is
+no annotation escape hatch either.
+*** What would settle it
+A statement of the pass's contract on failure, which is one of three
+things: infer-or-reject, infer-or-degrade-to-~Opaque~, or
+infer-or-degrade with a diagnostic.  The second is the only one
+consistent with A-010's erasure property and with the reference
+interpreter running these programs today, so the burden is on any
+other answer.
+
+If the answer is degradation, two further things need saying: whether
+degradation is silent or reported, and whether a body that degrades
+poisons its callers' effects or is quarantined behind the fallback
+ABI at the call site.  The dynamic-environment stub already commits
+to the latter shape for ~Env~ values — "permanently on the fallback
+ABI — correct, and visible in the source" — and reusing it here would
+be consistent.
+*** What it blocks
+The later effect pass, and specifically effect generalisation: a pass
+that cannot decline has to reject, and rejecting narrows the accepted
+set, which is Q-002's question.  It does not block the first pass;
+partial depth checking already yields ~Unknown~ through ~CALL_LOCAL~
+and ~CALL_CAPTURED~, so ~drop-n~ degrades honestly there.
+*** Source
+A-025 =Consequences=.
+** Q-009 ~Choice~ proliferation through ~cswap~-defined stack words
+*** Question
+~Effect~ is a sum with a ~Choice~ constructor, and Part VI says of
+~cswap~ that "where ~A~ and ~B~ unify — the common case, two closures
+with a compatible effect — the choice collapses".  In idiomatic
+rForsp that premise is false in exactly the places it is relied on.
+
+=examples/currying.rfp= defines ~['t cswap] $swap~ and then uses it
+to swap values of different types:
+#+begin_src text
+^fn-curried
+  4 swap apply       ; swaps Int against Closure
+  5 swap apply
+#+end_src
+
+~A~ and ~B~ do not unify, so the ~Choice~ does not collapse, and
+sequential uses multiply: ~n~ of them is ~2^n~ alternatives unless
+something prunes.  The condition is the literal ~'t~ in every case,
+so the information needed to prune is present — but constant
+propagation lives in SSA optimisation, which runs *after* effect
+inference and cannot be inherited by it.
+*** What would settle it
+A decision between two answers, both cheap.  Either the effect pass
+performs constant-condition folding on ~Choice~ itself, or ~swap~ and
+~rot~ become primitives with ordinary signatures and the ~cswap~
+spelling stops being the idiomatic one.
+
+Evidence for the second is that the newer examples have already
+migrated: =combinators.rfp= and =higher-order-functions.rfp= define
+~[$x $y ^x ^y] $swap~, which types as ~rho A B -> rho B A~ with no
+~Choice~ at all.  If that migration is deliberate it should be
+recorded as such rather than left as a coincidence; if it is
+incidental, the older spelling will come back.
+
+Either answer also needs a statement of what bounds ~Choice~ nesting
+in general, since ~Primitive(If)~ produces one too and the dynamic
+conditional is explicitly to be kept alive by the conformance corpus.
+*** What it blocks
+The later effect pass.  Nothing in the first pass, which does not
+represent ~Choice~ at all.
+*** Source
+Opened 2026-08-07 alongside A-024.
+** Q-015 How the session frame accretes across REPL inputs
+*** Question
+A-031 settles that several files in one invocation are one compilation
+with one entry ~Body~.  That answer works because a batch run has a
+single input; the REPL does not.
+
+[[file:speculative-ir-2026-08.org]] Part IX commits to the shape but not the
+mechanism: "the session's value stack and the session frame's locals
+are permanent GC roots that grow monotonically across inputs".  Two
+readings.  Either there is one entry ~Body~ whose ~local_count~ grows
+as inputs arrive, or each input compiles to its own ~Body~ sharing the
+session's locals region at a fixed base.
+*** What would settle it
+A decision on whether a ~Body~ is immutable once lowered.  Everything
+else in the design assumes it is: ~local_count~ is a field read at
+frame push, the verifier's initialization dataflow computes over a
+body's blocks as a closed set, and ~Frame.locals_base~ plus
+~local_count~ defines the slot range a frame owns.
+
+The one-growing-~Body~ reading breaks that assumption and needs to say
+what re-verification means for a body that has already executed.  The
+~Body~-per-input reading keeps bodies immutable but needs to say how a
+closure created on input 3 still reaches input 3's locals on input 17,
+given that ~PUSH_LOCAL~ is an index relative to ~locals_base~.
+
+Note the second reading may be answered already: captures are
+by-value and read through the frame's ~closure~, so a closure created
+on input 3 does not reach the session frame's locals at all - it
+captured their values at creation.  If that holds, the only cross-input
+requirement is that the *session frame itself* keeps its slots, which
+a fixed base plus a monotonically growing region satisfies.  That
+argument should be checked before the harder reading is entertained.
+*** What it blocks
+The REPL driver.  It does not block the batch driver, which has one
+invocation, one input, and one ~Body~; nor does it block phases 2
+through 5, which are per-compilation either way.
+*** Source
+A-031 =Consequences=.  Opened 2026-08-12.
+** Q-027 Whether the builder's authorship justification survives generated tests
+*** Question
+A-046 reframed the former builder role so that the builder
+authors on request, and left the justification for the prohibition
+untouched: "the code is written by hand and the mental model of it
+must stay complete".  That premise is now partly false.  Tests and
+mechanical changes are generated, and the share is growing.
+
+The rule and its stated reason have come apart.  The rule is still
+wanted; the reason no longer describes the repository.  The question is
+what the reason should be instead, and whether the answer narrows the
+rule.
+*** What would settle it
+A statement of what the completeness of the mental model is protecting
+against, tested against the code that is now generated.  If the risk is
+not being able to change the code later, generated tests are a mild
+case and generated compiler internals are a severe one, and the rule
+should say which.  If the risk is not noticing that generated code is
+wrong, the severity ordering reverses: a wrong test passes silently.
+
+Evidence would help and can only come from the builder.  Whether the
+generated test modules have been read closely enough to be trusted,
+and whether any generated code has needed rework that a hand-written
+version would not have needed, both bear on which risk is real.
+*** What it blocks
+Nothing.  The rule stands as written and binds whether or not its
+justification is accurate.  This is a question about the document
+telling the truth, which matters when a later session reasons from the
+justification rather than from the rule.
+*** Source
+A-046, raised in session, 2026-08-16.

@@ -2,7 +2,7 @@
 //! representing executable code.
 
 use crate::{
-    lowering::{BodyId, CaptureId, DatumId, LocalId},
+    lowering::sir::{BodyId, CaptureId, DatumId, LocalId},
     runtime::{PrimitiveId, RuntimeVariableId},
 };
 

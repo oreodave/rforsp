@@ -8,7 +8,7 @@ use crate::{
     diagnostics::{Aborted, Class, Diagnostics, Phase, Site, conv::ice},
     lexer::{Token, tokenise},
     log::{Log, log_hir, log_sir, log_tokens},
-    lowering::{Module, lower},
+    lowering::{lower, sir::Module},
     parser::{HirForm, parse},
     source::SourceId,
 };
@@ -248,7 +248,7 @@ fn lower_forms(
 mod tests {
     use crate::{
         diagnostics::Diagnostic,
-        lowering::{BlockId, Instruction, Target},
+        lowering::sir::{BlockId, Instruction, Target},
         parser::HirKind,
         source::Span,
     };

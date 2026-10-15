@@ -6,7 +6,7 @@ use std::fmt::Write;
 use crate::{
     context::Compilation,
     lexer::Token,
-    lowering::{
+    lowering::sir::{
         BlockId, BodyId, Datum, Instruction, Module, Target, TerminatorKind,
     },
     parser::{HirForm, HirKind, dfs},

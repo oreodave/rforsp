@@ -4,7 +4,7 @@
 //! [`Datum`]s are owned data translated from [`crate::parser::HirForm`]s in
 //! datum position during lowering.
 
-use crate::{define_id, helper::Table, interner::SymId, lowering::Body};
+use crate::{define_id, helper::Table, interner::SymId, lowering::sir::Body};
 
 define_id!(pub BodyId);
 define_id!(pub DatumId);

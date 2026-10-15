@@ -4,7 +4,7 @@
 use crate::{
     define_id,
     helper::{IdCounter, Table},
-    lowering::{Block, BlockId},
+    lowering::sir::{Block, BlockId},
     source::SyntaxId,
 };
 

@@ -1,6 +1,6 @@
 //! Block - a sequence of [`Instruction`]s that exit using some [`Terminator`].
 
-use crate::{define_id, lowering::Instruction, source::SyntaxId};
+use crate::{define_id, lowering::sir::Instruction, source::SyntaxId};
 
 define_id!(pub BlockId);
 

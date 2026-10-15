@@ -4,9 +4,12 @@ use crate::{
     diagnostics::{Class, Diagnostic, Diagnostics, Site, conv::ice},
     interner::{SYM_IF, SYM_REC},
     lowering::{
-        Block, BlockId, Body, BodyId, ClosureMode, Datum, DatumId, Instruction,
-        LoweringError, LoweringErrorKind, Module, Terminator, TerminatorKind,
+        LoweringError, LoweringErrorKind,
         env::Environment,
+        sir::{
+            Block, BlockId, Body, BodyId, ClosureMode, Datum, DatumId,
+            Instruction, Module, Terminator, TerminatorKind,
+        },
     },
     parser::{HirForm, HirKind},
     runtime::{PrimitiveRegistry, RuntimeVariableRegistry},
@@ -612,7 +615,7 @@ mod tests {
         diagnostics::{Class, Diagnostics, Site},
         helper::Id,
         interner::{SYM_IF, SYM_REC, SymId},
-        lowering::{
+        lowering::sir::{
             BlockId, BodyId, CaptureSource, ClosureMode, Datum, DatumId,
             Instruction, Module, Target, TerminatorKind,
         },
@@ -854,7 +857,7 @@ mod tests {
         );
         assert_eq!(child.origin, Some(inner_id));
         assert_eq!(child.captures().len(), 1);
-        let middle_capture = crate::lowering::CaptureId::from_index(0);
+        let middle_capture = crate::lowering::sir::CaptureId::from_index(0);
         assert_eq!(
             child.captures().collect::<Vec<_>>(),
             [CaptureSource::Captured(middle_capture)]

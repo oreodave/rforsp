@@ -1,23 +1,26 @@
 //! Lexical scopes and environments.
 //!
 //! This helper provides binding information for
-//! [`Body`][crate::lowering::Body]s as well as construction helpers for
-//! capturing bindings across several nested [`Body`][crate::lowering::Body]s.
+//! [`Body`][crate::lowering::sir::Body]s as well as construction helpers for
+//! capturing bindings across several nested
+//! [`Body`][crate::lowering::sir::Body]s.
 
 use std::collections::HashMap;
 
 use crate::{
     interner::SymId,
-    lowering::{BodyId, CaptureId, CaptureSource, LocalId, Module, Target},
+    lowering::sir::{
+        BodyId, CaptureId, CaptureSource, LocalId, Module, Target,
+    },
     runtime::{PrimitiveRegistry, RuntimeVariableRegistry},
 };
 
 /// A Scope is a mapping between [`SymId`] and [`LocalId`] within the
-/// [`Body`][crate::lowering::Body] being processed.
+/// [`Body`][crate::lowering::sir::Body] being processed.
 type Scope = HashMap<SymId, LocalId>;
 
 /// A frame within the [`Environment`].  This correlates to a single
-/// [`Body`][crate::lowering::Body] being processed.
+/// [`Body`][crate::lowering::sir::Body] being processed.
 struct Frame {
     /// [`BodyId`] that this frame is attached to.
     body: BodyId,
@@ -229,7 +232,7 @@ impl Environment {
 #[expect(clippy::panic, reason = "test failures report unexpected targets")]
 mod tests {
     use super::*;
-    use crate::{context::Compilation, lowering::Body};
+    use crate::{context::Compilation, lowering::sir::Body};
 
     /// Compare resolved targets by variant and slot without changing the IR API.
     fn assert_target(actual: Option<Target>, expected: Option<Target>) {

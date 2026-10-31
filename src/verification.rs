@@ -10,3 +10,4 @@
 //! facts about the program.
 
 mod algebra;
+mod solver;

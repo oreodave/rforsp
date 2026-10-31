@@ -9,7 +9,9 @@ define_id!(pub TypeVar);
 define_id!(pub RowVar);
 
 /// Encapsulation of types of values.
-#[derive(Debug, PartialEq, Eq)]
+///
+/// We refer to variants that are not [`ValueType::Var`] as "concrete".
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ValueType {
     /// Type that is to-be-resolved.
     Var(TypeVar),
@@ -24,7 +26,7 @@ pub enum ValueType {
 }
 
 /// Representation of a stack argument ordered from bottom to top.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Row {
     /// Possible stack prefix; None represents an exact valued row.
     pub prefix: Option<RowVar>,
@@ -33,7 +35,7 @@ pub struct Row {
 }
 
 /// Stack effect that occurs when executing code.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Effect {
     /// Required input stack.
     pub input: Row,

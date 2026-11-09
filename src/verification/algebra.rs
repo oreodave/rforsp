@@ -31,7 +31,7 @@ pub struct Row {
     /// Possible stack prefix; None represents an exact valued row.
     pub prefix: Option<RowVar>,
     /// Established suffix types, ordered from bottom to top.
-    pub values: Vec<ValueType>,
+    pub suffix: Vec<ValueType>,
 }
 
 /// Stack effect that occurs when executing code.
@@ -44,21 +44,27 @@ pub struct Effect {
 }
 
 impl Row {
+    /// A completely empty stack.
+    #[must_use]
+    pub const fn empty() -> Self {
+        Self::closed(Vec::new())
+    }
+
     /// A stack with no unknown prefix.
     #[must_use]
-    pub const fn closed(values: Vec<ValueType>) -> Self {
+    pub const fn closed(suffix: Vec<ValueType>) -> Self {
         Self {
             prefix: None,
-            values,
+            suffix,
         }
     }
 
     /// A stack with an unknown prefix.
     #[must_use]
-    pub const fn open(prefix: RowVar, values: Vec<ValueType>) -> Self {
+    pub const fn open(prefix: RowVar, suffix: Vec<ValueType>) -> Self {
         Self {
             prefix: Some(prefix),
-            values,
+            suffix,
         }
     }
 }

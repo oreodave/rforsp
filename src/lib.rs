@@ -11,6 +11,7 @@ pub mod lexer;
 pub mod lowering;
 pub mod parser;
 pub mod source;
+pub mod verification;
 
 pub mod context;
 pub mod drivers;

@@ -10,10 +10,10 @@ change with them.
 For exploratory designs that predate the current implementation, see
 [[file:speculative-ir-2026-08.org]].
 * Current pipeline
-The compiler reads sources, tokenises them, parses them into HIR, and lowers the
-combined HIR into Stack-based Intermediate Representation (SIR).  Lowering
-resolves bindings and recognises static control forms in the same traversal.
-The driver can log the resulting SIR, but does not execute it yet.
+The compiler reads sources, tokenises them, parses them into HIR, lowers the
+combined HIR into Stack-based Intermediate Representation (SIR), and verifies
+the resulting module.  Lowering resolves bindings and recognises static control
+forms in the same traversal.  The driver can log SIR but does not execute it yet.
 
 A compilation owns one source table, symbol interner, primitive registry, and
 runtime-variable registry.  These survive every phase.  Diagnostics do not:
@@ -72,6 +72,16 @@ ordinary calls.  Data construction uses a separate explicit work stack.
 
 Lowering returns a module only if it recorded no errors.  The driver gates its
 diagnostics before logging the module.
+** Verification
+After logging SIR, the driver checks indexed references, lexical capture
+parents, instruction origins, control-flow reachability, and data graphs.  A
+malformed module produces a compiler-bug diagnostic before inference indexes it.
+The verifier then analyses reachable stack and value flow, including calls to
+known closures and supported primitives, and retains body and block facts
+separately from executable SIR.  A contradiction or an effect it cannot prove
+stops compilation with a source-backed verification diagnostic.  The current
+analysis conservatively rejects higher-order unknown calls and recursive
+closure effects; its inferred facts are not yet consumed by another phase.
 * Phase interfaces
 ** Source acquisition
 - Input: an ordered sequence of file or embedded sources.
@@ -93,6 +103,12 @@ diagnostics before logging the module.
   body, nested closure bodies, basic blocks, and a table of indexed data nodes.
 - Failure: lowering diagnostics and no module.  Lowering may continue after an
   error to report more errors, but the driver does not log partial SIR.
+** Verification
+- Input: a successfully lowered SIR module and the compilation's source table
+  and runtime registries.
+- Output: inferred body and block facts when all required effects are proved.
+- Failure: malformed SIR yields a compiler-bug diagnostic; conflicting or
+  unsupported effects yield a source-backed verification diagnostic.
 * Established language and compiler invariants
 ** Source and syntax identity
 - Spans use UTF-8 byte offsets and are half-open.

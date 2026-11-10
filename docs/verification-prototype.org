@@ -1,0 +1,106 @@
+#+title: Verification Prototype
+#+author: Aryadev Chavali
+#+date: 2026-11-10
+
+This is a disposable docket for testing the rFST algebra outside the Rust
+verifier.  See [[file:verification.org]] for the broader verification aim and
+[[file:compiler.org]] for implemented compiler behaviour.  Treat the rules below
+as hypotheses to test, not as a settled language contract.
+* What the Rust experiment taught us
+- Stack rows with an optional unknown prefix support useful first-order
+effects, but unifying rows is only part of inference.  Value identity, runtime
+kind, captures, and the effect of calling a value must remain related across
+bodies and CFG edges.
+- ~Load~ pushes a value.  ~Call~ executes a closure or primitive, but pushes
+an inert target.  A value's type alone does not determine which dispatch rule
+applies when the value is unknown; a join may retain several possible kinds.
+- The public walker reanalyses closure bodies for each capture environment and
+  substitutes arguments through returned closures' captures.  This handles a
+  nested-capture case, but it cannot infer an unknown target's call effect.
+  An earlier run hit a recursive-effect limit at ~fn~ inside ~curry~; the
+  current unfinished branch fails the example earlier because ~eq~ has no
+  primitive effect contract.  The separate constraint walker solves some
+  direct recursive calls and CFG backedges; it defers unresolved calls, but
+  does not prove higher-order ~curry~ or mixed dispatch.  Neither is a
+  complete verifier.
+- The experimental solver can freshen variables in a closure effect for an
+independent non-recursive call.  It does not establish which variables may be
+generalised: freshening a variable tied to a capture or environment could lose
+a required relationship.  Recursive uses need their own treatment.
+- The Rust experiment made small changes to constraint generation expensive
+to exercise.  A small interactive model should make equations, substitutions,
+and proof failures inspectable before committing to another Rust design.
+* Algebra to exercise
+A returned closure from ~[$fn $arg [^arg fn]] $curry~ captures both values.
+Let ~T~ describe the captured argument.  The inner body pushes it before
+calling the captured ~fn~.  Retain this obligation, rather than guessing a
+kind for ~fn~:
+
+#+begin_example
+CallEffect(fn, rho T, sigma)
+returned closure: rho -> sigma
+#+end_example
+
+Here ~CallEffect(v, S, S')~ is a proposed deferred relation between a value,
+its input stack, and the stack after runtime dispatch.  It need not be a new
+Forsp type or syntax form.  At a particular use, relate ~fn~ and ~T~ to the
+captured values and discharge the obligation using the applicable dispatch
+rule.  For an inert ~fn~ of type ~U~, ~sigma = rho T U~.  A closure that merely
+pushes ~U~ has the same observable call effect.  A closure consuming ~T~ may
+yield a different ~sigma~.  Calling a value with effect ~alpha -> alpha U~ on
+~rho T~ yields ~rho T U~; the pushed ~T~ cannot in general be moved past the
+call's output.
+
+Freshen only variables quantified by a reusable scheme at each independent
+use.  Keep the captured argument's type, the captured target's identity, and
+the call obligation linked within one use.  Determine where generalisation is
+sound before implementing instantiation; a shared recursive self-effect may
+have to remain monomorphic while solving its equation.
+* Prototype scope and workflow
+Use a small, interactive Common Lisp model with explicit values, stack rows,
+effects, substitutions, possible runtime kinds, and pending obligations.
+Hand-write SIR-like bodies first.  Preserve the execution order, IDs,
+~Load~ versus ~Call~, local and capture sources, closure mode, block edges,
+and entry-stack assumptions.  Use the existing SIR printer to mechanically
+translate selected examples into fixtures once the minimal representation is
+clear.  A full parser, front end, or second compiler is not needed.
+
+For each fixture, inspect generated equations and origins, substitutions,
+remaining obligations, inferred body and closure effects, and failure kind.
+Keep contradiction, insufficient information, algebraic expressiveness, and
+solver limits distinct.  Check intended runtime behaviour against the Rust
+SIR and, when semantics are in doubt, the C reference interpreter.
+* Experiments, in order
+1. Establish row unification and a handful of direct ~PushData~, ~Load~,
+   ~Bind~, and ~Call~ rules.  Confirm an exactly empty stack differs from an
+   unknown prefix.  Exercise primitive, closure, and inert dispatch separately.
+2. Model ~curry~ without choosing a kind for ~fn~.  Instantiate the proposed
+   scheme at two independent uses with different target effects; inspect
+   whether target, argument, and returned closure constraints stay connected
+   within each use and separate across uses.
+3. Exercise a closure that ignores its input stack, an inert target, a
+   consuming target, and a target with executable and inert alternatives.
+   Require every alternative to satisfy the same call site without selecting
+   whichever happens to work.  =examples/bigrange-vec.rfp= exercises this
+   last case for ~acc~: its initial closure and later vector both produce a
+   vector when called.
+4. Translate the recursive range in =examples/bigrange-list.rfp=, including
+   its use of ~curry~.  Write the recursive effect equation explicitly and
+   test whether terminating paths and recursive calls admit one finite effect.
+   Also test a nested closure returning a captured argument, so substitutions
+   across the outer call and inner capture are observable.
+5. Add branches, joins, and a CFG backedge only after the straight-line and
+   recursive cases expose which facts must flow through them.  Try
+   =examples/combinators.rfp= to locate expressiveness limits of finite rows.
+* Questions for the prototype
+- Is a pending ~CallEffect~ relation sufficient, or must a reusable scheme
+  quantify a constraint on a captured value as well as its row variables?
+- Which variables belong to a closure's environment, and which can be
+  generalised and freshened at different calls?  What prevents an
+  underconstrained effect from being mistaken for a universally valid one?
+- How do possible runtime kinds and branch joins compose without discarding
+  alternatives or making the search unbounded?
+- Which recursive equations have finite solutions, and when should inference
+  stop with a precise limit rather than assuming an effect?
+- What minimal proof or trace should accompany an inferred effect so that a
+  Rust implementation can reproduce the rule and explain failure sites?

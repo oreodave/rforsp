@@ -3,6 +3,13 @@ import           Data.List (find, foldl)
 import           Types
 import           Verifier
 
+-- Body 1 of sir/std.sexp is dup.
+dupBody :: Body
+dupBody =
+  Body 1 [
+  Block [Bind 0, Load Local 0, Load Local 0] End
+  ]
+
 formatRow :: Row -> String
 formatRow (Prefix row)    = show row
 formatRow (Suffix ty row) = unwords [show ty, formatRow row]

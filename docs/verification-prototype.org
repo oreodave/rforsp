@@ -59,17 +59,19 @@ have to remain monomorphic while solving its equation.
 * Prototype scope and workflow
 Use a small, interactive Common Lisp model with explicit values, stack rows,
 effects, substitutions, possible runtime kinds, and pending obligations.
-Hand-write SIR-like bodies first.  Preserve the execution order, IDs,
-~Load~ versus ~Call~, local and capture sources, closure mode, block edges,
-and entry-stack assumptions.  Use the existing SIR printer to mechanically
-translate selected examples into fixtures once the minimal representation is
-clear.  A full parser, front end, or second compiler is not needed.
+The printed SIR snapshots in =prototype/sir-*.rfp= are converted by
+=prototype/convert-sir.lisp= into one readable data form per file in
+=prototype/sexp/=; parse them with ~*read-eval*~ bound to ~nil~.  They preserve
+datum and body IDs, local and capture layouts, instruction order, block edges,
+and closure modes from the printed SIR.  The snapshots omit source origins and
+primitive IDs, which the human-readable printer did not export.  Start with
+these actual lowered programs, then hand-write smaller cases when useful.
 
-For each fixture, inspect generated equations and origins, substitutions,
-remaining obligations, inferred body and closure effects, and failure kind.
-Keep contradiction, insufficient information, algebraic expressiveness, and
-solver limits distinct.  Check intended runtime behaviour against the Rust
-SIR and, when semantics are in doubt, the C reference interpreter.
+For each fixture, inspect generated equations, substitutions, remaining
+obligations, inferred body and closure effects, and failure kind.  Keep
+contradiction, insufficient information, algebraic expressiveness, and solver
+limits distinct.  Check runtime behaviour against the Rust SIR and, when
+semantics are in doubt, the C reference interpreter.
 * Experiments, in order
 1. Establish row unification and a handful of direct ~PushData~, ~Load~,
    ~Bind~, and ~Call~ rules.  Confirm an exactly empty stack differs from an

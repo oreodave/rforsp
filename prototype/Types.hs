@@ -26,13 +26,6 @@ data Terminator = End | Branch Int Int | Jump Int
 data Block = Block [Instruction] Terminator
 data Body = Body Int [Block]
 
--- Body 1 of sir/std.sexp is dup.
-dupBody :: Body
-dupBody =
-  Body 1 [
-  Block [Bind 0, Load Local 0, Load Local 0] End
-  ]
-
 data Supply = Supply
   { nextType  :: Int
   , nextRow   :: Int

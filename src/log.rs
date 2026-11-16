@@ -236,10 +236,10 @@ pub fn log_sir(
                 }
                 writeln!(log_out)?;
             }
-            writeln!(log_out, "    }}")?;
+            writeln!(log_out, "      }}")?;
         }
 
-        writeln!(log_out, "  }}")?;
+        writeln!(log_out, "    }}")?;
     }
 
     Ok(())

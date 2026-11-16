@@ -5,6 +5,7 @@ import           Types
 
 data Analysis = Analysis
   { supply      :: Supply
+  , input       :: Row
   , stack       :: Row
   , constraints :: [Constraint]
   }
@@ -27,17 +28,17 @@ constrainInstruction locals a (Load kind index) =
     Local    -> a {stack = Suffix local (stack a)}
     Captured -> error "Only local loads are supported"
 
-constrainBody :: Body -> (Supply, RowVar, Row, [Constraint])
+constrainBody :: Body -> Analysis
 constrainBody (Body localCount blocks) =
   let allocate s _ = let (v, s') = freshType s in (s', v)
       (s, locals) = mapAccumL allocate emptySupply [1 .. localCount]
       (input, s') = freshRow s
       Block instructions terminator = head blocks
       result = foldl' (constrainInstruction locals)
-                      (Analysis s' (Prefix input) []) instructions
+                      (Analysis s' (Prefix input) (Prefix input) [])
+               instructions
    in
     case terminator of
-        End -> (supply result, input, stack result,
-                reverse (constraints result))
+        End        -> result {constraints = reverse $ constraints result}
         Branch _ _ -> error "Only an End terminator is supported"
-        Jump _ -> error "Only an End terminator is supported"
+        Jump _     -> error "Only an End terminator is supported"

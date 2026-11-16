@@ -12,7 +12,10 @@ instance Show RowVar where
 data Constraint =
   TypeEq TypeVar TypeVar
   | RowEq RowVar TypeVar RowVar
-  deriving (Show)
+
+instance Show Constraint where
+  show (TypeEq t1 t2)  = unwords [show t1, "=", show t2]
+  show (RowEq r1 t r2) = unwords [show r1, "=", show t, show r2]
 
 data Row = Prefix RowVar | Suffix TypeVar Row
 
